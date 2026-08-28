@@ -5,6 +5,8 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
+  var APP_VERSION = '2026.08.28-3';
+
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
   var toastRoot = document.getElementById('toast');
@@ -804,7 +806,10 @@
         '<button class="btn" data-act="import-text">붙여넣기로 가져오기</button>' +
         '<button class="btn danger" data-act="reset">전체 초기화</button>' +
       '</div></div>';
-    html += '<p class="dim center">GymMate · 내장 운동 ' + DB.builtIn.length + '종</p>';
+    html += '<div class="card row between">' +
+      '<span class="dim">버전 ' + APP_VERSION + ' · 내장 운동 ' + DB.builtIn.length + '종</span>' +
+      '<button class="btn sm" data-act="check-update">업데이트 확인</button>' +
+      '</div>';
     html += '</main>';
     return html;
   }
@@ -1160,6 +1165,18 @@
         break;
 
       // ── 설정 ──
+      case 'check-update': {
+        toast('최신 버전을 확인합니다');
+        var reload = function () { location.reload(); };
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+          navigator.serviceWorker.getRegistration()
+            .then(function (reg) { return reg ? reg.update() : null; })
+            .then(reload, reload);
+        } else {
+          reload();
+        }
+        break;
+      }
       case 'voice-test':
         unlockAudio();
         if (playCue()) break;

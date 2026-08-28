@@ -1,5 +1,5 @@
 /* 오프라인 캐시 (헬스장 지하 등 네트워크가 끊겨도 동작) */
-var CACHE = 'gymmate-v9';
+var CACHE = 'gymmate-v10';
 var ASSETS = [
   './', './index.html', './manifest.json',
   './css/styles.css', './js/exercises.js', './js/store.js', './js/calories.js', './js/bodyfigure.js', './js/bodymap.js', './js/app.js',
@@ -8,9 +8,14 @@ var ASSETS = [
 ];
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }).then(function () {
-    return self.skipWaiting();
-  }));
+  e.waitUntil(caches.open(CACHE).then(function (c) {
+    // addAll 은 브라우저 캐시를 타서 오래된 파일이 그대로 저장될 수 있다
+    return Promise.all(ASSETS.map(function (url) {
+      return fetch(new Request(url, { cache: 'reload' }))
+        .then(function (res) { return res.ok ? c.put(url, res) : null; })
+        .catch(function () { return null; });
+    }));
+  }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener('activate', function (e) {
@@ -25,8 +30,13 @@ self.addEventListener('activate', function (e) {
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
   if (new URL(e.request.url).origin !== self.location.origin) return;
+  // 브라우저 HTTP 캐시(Pages 는 max-age=600)를 건너뛰고 항상 최신을 받는다.
+  // 이걸 안 하면 앱을 고쳐도 폰에는 한동안 예전 화면이 그대로 남는다.
+  var req = e.request.mode === 'navigate'
+    ? e.request
+    : new Request(e.request, { cache: 'no-store' });
   e.respondWith(
-    fetch(e.request).then(function (res) {
+    fetch(req).then(function (res) {
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
       return res;
