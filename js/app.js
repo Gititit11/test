@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-18';
+  var APP_VERSION = '2026.08.28-19';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -309,7 +309,9 @@
     if (it.type === 'time') {
       var secs = it.sets.map(function (s) { return s.sec; });
       var same = secs.every(function (v) { return v === secs[0]; });
-      var txt = it.sets.length + '세트 × ' + (same ? secs[0] + '초' : secs.join('/') + '초');
+      var dur = same ? fmtSec(secs[0]) : secs.map(fmtSec).join('/');
+      // 한 번에 쭉 하는 운동은 "1세트 ×" 를 붙이지 않는다
+      var txt = it.sets.length === 1 ? dur : it.sets.length + '세트 × ' + dur;
       // 유산소는 속도가 곧 강도라 요약에도 같이 적는다
       var sp = it.sets.map(function (s) { return s.speed; });
       if (sp.some(function (v) { return v != null; })) {
@@ -399,7 +401,7 @@
             '<div class="item-main">' +
               '<h3>' + esc(it.name) + '</h3>' +
               '<p class="dim" data-summary="' + it.id + '">' + esc(itemSummary(it)) +
-              ' · 휴식 ' + S.restOf(it) + '초' + '</p>' +
+              (S.restOf(it) ? ' · 휴식 ' + S.restOf(it) + '초' : '') + '</p>' +
               (ex ? '<div class="tags">' + badge(ex.part, 'part') + badge(ex.equip, 'equip') + '</div>' : '') +
             '</div>' +
             '<span class="chev">' + (open ? '⌄' : '›') + '</span>' +
@@ -430,8 +432,11 @@
                     'placeholder="경사" data-bind="set-grade" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>%</span></label>'
                 : '')
             : '') +
-          '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
-            'data-bind="set-sec" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>'
+          (cc
+            ? '<label class="mini"><input type="number" inputmode="decimal" min="0" step="1" value="' + (Math.round(num(st.sec, 0) / 6) / 10) + '" ' +
+                'data-bind="set-min" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>분</span></label>'
+            : '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
+                'data-bind="set-sec" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>')
         : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
             'data-bind="set-weight" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>' + unit + '</span></label>' +
           '<span class="x">×</span>' +
@@ -474,7 +479,7 @@
     var it = r.items.filter(function (i) { return i.id === iid; })[0];
     if (!it) return;
     var el = document.querySelector('[data-summary="' + iid + '"]');
-    if (el) el.textContent = itemSummary(it) + ' · 휴식 ' + S.restOf(it) + '초';
+    if (el) el.textContent = itemSummary(it) + (S.restOf(it) ? ' · 휴식 ' + S.restOf(it) + '초' : '');
   }
 
   // 지난번에 이 운동을 어떻게 했는지 한 줄로 보여 준다.
@@ -548,8 +553,11 @@
                         'placeholder="경사" data-bind="live-grade" data-iid="' + it.id + '" data-si="' + i + '"><span>%</span></label>'
                     : '')
                 : '') +
-              '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
-                'data-bind="live-sec" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>'
+              (cc
+                ? '<label class="mini"><input type="number" inputmode="decimal" min="0" step="1" value="' + (Math.round(num(st.sec, 0) / 6) / 10) + '" ' +
+                    'data-bind="live-min" data-iid="' + it.id + '" data-si="' + i + '"><span>분</span></label>'
+                : '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
+                    'data-bind="live-sec" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>')
             : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
                 'data-bind="live-weight" data-iid="' + it.id + '" data-si="' + i + '"><span>' + S.settings.unit + '</span></label>' +
               '<span class="x">×</span>' +
@@ -1253,7 +1261,9 @@
       case 'pk-add': {
         var ex = S.findExercise(t.dataset.id);
         if (!ex) return;
-        S.addItem(picker.routineId, ex, { sets: picker.sets, reps: picker.reps });
+        var cardio = ex.type === 'time' && ex.part === '유산소';
+        // 유산소는 픽커의 세트 기본값을 쓰지 않는다 (한 번에 쭉 하는 운동)
+        S.addItem(picker.routineId, ex, cardio ? {} : { sets: picker.sets, reps: picker.reps });
         toast('“' + ex.name + '” 추가됨');
         render();
         break;
@@ -1463,6 +1473,7 @@
       case 'set-reps': editSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); refreshItemSummary(rid, iid); break;
       case 'set-sec': editSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); refreshItemSummary(rid, iid); break;
       // 속도·경사는 비워 두면 그 운동의 기본 강도로 계산한다
+      case 'set-min': editSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0) * 60)); }); refreshItemSummary(rid, iid); break;
       case 'set-speed': editSet(function (st) { st.speed = blankOrNum(t.value, 0, 40); }); refreshItemSummary(rid, iid); break;
       case 'set-grade': editSet(function (st) { st.grade = blankOrNum(t.value, 0, 30); }); refreshItemSummary(rid, iid); break;
       case 'item-rest':
@@ -1477,6 +1488,7 @@
       case 'live-weight': editLiveSet(function (st) { st.weight = num(t.value, 0); }); break;
       case 'live-reps': editLiveSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); break;
       case 'live-sec': editLiveSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); break;
+      case 'live-min': editLiveSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0) * 60)); }); refreshKcal(); break;
       case 'live-speed': editLiveSet(function (st) { st.speed = blankOrNum(t.value, 0, 40); }); refreshKcal(); break;
       case 'live-grade': editLiveSet(function (st) { st.grade = blankOrNum(t.value, 0, 30); }); refreshKcal(); break;
       case 'live-rest': {

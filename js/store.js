@@ -191,6 +191,13 @@
       var sets = opts.sets || 3;
       var reps = opts.reps || 10;
       var sec = opts.sec || 60;
+      // 유산소는 세트로 끊지 않고 한 번에 쭉 한다. 20분 1세트로 시작하고,
+      // 인터벌처럼 나눠 하고 싶으면 편집에서 세트를 더하면 된다.
+      var isCardio = exercise.type === 'time' && exercise.part === '유산소';
+      if (isCardio) {
+        sets = opts.sets != null ? opts.sets : 1;
+        sec = opts.sec || 1200;
+      }
       var arr = [];
       for (var i = 0; i < sets; i++) {
         arr.push(exercise.type === 'time' ? { sec: sec } : { reps: reps, weight: opts.weight || 0 });
@@ -200,7 +207,9 @@
         exerciseId: exercise.id,
         name: exercise.name,
         type: exercise.type,
-        restSec: null,   // null = 설정의 기본 휴식 시간을 따른다
+        // null = 설정의 기본 휴식 시간을 따른다. 유산소 1세트는 끝나고
+        // 쉬는 개념이 아니라서 0(휴식 없음)으로 둔다.
+        restSec: isCardio ? 0 : null,
         memo: '',
         sets: arr
       };
