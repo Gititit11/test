@@ -170,6 +170,9 @@ input[type=text], input[type=number], input[type=search], select {
 .field.inline input[type=number], .field.inline select { width: 110px; text-align: right; }
 input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
 input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
+input[type=range] { width: 100%; accent-color: var(--brand); }
+.field select { width: 100%; }
+.field.inline select { width: 110px; }
 
 /* 루틴 항목 */
 .item-head { display: flex; align-items: center; gap: 10px; cursor: pointer; }
@@ -644,7 +647,10 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
     sessions: [],       // 완료된 운동 기록
     customExercises: [],
     active: null,       // 진행 중인 세션
-    settings: { defaultRest: 90, sound: true, voice: true, unit: 'kg', bodyWeight: 70 }
+    settings: {
+      defaultRest: 90, sound: true, voice: true, unit: 'kg', bodyWeight: 70,
+      voiceURI: '', voiceRate: 0.95, cueAudio: '', cueName: ''
+    }
   };
 
   var state = load();
@@ -1558,7 +1564,18 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
   }
   if (window.speechSynthesis) {
     loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+    window.speechSynthesis.onvoiceschanged = function () {
+      loadVoices();
+      if (route.name === 'settings') render();
+    };
+  }
+
+  // 설정에서 고른 목소리가 있으면 그것을 쓴다
+  function currentVoice() {
+    if (!S.settings.voiceURI) return koVoice;
+    var all = [];
+    try { all = window.speechSynthesis.getVoices() || []; } catch (e) { return koVoice; }
+    return all.filter(function (v) { return v.voiceURI === S.settings.voiceURI; })[0] || koVoice;
   }
 
   function speak(text) {
@@ -1568,11 +1585,40 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
       synth.cancel();
       var u = new window.SpeechSynthesisUtterance(text);
       u.lang = 'ko-KR';
-      if (koVoice) u.voice = koVoice;
-      u.rate = 1;
-      u.pitch = 1.15;   // 여성 목소리가 없는 기기에서도 높은 음색으로
+      var v = currentVoice();
+      if (v) u.voice = v;
+      u.rate = Number(S.settings.voiceRate) || 0.95;
+      u.pitch = 1;      // 음높이를 올리면 기계음처럼 들려서 기본값을 쓴다
       u.volume = 1;
       synth.speak(u);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // ── 직접 넣은 안내 음성 ───────────────────────────────
+  // <audio> 로 재생하면 안드로이드가 음악을 아예 멈출 수 있어
+  // 알림음과 같은 Web Audio 경로로 내보낸다 (음악은 잠깐 작아졌다 돌아온다)
+  var cueBuffer = null;
+  function loadCue() {
+    cueBuffer = null;
+    var data = S.settings.cueAudio;
+    if (!data) return;
+    unlockAudio();
+    if (!audioCtx) return;
+    fetch(data)
+      .then(function (r) { return r.arrayBuffer(); })
+      .then(function (buf) { return audioCtx.decodeAudioData(buf); })
+      .then(function (b) { cueBuffer = b; })
+      .catch(function () { cueBuffer = null; });
+  }
+  function playCue() {
+    if (!cueBuffer || !audioCtx) return false;
+    try {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      var src = audioCtx.createBufferSource();
+      src.buffer = cueBuffer;
+      src.connect(audioCtx.destination);
+      src.start();
       return true;
     } catch (e) { return false; }
   }
@@ -1592,8 +1638,10 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
   function announceRestEnd() {
     beep();
     if (!S.settings.voice) return;
-    // 알림음과 겹치지 않게 잠깐 뒤에 말한다
-    setTimeout(function () { speak(REST_END_TEXT); }, 600);
+    // 알림음과 겹치지 않게 잠깐 뒤에 안내한다
+    setTimeout(function () {
+      if (!playCue()) speak(REST_END_TEXT);
+    }, 600);
   }
 
   // 모바일 브라우저는 사용자 조작 이후에만 소리를 낼 수 있다
@@ -2104,8 +2152,10 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
       '<input type="checkbox" data-bind="set-sound"' + (st.sound ? ' checked' : '') + '></label>' +
       '<label class="field inline"><span>휴식 종료 음성 안내</span>' +
       '<input type="checkbox" data-bind="set-voice"' + (st.voice ? ' checked' : '') + '></label>' +
-      '<button class="btn sm" data-act="voice-test">음성 안내 들어보기</button>' +
       '</div>';
+
+    html += '<div class="card">' +
+      '<h3>안내 목소리</h3>' + voiceSection() + '</div>';
 
     html += '<div class="card">' +
       '<h3>칼로리 추정</h3>' +
@@ -2138,6 +2188,43 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
     html += '<p class="dim center">GymMate · 내장 운동 ' + DB.builtIn.length + '종</p>';
     html += '</main>';
     return html;
+  }
+
+  function voiceSection() {
+    var st = S.settings;
+    var all = [];
+    try { all = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (e) { all = []; }
+    var ko = all.filter(function (v) { return /^ko/i.test(v.lang || ''); });
+
+    var out = '';
+    if (st.cueAudio) {
+      out += '<p class="dim">직접 넣은 음성 파일을 사용 중입니다 — ' + esc(st.cueName || '파일') +
+        ' (' + Math.round(st.cueAudio.length * 0.75 / 1024) + 'KB)</p>';
+    } else if (!ko.length) {
+      out += '<p class="dim">이 기기에 한국어 음성이 없어 기본 목소리로 읽습니다. ' +
+        '안드로이드라면 <b>설정 → 접근성 → 텍스트 음성 변환</b>에서 “Google 음성 서비스”를 고르고 ' +
+        '한국어 음성 데이터를 내려받으면 훨씬 자연스러워집니다.</p>';
+    } else {
+      out += '<label class="field"><span>목소리 (' + ko.length + '개)</span><select data-bind="set-voice-uri">' +
+        '<option value=""' + (st.voiceURI ? '' : ' selected') + '>자동 선택</option>' +
+        ko.map(function (v) {
+          return '<option value="' + esc(v.voiceURI) + '"' +
+            (st.voiceURI === v.voiceURI ? ' selected' : '') + '>' + esc(v.name) + '</option>';
+        }).join('') + '</select></label>';
+      out += '<label class="field"><span>말하기 속도 ' + Number(st.voiceRate).toFixed(2) + '배</span>' +
+        '<input type="range" min="0.7" max="1.3" step="0.05" value="' + st.voiceRate + '" data-bind="set-voice-rate"></label>';
+      out += '<p class="dim">기기에 따라 목소리 품질이 크게 다릅니다. 여러 개를 들어보고 고르세요. ' +
+        '안드로이드는 <b>설정 → 접근성 → 텍스트 음성 변환</b>에서 고품질 한국어 음성을 추가로 받을 수 있습니다.</p>';
+    }
+
+    out += '<div class="row gap wrap" style="margin-top:10px">' +
+      '<button class="btn" data-act="voice-test">들어보기</button>' +
+      '<button class="btn" data-act="cue-pick">음성 파일 넣기</button>' +
+      (st.cueAudio ? '<button class="btn danger" data-act="cue-clear">파일 지우기</button>' : '') +
+      '</div>' +
+      '<p class="dim">원하는 목소리로 직접 녹음하거나 다른 TTS 서비스에서 만든 파일(mp3·m4a·wav)을 ' +
+      '넣으면 그 소리로 안내합니다. 기기 음성보다 확실히 자연스럽고, 어느 기기에서나 같은 소리가 납니다.</p>';
+    return out;
   }
 
   // ── 운동 검색 모달 ───────────────────────────────────
@@ -2453,8 +2540,38 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
       // ── 설정 ──
       case 'voice-test':
         unlockAudio();
+        if (playCue()) break;
         if (!speak(REST_END_TEXT)) alert('이 브라우저는 음성 안내를 지원하지 않습니다.');
-        else if (!koVoice) toast('한국어 음성이 없어 기본 목소리로 재생합니다');
+        else if (!currentVoice()) toast('한국어 음성이 없어 기본 목소리로 재생합니다');
+        break;
+      case 'cue-pick': {
+        var fi = document.createElement('input');
+        fi.type = 'file';
+        fi.accept = 'audio/*';
+        fi.onchange = function () {
+          var f = fi.files[0];
+          if (!f) return;
+          if (f.size > 1024 * 1024) { alert('1MB 이하의 짧은 음성 파일만 넣을 수 있습니다.'); return; }
+          var reader = new FileReader();
+          reader.onload = function () {
+            S.settings.cueAudio = reader.result;
+            S.settings.cueName = f.name;
+            S.commit();
+            loadCue();
+            toast('안내 음성을 바꿨습니다');
+            render();
+          };
+          reader.readAsDataURL(f);
+        };
+        fi.click();
+        break;
+      }
+      case 'cue-clear':
+        S.settings.cueAudio = '';
+        S.settings.cueName = '';
+        S.commit();
+        cueBuffer = null;
+        render();
         break;
       case 'del-custom':
         if (confirm('이 운동을 삭제할까요? 기존 루틴의 항목은 그대로 유지됩니다.')) {
@@ -2567,6 +2684,16 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
         break;
       case 'set-sound': S.settings.sound = t.checked; S.commit(); break;
       case 'set-voice': S.settings.voice = t.checked; S.commit(); break;
+      case 'set-voice-uri':
+        S.settings.voiceURI = t.value;
+        S.commit();
+        if (ev.type === 'change') { unlockAudio(); speak(REST_END_TEXT); }
+        break;
+      case 'set-voice-rate':
+        S.settings.voiceRate = Math.min(1.3, Math.max(0.7, num(t.value, 0.95)));
+        S.commit();
+        if (ev.type === 'change') { unlockAudio(); speak(REST_END_TEXT); render(); }
+        break;
       case 'set-weight-kg':
         S.settings.bodyWeight = Math.min(250, Math.max(20, num(t.value, 70)));
         S.commit();
@@ -2609,6 +2736,9 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
   if (!location.hash) location.hash = '#/routines';
   restoreRest();
   render();
+  if (S.settings.cueAudio) {
+    document.addEventListener('pointerdown', loadCue, { once: true });
+  }
 })();
 
 </script>

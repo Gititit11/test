@@ -157,6 +157,9 @@ input[type=text], input[type=number], input[type=search], select {
 .field.inline input[type=number], .field.inline select { width: 110px; text-align: right; }
 input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
 input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
+input[type=range] { width: 100%; accent-color: var(--brand); }
+.field select { width: 100%; }
+.field.inline select { width: 110px; }
 
 /* 루틴 항목 */
 .item-head { display: flex; align-items: center; gap: 10px; cursor: pointer; }
