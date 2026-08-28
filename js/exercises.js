@@ -98,6 +98,7 @@
     ['스미스머신 스쿼트', 'Smith Machine Squat', '하체', '스미스', '대퇴사두,둔근', ''],
     ['레그 프레스', 'Leg Press', '하체', '머신', '대퇴사두,둔근', 'legpress 레프'],
     ['핵 스쿼트', 'Hack Squat', '하체', '머신', '대퇴사두', 'hacksquat 핵스'],
+    ['브이 스쿼트', 'V-Squat Machine', '하체', '머신', '대퇴사두,둔근', 'vsquat v스쿼트 브이스쿼트'],
     ['레그 익스텐션', 'Leg Extension', '하체', '머신', '대퇴사두', 'legextension 레익'],
     ['라잉 레그 컬', 'Lying Leg Curl', '하체', '머신', '햄스트링', 'legcurl 레그컬'],
     ['시티드 레그 컬', 'Seated Leg Curl', '하체', '머신', '햄스트링', ''],

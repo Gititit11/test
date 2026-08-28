@@ -32,7 +32,7 @@
   };
   var ROM = {
     'x-barbell-back-squat': 0.50, 'x-front-squat': 0.50, 'x-smith-machine-squat': 0.45,
-    'x-hack-squat': 0.45, 'x-goblet-squat': 0.45, 'x-leg-press': 0.40,
+    'x-hack-squat': 0.45, 'x-v-squat-machine': 0.45, 'x-goblet-squat': 0.45, 'x-leg-press': 0.40,
     'x-conventional-deadlift': 0.50, 'x-sumo-deadlift': 0.45, 'x-romanian-deadlift': 0.35,
     'x-lunge': 0.40, 'x-walking-lunge': 0.40, 'x-bulgarian-split-squat': 0.40, 'x-step-up': 0.40,
     'x-barbell-hip-thrust': 0.30, 'x-glute-bridge': 0.25,
@@ -56,7 +56,7 @@
   // 자기 체중 중 실제로 들어올리는 비율. 해부학적 추정치보다 낮게 잡았다.
   var BODY_LOAD = {
     'x-barbell-back-squat': 0.75, 'x-front-squat': 0.75, 'x-smith-machine-squat': 0.70,
-    'x-hack-squat': 0.55, 'x-goblet-squat': 0.75,
+    'x-hack-squat': 0.55, 'x-v-squat-machine': 0.55, 'x-goblet-squat': 0.75,
     'x-conventional-deadlift': 0.30, 'x-sumo-deadlift': 0.30, 'x-romanian-deadlift': 0.25,
     'x-lunge': 0.60, 'x-walking-lunge': 0.60, 'x-bulgarian-split-squat': 0.60, 'x-step-up': 0.60,
     'x-barbell-hip-thrust': 0.40, 'x-glute-bridge': 0.35,

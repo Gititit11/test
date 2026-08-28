@@ -516,6 +516,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     ['스미스머신 스쿼트', 'Smith Machine Squat', '하체', '스미스', '대퇴사두,둔근', ''],
     ['레그 프레스', 'Leg Press', '하체', '머신', '대퇴사두,둔근', 'legpress 레프'],
     ['핵 스쿼트', 'Hack Squat', '하체', '머신', '대퇴사두', 'hacksquat 핵스'],
+    ['브이 스쿼트', 'V-Squat Machine', '하체', '머신', '대퇴사두,둔근', 'vsquat v스쿼트 브이스쿼트'],
     ['레그 익스텐션', 'Leg Extension', '하체', '머신', '대퇴사두', 'legextension 레익'],
     ['라잉 레그 컬', 'Lying Leg Curl', '하체', '머신', '햄스트링', 'legcurl 레그컬'],
     ['시티드 레그 컬', 'Seated Leg Curl', '하체', '머신', '햄스트링', ''],
@@ -1001,7 +1002,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   };
   var ROM = {
     'x-barbell-back-squat': 0.50, 'x-front-squat': 0.50, 'x-smith-machine-squat': 0.45,
-    'x-hack-squat': 0.45, 'x-goblet-squat': 0.45, 'x-leg-press': 0.40,
+    'x-hack-squat': 0.45, 'x-v-squat-machine': 0.45, 'x-goblet-squat': 0.45, 'x-leg-press': 0.40,
     'x-conventional-deadlift': 0.50, 'x-sumo-deadlift': 0.45, 'x-romanian-deadlift': 0.35,
     'x-lunge': 0.40, 'x-walking-lunge': 0.40, 'x-bulgarian-split-squat': 0.40, 'x-step-up': 0.40,
     'x-barbell-hip-thrust': 0.30, 'x-glute-bridge': 0.25,
@@ -1025,7 +1026,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   // 자기 체중 중 실제로 들어올리는 비율. 해부학적 추정치보다 낮게 잡았다.
   var BODY_LOAD = {
     'x-barbell-back-squat': 0.75, 'x-front-squat': 0.75, 'x-smith-machine-squat': 0.70,
-    'x-hack-squat': 0.55, 'x-goblet-squat': 0.75,
+    'x-hack-squat': 0.55, 'x-v-squat-machine': 0.55, 'x-goblet-squat': 0.75,
     'x-conventional-deadlift': 0.30, 'x-sumo-deadlift': 0.30, 'x-romanian-deadlift': 0.25,
     'x-lunge': 0.60, 'x-walking-lunge': 0.60, 'x-bulgarian-split-squat': 0.60, 'x-step-up': 0.60,
     'x-barbell-hip-thrust': 0.40, 'x-glute-bridge': 0.35,
@@ -1471,7 +1472,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-11';
+  var APP_VERSION = '2026.08.28-12';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
