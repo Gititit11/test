@@ -304,6 +304,13 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
 .ex > div { min-width: 0; }
 .ex .plus { font-size: 22px; color: var(--brand-2); flex: none; }
 .sheet-foot { padding: 10px 14px 16px; border-top: 1px solid var(--line); }
+.sheet-body { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.sheet-body textarea {
+  width: 100%; min-height: 180px; resize: vertical;
+  background: var(--bg-2); border: 1px solid var(--line); color: var(--dim);
+  border-radius: 10px; padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.4;
+}
 
 .chiplist { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 0; margin: 0; }
 .chip {

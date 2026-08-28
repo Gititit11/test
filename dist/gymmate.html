@@ -1,3 +1,914 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<meta name="description" content="헬스 머신·프리웨이트를 검색해 나만의 루틴을 만들고, 세트를 완료할 때마다 체크하는 운동 보조 앱">
+<title>GymMate · 헬스 루틴 &amp; 세트 체크</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GymMate">
+<style>
+/* GymMate — 모바일 우선 다크 테마 */
+:root {
+  --bg: #0f1115;
+  --bg-2: #161a21;
+  --card: #1b2029;
+  --card-2: #222836;
+  --line: #2c3240;
+  --text: #eef1f6;
+  --dim: #93a0b4;
+  --brand: #4d7cff;
+  --brand-2: #6c93ff;
+  --ok: #35c98a;
+  --danger: #ff5f6d;
+  --radius: 14px;
+  --tab-h: 62px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+    "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+h1 { font-size: 19px; }
+h3 { font-size: 16px; }
+p { margin: 2px 0 0; }
+a { color: inherit; text-decoration: none; }
+.dim { color: var(--dim); font-size: 13px; }
+.center { text-align: center; }
+.right { margin-left: auto; }
+
+/* 레이아웃 */
+#app { max-width: 640px; margin: 0 auto; min-height: 100vh; }
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px;
+  background: rgba(15, 17, 21, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar h1 { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-actions { display: flex; gap: 6px; flex: none; }
+.page {
+  padding: 14px 14px calc(var(--tab-h) + 96px + var(--safe-b));
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* 카드 */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; align-items: center; }
+.row.between { justify-content: space-between; }
+.row.gap { gap: 8px; }
+.row.wrap { flex-wrap: wrap; }
+.grow { flex: 1; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.chev { color: var(--dim); font-size: 22px; flex: none; }
+
+/* 버튼 */
+.btn {
+  appearance: none;
+  background: var(--card-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px; font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform .06s ease, background .15s ease;
+}
+.btn:active { transform: scale(.97); }
+.btn.sm { padding: 7px 10px; font-size: 13px; }
+.btn.lg { padding: 16px; font-size: 16px; }
+.btn.block { width: 100%; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.primary:active { background: var(--brand-2); }
+.btn.danger { color: var(--danger); border-color: #43303a; }
+.btn.ghost { background: transparent; }
+.icon {
+  background: transparent; border: 0; color: var(--dim);
+  font-size: 16px; cursor: pointer; padding: 6px; border-radius: 8px;
+}
+.icon.danger { color: var(--danger); }
+
+/* 배지 */
+.badge {
+  display: inline-block;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  margin: 0 6px 6px 0;
+}
+.badge.part { color: #9fc0ff; border-color: #2d3a5c; }
+.badge.equip { color: #ffd28a; border-color: #4a3c22; }
+.badge.mine { color: var(--ok); border-color: #24483a; }
+.tags { margin-top: 6px; }
+.tags .badge { margin-bottom: 0; }
+
+/* 루틴 카드 */
+.routine-head { display: flex; align-items: center; justify-content: space-between; cursor: pointer; gap: 8px; }
+.routine-preview { margin-top: 10px; }
+.routine-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.routine-actions .btn { flex: 1; min-width: 0; padding: 10px 6px; font-size: 13px; white-space: nowrap; }
+.routine-actions .btn.primary { flex: 1.35; }
+
+.card.live {
+  display: flex; align-items: center; gap: 12px;
+  border-color: var(--brand); background: linear-gradient(180deg, #1c2740, var(--card));
+  cursor: pointer;
+}
+.live-dot {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: none;
+  box-shadow: 0 0 0 0 rgba(53, 201, 138, .6);
+  animation: pulse 1.8s infinite;
+}
+.card.live > div:nth-child(2) { flex: 1; }
+@keyframes pulse {
+  70% { box-shadow: 0 0 0 12px rgba(53, 201, 138, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(53, 201, 138, 0); }
+}
+
+/* 폼 */
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+.field:last-child { margin-bottom: 0; }
+.field > span { font-size: 12px; color: var(--dim); }
+.field.inline { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.field.inline > span { flex: none; }
+.field.inline.grow { flex: 1; }
+input[type=text], input[type=number], input[type=search], select {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  width: 100%;
+  min-width: 0;
+}
+.field.inline input[type=number], .field.inline select { width: 110px; text-align: right; }
+input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
+
+/* 루틴 항목 */
+.item-head { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.item-no {
+  width: 26px; height: 26px; flex: none;
+  display: grid; place-items: center;
+  background: var(--card-2); border-radius: 8px;
+  font-size: 13px; color: var(--dim); font-weight: 700;
+}
+.item-main { flex: 1; min-width: 0; }
+.item-main h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-body { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+/* 세트 행 */
+.setlist { display: flex; flex-direction: column; gap: 8px; }
+.setrow {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 10px;
+}
+.setrow.static { justify-content: space-between; }
+.setno { font-size: 12px; color: var(--dim); flex: none; min-width: 34px; font-weight: 700; }
+.mini { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; }
+.mini input { text-align: right; padding: 8px 8px; }
+.mini > span { font-size: 12px; color: var(--dim); flex: none; }
+.x { color: var(--dim); flex: none; }
+.mini.restedit { flex: 0 0 auto; gap: 4px; }
+.mini.restedit input { width: 68px; text-align: center; padding: 7px 6px; }
+
+/* 운동 진행 */
+.progress-card { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 58px; z-index: 10; }
+.bar { height: 8px; background: var(--bg-2); border-radius: 99px; overflow: hidden; }
+.bar-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--ok)); transition: width .25s ease; }
+.exercise { display: flex; flex-direction: column; gap: 10px; }
+.exercise.done { border-color: #24483a; }
+.exercise .memo { font-style: italic; }
+.setrow.live.checked { background: rgba(53, 201, 138, .10); border-color: #2b6a52; }
+.setrow.live.checked input { color: var(--dim); }
+.check {
+  flex: none;
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--card-2);
+  color: #fff; font-size: 20px; font-weight: 800;
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: transform .08s ease, background .15s ease;
+}
+.check:active { transform: scale(.9); }
+.check.on { background: var(--ok); border-color: var(--ok); color: #06301f; }
+
+/* 기록 통계 */
+.stats { display: flex; justify-content: space-around; text-align: center; }
+.stats > div { display: flex; flex-direction: column; gap: 2px; }
+.stats strong { font-size: 22px; }
+
+/* 빈 상태 */
+.empty { text-align: center; padding: 40px 16px; color: var(--dim); }
+.empty.small { padding: 24px; }
+.empty-ico { font-size: 34px; margin-bottom: 8px; }
+
+/* 하단 탭 */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  height: calc(var(--tab-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
+  display: flex;
+  background: rgba(22, 26, 33, .96);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+}
+.tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; font-size: 11px; color: var(--dim); font-weight: 600;
+}
+.tab.on { color: var(--brand-2); }
+.tab-ico { font-size: 19px; line-height: 1; }
+
+/* 휴식 타이머 바 */
+.restbar {
+  position: fixed; left: 0; right: 0; z-index: 25;
+  bottom: calc(var(--tab-h) + var(--safe-b));
+  max-width: 640px; margin: 0 auto;
+  overflow: hidden;
+  transform: translateY(110%);
+  transition: transform .25s ease;
+  background: var(--card-2);
+  border-top: 1px solid var(--brand);
+}
+.restbar.show { transform: translateY(0); }
+.rest-fill {
+  position: absolute; inset: 0 auto 0 0;
+  background: rgba(77, 124, 255, .18);
+  transition: width 1s linear;
+}
+.rest-inner { position: relative; display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+.rest-mid { flex: 1; display: flex; flex-direction: column; align-items: center; }
+.rest-time { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rest-label { font-size: 11px; color: var(--dim); }
+.rest-btn {
+  background: var(--card); border: 1px solid var(--line); color: var(--text);
+  border-radius: 9px; padding: 8px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+  font-family: inherit; flex: none;
+}
+.rest-btn.ghost { color: var(--dim); }
+
+/* 운동 검색 시트 */
+.modal { position: fixed; inset: 0; z-index: 50; display: none; }
+.modal.show { display: block; }
+.sheet-bg { position: absolute; inset: 0; background: rgba(0, 0, 0, .6); }
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  max-width: 640px; margin: 0 auto;
+  max-height: 92vh;
+  display: flex; flex-direction: column;
+  background: var(--bg);
+  border-radius: 18px 18px 0 0;
+  border: 1px solid var(--line);
+  padding-bottom: var(--safe-b);
+  animation: up .22s ease;
+}
+@keyframes up { from { transform: translateY(24px); opacity: .6; } }
+.sheet > * { flex: none; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 8px; }
+.sheet-search { padding: 0 14px 10px; }
+.chiprow { display: flex; align-items: center; gap: 6px; padding: 0 14px 8px; overflow-x: auto; scrollbar-width: none; }
+.chiprow::-webkit-scrollbar { display: none; }
+.chiprow-label { font-size: 11px; color: var(--dim); flex: none; width: 30px; }
+.fchip {
+  flex: none; background: var(--card); border: 1px solid var(--line); color: var(--dim);
+  border-radius: 999px; padding: 6px 11px; font-size: 13px; cursor: pointer; font-family: inherit;
+}
+.fchip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.sheet-default { padding: 6px 14px 10px; font-size: 13px; color: var(--dim); }
+.sheet-default input { width: 56px; display: inline-block; text-align: center; padding: 5px; margin: 0 3px; }
+.sheet-list { flex: 1 1 auto; min-height: 120px; overflow-y: auto; padding: 4px 14px; -webkit-overflow-scrolling: touch; }
+.ex {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 12px; margin-bottom: 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  cursor: pointer;
+}
+.ex:active { border-color: var(--brand); }
+.ex > div { min-width: 0; }
+.ex .plus { font-size: 22px; color: var(--brand-2); flex: none; }
+.sheet-foot { padding: 10px 14px 16px; border-top: 1px solid var(--line); }
+.sheet-body { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.sheet-body textarea {
+  width: 100%; min-height: 180px; resize: vertical;
+  background: var(--bg-2); border: 1px solid var(--line); color: var(--dim);
+  border-radius: 10px; padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.4;
+}
+
+.chiplist { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 0; margin: 0; }
+.chip {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--card-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 13px;
+}
+
+/* 토스트 */
+.toast-root {
+  position: fixed; left: 0; right: 0; bottom: calc(var(--tab-h) + 76px);
+  z-index: 60; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: #eef1f6; color: #12151b;
+  padding: 9px 16px; border-radius: 999px;
+  font-size: 13px; font-weight: 700;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  animation: up .2s ease;
+}
+.toast.out { opacity: 0; transition: opacity .4s ease; }
+
+@media (min-width: 560px) {
+  .setrow { padding: 10px 12px; }
+  .page { padding-left: 18px; padding-right: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="modal" class="modal"></div>
+  <div id="toast" class="toast-root"></div>
+
+  <script>
+/* 내장 운동 데이터베이스
+ * 형식: [이름, 영문명, 부위, 장비, 주동근(쉼표), 검색태그, 타입]
+ * 타입: 'reps'(기본, 횟수) | 'time'(시간)
+ */
+(function (global) {
+  'use strict';
+
+  var PARTS = ['가슴', '등', '어깨', '팔', '하체', '코어', '유산소'];
+  var EQUIPS = ['머신', '케이블', '바벨', '덤벨', '스미스', '맨몸', '기타'];
+
+  var RAW = [
+    // ── 가슴 ─────────────────────────────────────────────
+    ['벤치프레스', 'Barbell Bench Press', '가슴', '바벨', '대흉근,삼두,전면삼각', 'benchpress 벤프'],
+    ['인클라인 벤치프레스', 'Incline Barbell Bench Press', '가슴', '바벨', '상부 대흉근,전면삼각', 'incline 인클'],
+    ['디클라인 벤치프레스', 'Decline Barbell Bench Press', '가슴', '바벨', '하부 대흉근,삼두', 'decline'],
+    ['클로즈그립 벤치프레스', 'Close Grip Bench Press', '팔', '바벨', '삼두,대흉근', 'closegrip 클그벤'],
+    ['덤벨 벤치프레스', 'Dumbbell Bench Press', '가슴', '덤벨', '대흉근,삼두', 'db press 덤벤'],
+    ['인클라인 덤벨 프레스', 'Incline Dumbbell Press', '가슴', '덤벨', '상부 대흉근', 'incline db 인덤프'],
+    ['디클라인 덤벨 프레스', 'Decline Dumbbell Press', '가슴', '덤벨', '하부 대흉근', ''],
+    ['덤벨 플라이', 'Dumbbell Fly', '가슴', '덤벨', '대흉근', 'fly 플라이'],
+    ['인클라인 덤벨 플라이', 'Incline Dumbbell Fly', '가슴', '덤벨', '상부 대흉근', ''],
+    ['체스트 프레스 머신', 'Chest Press Machine', '가슴', '머신', '대흉근,삼두', 'chestpress 체프'],
+    ['인클라인 체스트 프레스 머신', 'Incline Chest Press Machine', '가슴', '머신', '상부 대흉근', ''],
+    ['디클라인 체스트 프레스 머신', 'Decline Chest Press Machine', '가슴', '머신', '하부 대흉근', ''],
+    ['펙덱 플라이 머신', 'Pec Deck Fly', '가슴', '머신', '대흉근', 'pecdeck 버터플라이'],
+    ['케이블 크로스오버', 'Cable Crossover', '가슴', '케이블', '대흉근', 'crossover 크로스'],
+    ['로우 케이블 플라이', 'Low Cable Fly', '가슴', '케이블', '상부 대흉근', ''],
+    ['하이 케이블 플라이', 'High Cable Fly', '가슴', '케이블', '하부 대흉근', ''],
+    ['스미스머신 벤치프레스', 'Smith Machine Bench Press', '가슴', '스미스', '대흉근,삼두', 'smith'],
+    ['딥스 (가슴)', 'Chest Dip', '가슴', '맨몸', '하부 대흉근,삼두', 'dips 딥스'],
+    ['푸시업', 'Push Up', '가슴', '맨몸', '대흉근,삼두,코어', 'pushup 팔굽혀펴기'],
+    ['와이드 푸시업', 'Wide Push Up', '가슴', '맨몸', '대흉근', ''],
+    ['덤벨 풀오버', 'Dumbbell Pullover', '가슴', '덤벨', '대흉근,광배근', 'pullover'],
+
+    // ── 등 ───────────────────────────────────────────────
+    ['데드리프트', 'Conventional Deadlift', '등', '바벨', '척추기립근,광배근,햄스트링,둔근', 'deadlift 데드'],
+    ['루마니안 데드리프트', 'Romanian Deadlift', '하체', '바벨', '햄스트링,둔근,척추기립근', 'rdl 루데'],
+    ['스모 데드리프트', 'Sumo Deadlift', '등', '바벨', '둔근,내전근,척추기립근', 'sumo'],
+    ['바벨 로우', 'Bent Over Barbell Row', '등', '바벨', '광배근,능형근,후면삼각', 'barbellrow 바로우'],
+    ['펜들레이 로우', 'Pendlay Row', '등', '바벨', '광배근,능형근', 'pendlay'],
+    ['티바 로우', 'T-Bar Row', '등', '머신', '광배근,능형근', 'tbar 티바'],
+    ['덤벨 원암 로우', 'One Arm Dumbbell Row', '등', '덤벨', '광배근,능형근', 'dbrow 원암'],
+    ['시티드 케이블 로우', 'Seated Cable Row', '등', '케이블', '광배근,능형근', 'cablerow 시티드로우'],
+    ['랫 풀다운', 'Lat Pulldown', '등', '머신', '광배근,대원근', 'latpulldown 랫풀'],
+    ['클로즈그립 랫풀다운', 'Close Grip Lat Pulldown', '등', '머신', '광배근', ''],
+    ['리버스그립 랫풀다운', 'Reverse Grip Lat Pulldown', '등', '머신', '광배근,이두', ''],
+    ['시티드 로우 머신', 'Seated Row Machine', '등', '머신', '광배근,능형근', ''],
+    ['하이 로우 머신', 'Iso-Lateral High Row', '등', '머신', '광배근,능형근', 'highrow'],
+    ['풀업', 'Pull Up', '등', '맨몸', '광배근,대원근', 'pullup 턱걸이'],
+    ['친업', 'Chin Up', '등', '맨몸', '광배근,이두', 'chinup'],
+    ['어시스트 풀업 머신', 'Assisted Pull Up Machine', '등', '머신', '광배근', 'assist'],
+    ['스트레이트암 풀다운', 'Straight Arm Pulldown', '등', '케이블', '광배근', ''],
+    ['바벨 슈러그', 'Barbell Shrug', '등', '바벨', '승모근', 'shrug 슈러그'],
+    ['덤벨 슈러그', 'Dumbbell Shrug', '등', '덤벨', '승모근', ''],
+    ['백 익스텐션', 'Back Extension', '등', '맨몸', '척추기립근,둔근', '허리 백익'],
+    ['굿모닝', 'Good Morning', '등', '바벨', '척추기립근,햄스트링', 'goodmorning'],
+
+    // ── 어깨 ─────────────────────────────────────────────
+    ['오버헤드 프레스', 'Overhead Press', '어깨', '바벨', '전면삼각,삼두', 'ohp 밀프'],
+    ['비하인드넥 프레스', 'Behind The Neck Press', '어깨', '바벨', '측면삼각,전면삼각', ''],
+    ['덤벨 숄더 프레스', 'Dumbbell Shoulder Press', '어깨', '덤벨', '전면삼각,측면삼각', '숄프'],
+    ['아놀드 프레스', 'Arnold Press', '어깨', '덤벨', '전면삼각,측면삼각', 'arnold'],
+    ['숄더 프레스 머신', 'Shoulder Press Machine', '어깨', '머신', '전면삼각,측면삼각', ''],
+    ['사이드 레터럴 레이즈', 'Dumbbell Lateral Raise', '어깨', '덤벨', '측면삼각', 'lateralraise 사레레'],
+    ['케이블 레터럴 레이즈', 'Cable Lateral Raise', '어깨', '케이블', '측면삼각', ''],
+    ['레터럴 레이즈 머신', 'Lateral Raise Machine', '어깨', '머신', '측면삼각', ''],
+    ['프론트 레이즈', 'Front Raise', '어깨', '덤벨', '전면삼각', 'frontraise'],
+    ['벤트오버 리어델트 레이즈', 'Bent Over Rear Delt Raise', '어깨', '덤벨', '후면삼각', '리어델트'],
+    ['리버스 펙덱', 'Reverse Pec Deck', '어깨', '머신', '후면삼각,능형근', '리버스 펙덱'],
+    ['페이스 풀', 'Face Pull', '어깨', '케이블', '후면삼각,회전근개', 'facepull 페풀'],
+    ['업라이트 로우', 'Upright Row', '어깨', '바벨', '측면삼각,승모근', ''],
+
+    // ── 팔 ───────────────────────────────────────────────
+    ['바벨 컬', 'Barbell Curl', '팔', '바벨', '이두', 'curl 바컬'],
+    ['EZ바 컬', 'EZ Bar Curl', '팔', '바벨', '이두', 'ezbar'],
+    ['덤벨 컬', 'Dumbbell Curl', '팔', '덤벨', '이두', 'dbcurl 덤컬'],
+    ['해머 컬', 'Hammer Curl', '팔', '덤벨', '이두,상완요골근', 'hammer 해머'],
+    ['인클라인 덤벨 컬', 'Incline Dumbbell Curl', '팔', '덤벨', '이두 장두', ''],
+    ['컨센트레이션 컬', 'Concentration Curl', '팔', '덤벨', '이두', ''],
+    ['프리처 컬', 'Preacher Curl', '팔', '머신', '이두 단두', 'preacher 프리처'],
+    ['케이블 컬', 'Cable Curl', '팔', '케이블', '이두', ''],
+    ['리버스 컬', 'Reverse Curl', '팔', '바벨', '상완요골근,전완', ''],
+    ['케이블 푸시다운', 'Triceps Pushdown', '팔', '케이블', '삼두', 'pushdown 푸시다운'],
+    ['로프 푸시다운', 'Rope Pushdown', '팔', '케이블', '삼두 외측두', 'rope'],
+    ['라잉 트라이셉스 익스텐션', 'Skull Crusher', '팔', '바벨', '삼두 장두', 'skullcrusher 스컬크러셔'],
+    ['오버헤드 덤벨 익스텐션', 'Overhead Dumbbell Extension', '팔', '덤벨', '삼두 장두', ''],
+    ['트라이셉스 익스텐션 머신', 'Triceps Extension Machine', '팔', '머신', '삼두', ''],
+    ['딥스 (삼두)', 'Triceps Dip', '팔', '맨몸', '삼두,대흉근', ''],
+    ['덤벨 킥백', 'Dumbbell Kickback', '팔', '덤벨', '삼두', 'kickback'],
+    ['리스트 컬', 'Wrist Curl', '팔', '바벨', '전완', '전완'],
+    ['리버스 리스트 컬', 'Reverse Wrist Curl', '팔', '바벨', '전완', ''],
+    ['파머스 워크', 'Farmers Walk', '팔', '덤벨', '전완,승모근,코어', 'farmers', 'time'],
+
+    // ── 하체 ─────────────────────────────────────────────
+    ['백 스쿼트', 'Barbell Back Squat', '하체', '바벨', '대퇴사두,둔근', 'squat 스쿼트'],
+    ['프론트 스쿼트', 'Front Squat', '하체', '바벨', '대퇴사두,코어', 'frontsquat'],
+    ['스미스머신 스쿼트', 'Smith Machine Squat', '하체', '스미스', '대퇴사두,둔근', ''],
+    ['레그 프레스', 'Leg Press', '하체', '머신', '대퇴사두,둔근', 'legpress 레프'],
+    ['핵 스쿼트', 'Hack Squat', '하체', '머신', '대퇴사두', 'hacksquat 핵스'],
+    ['레그 익스텐션', 'Leg Extension', '하체', '머신', '대퇴사두', 'legextension 레익'],
+    ['라잉 레그 컬', 'Lying Leg Curl', '하체', '머신', '햄스트링', 'legcurl 레그컬'],
+    ['시티드 레그 컬', 'Seated Leg Curl', '하체', '머신', '햄스트링', ''],
+    ['런지', 'Lunge', '하체', '맨몸', '대퇴사두,둔근', 'lunge 런지'],
+    ['워킹 런지', 'Walking Lunge', '하체', '덤벨', '대퇴사두,둔근', ''],
+    ['불가리안 스플릿 스쿼트', 'Bulgarian Split Squat', '하체', '덤벨', '대퇴사두,둔근', '불스',],
+    ['스텝업', 'Step Up', '하체', '덤벨', '대퇴사두,둔근', 'stepup'],
+    ['고블릿 스쿼트', 'Goblet Squat', '하체', '덤벨', '대퇴사두,둔근', 'goblet'],
+    ['힙 쓰러스트', 'Barbell Hip Thrust', '하체', '바벨', '둔근,햄스트링', 'hipthrust 힙쓰'],
+    ['글루트 브릿지', 'Glute Bridge', '하체', '맨몸', '둔근', 'bridge'],
+    ['힙 어브덕션 머신', 'Hip Abduction Machine', '하체', '머신', '중둔근', 'abduction 아웃타이'],
+    ['힙 어덕션 머신', 'Hip Adduction Machine', '하체', '머신', '내전근', 'adduction 이너타이'],
+    ['스탠딩 카프 레이즈', 'Standing Calf Raise', '하체', '머신', '비복근', 'calf 종아리'],
+    ['시티드 카프 레이즈', 'Seated Calf Raise', '하체', '머신', '가자미근', '종아리'],
+    ['케틀벨 스윙', 'Kettlebell Swing', '하체', '기타', '둔근,햄스트링,코어', 'kettlebell 케틀벨'],
+
+    // ── 코어 ─────────────────────────────────────────────
+    ['크런치', 'Crunch', '코어', '맨몸', '복직근', 'crunch'],
+    ['싯업', 'Sit Up', '코어', '맨몸', '복직근,장요근', 'situp 윗몸일으키기'],
+    ['레그 레이즈', 'Leg Raise', '코어', '맨몸', '하복부', 'legraise'],
+    ['행잉 레그 레이즈', 'Hanging Leg Raise', '코어', '맨몸', '하복부', ''],
+    ['플랭크', 'Plank', '코어', '맨몸', '복횡근,코어', 'plank 플랭크', 'time'],
+    ['사이드 플랭크', 'Side Plank', '코어', '맨몸', '복사근', '', 'time'],
+    ['러시안 트위스트', 'Russian Twist', '코어', '맨몸', '복사근', 'russian'],
+    ['케이블 크런치', 'Cable Crunch', '코어', '케이블', '복직근', ''],
+    ['앱 크런치 머신', 'Ab Crunch Machine', '코어', '머신', '복직근', ''],
+    ['우드찹', 'Cable Woodchop', '코어', '케이블', '복사근', 'woodchop'],
+    ['데드버그', 'Dead Bug', '코어', '맨몸', '코어', 'deadbug'],
+    ['마운틴 클라이머', 'Mountain Climber', '코어', '맨몸', '코어,고관절굴곡근', 'mountainclimber', 'time'],
+
+    // ── 유산소 ───────────────────────────────────────────
+    ['트레드밀 러닝', 'Treadmill Running', '유산소', '머신', '전신', 'treadmill 러닝머신 달리기', 'time'],
+    ['인클라인 워킹', 'Incline Treadmill Walk', '유산소', '머신', '하체', '경사걷기', 'time'],
+    ['사이클', 'Stationary Bike', '유산소', '머신', '하체', 'bike 자전거 스피닝', 'time'],
+    ['로잉 머신', 'Rowing Machine', '유산소', '머신', '전신', 'rowing 로잉', 'time'],
+    ['일립티컬', 'Elliptical', '유산소', '머신', '전신', 'elliptical', 'time'],
+    ['스텝밀', 'Stair Climber', '유산소', '머신', '하체', '천국의계단 stairmaster', 'time'],
+    ['버피', 'Burpee', '유산소', '맨몸', '전신', 'burpee 버피'],
+    ['배틀 로프', 'Battle Rope', '유산소', '기타', '전신,어깨', 'battlerope', 'time'],
+    ['줄넘기', 'Jump Rope', '유산소', '기타', '전신', 'jumprope', 'time']
+  ];
+
+  // 한글 초성 추출 (초성 검색 지원: "ㅂㅊㅍ" → 벤치프레스)
+  var CHO = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  function chosung(str) {
+    var out = '';
+    for (var i = 0; i < str.length; i++) {
+      var code = str.charCodeAt(i);
+      if (code >= 0xac00 && code <= 0xd7a3) out += CHO[Math.floor((code - 0xac00) / 588)];
+      else if (str[i] !== ' ') out += str[i];
+    }
+    return out;
+  }
+
+  function slug(en) {
+    return en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  var BUILT_IN = RAW.map(function (r) {
+    var name = r[0], en = r[1];
+    var muscles = r[4] ? r[4].split(',') : [];
+    return {
+      id: 'x-' + slug(en),
+      name: name,
+      en: en,
+      part: r[2],
+      equip: r[3],
+      muscles: muscles,
+      type: r[6] || 'reps',
+      custom: false,
+      _search: [name, en, r[3], r[2], muscles.join(' '), r[5] || '']
+        .join(' ').toLowerCase().replace(/\s+/g, ' '),
+      _cho: chosung(name)
+    };
+  });
+
+  // 사용자 추가 운동을 내장 DB와 같은 형태로 보정
+  function normalize(ex) {
+    var muscles = Array.isArray(ex.muscles) ? ex.muscles : (ex.muscles ? String(ex.muscles).split(',') : []);
+    return {
+      id: ex.id,
+      name: ex.name,
+      en: ex.en || '',
+      part: ex.part || '기타',
+      equip: ex.equip || '기타',
+      muscles: muscles,
+      type: ex.type === 'time' ? 'time' : 'reps',
+      custom: true,
+      _search: [ex.name, ex.en || '', ex.equip || '', ex.part || '', muscles.join(' ')]
+        .join(' ').toLowerCase().replace(/\s+/g, ' '),
+      _cho: chosung(ex.name)
+    };
+  }
+
+  // 검색: 이름/영문/부위/장비/근육/초성 부분 일치. 공백은 AND 조건.
+  function search(list, query, filters) {
+    filters = filters || {};
+    var result = list;
+    if (filters.part) result = result.filter(function (e) { return e.part === filters.part; });
+    if (filters.equip) result = result.filter(function (e) { return e.equip === filters.equip; });
+
+    var q = (query || '').trim().toLowerCase();
+    if (!q) return result;
+
+    var terms = q.split(/\s+/);
+    var isCho = /^[ㄱ-ㅎ]+$/.test(query.replace(/\s+/g, ''));
+
+    return result.filter(function (e) {
+      return terms.every(function (t) {
+        if (isCho) return e._cho.indexOf(t) !== -1;
+        return e._search.indexOf(t) !== -1 || e._cho.indexOf(t) !== -1;
+      });
+    }).sort(function (a, b) {
+      // 이름 앞부분 일치를 우선 노출
+      var ai = a.name.toLowerCase().indexOf(terms[0]);
+      var bi = b.name.toLowerCase().indexOf(terms[0]);
+      if (ai === -1) ai = 99;
+      if (bi === -1) bi = 99;
+      return ai - bi;
+    });
+  }
+
+  global.ExerciseDB = {
+    PARTS: PARTS,
+    EQUIPS: EQUIPS,
+    builtIn: BUILT_IN,
+    normalize: normalize,
+    search: search,
+    chosung: chosung
+  };
+})(window);
+
+</script>
+  <script>
+/* localStorage 기반 저장소 */
+(function (global) {
+  'use strict';
+
+  var KEY = 'gymmate.v1';
+  var listeners = [];
+
+  var DEFAULT = {
+    version: 1,
+    routines: [],
+    sessions: [],       // 완료된 운동 기록
+    customExercises: [],
+    active: null,       // 진행 중인 세션
+    settings: { defaultRest: 90, sound: true, unit: 'kg' }
+  };
+
+  var state = load();
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return seed(clone(DEFAULT));
+      var parsed = JSON.parse(raw);
+      return Object.assign(clone(DEFAULT), parsed, {
+        settings: Object.assign(clone(DEFAULT.settings), parsed.settings || {})
+      });
+    } catch (e) {
+      console.warn('저장된 데이터를 읽지 못해 초기화합니다.', e);
+      return clone(DEFAULT);
+    }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+    } catch (e) {
+      alert('저장 공간이 부족해 데이터를 저장하지 못했습니다.');
+    }
+    listeners.forEach(function (fn) { fn(state); });
+  }
+
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function uid(prefix) {
+    return (prefix || 'id') + '-' + Date.now().toString(36) + '-' +
+      Math.random().toString(36).slice(2, 7);
+  }
+
+  // 첫 실행 시 예시 루틴 제공
+  function seed(s) {
+    var mk = function (exId, name, type, sets, reps, weight, rest) {
+      var arr = [];
+      for (var i = 0; i < sets; i++) {
+        arr.push(type === 'time' ? { sec: reps } : { reps: reps, weight: weight });
+      }
+      return { id: uid('it'), exerciseId: exId, name: name, type: type, restSec: rest, memo: '', sets: arr };
+    };
+    s.routines = [
+      {
+        id: uid('rt'), name: '가슴 · 삼두 (예시)', memo: '푸시 데이',
+        createdAt: Date.now(), updatedAt: Date.now(),
+        items: [
+          mk('x-barbell-bench-press', '벤치프레스', 'reps', 5, 8, 40, 120),
+          mk('x-incline-dumbbell-press', '인클라인 덤벨 프레스', 'reps', 4, 10, 16, 90),
+          mk('x-pec-deck-fly', '펙덱 플라이 머신', 'reps', 3, 12, 30, 60),
+          mk('x-triceps-pushdown', '케이블 푸시다운', 'reps', 3, 12, 20, 60)
+        ]
+      },
+      {
+        id: uid('rt'), name: '등 · 이두 (예시)', memo: '풀 데이',
+        createdAt: Date.now(), updatedAt: Date.now(),
+        items: [
+          mk('x-lat-pulldown', '랫 풀다운', 'reps', 4, 10, 45, 90),
+          mk('x-seated-cable-row', '시티드 케이블 로우', 'reps', 4, 10, 40, 90),
+          mk('x-one-arm-dumbbell-row', '덤벨 원암 로우', 'reps', 3, 12, 20, 60),
+          mk('x-dumbbell-curl', '덤벨 컬', 'reps', 3, 12, 10, 60)
+        ]
+      }
+    ];
+    return s;
+  }
+
+  var Store = {
+    uid: uid,
+    clone: clone,
+
+    get state() { return state; },
+    get settings() { return state.settings; },
+
+    subscribe: function (fn) { listeners.push(fn); },
+    commit: save,
+
+    // ── 운동 목록 ──────────────────────────────────────
+    allExercises: function () {
+      return global.ExerciseDB.builtIn.concat(
+        state.customExercises.map(global.ExerciseDB.normalize)
+      );
+    },
+    findExercise: function (id) {
+      return this.allExercises().filter(function (e) { return e.id === id; })[0] || null;
+    },
+    addCustomExercise: function (data) {
+      var ex = {
+        id: uid('cx'),
+        name: data.name,
+        en: data.en || '',
+        part: data.part,
+        equip: data.equip,
+        muscles: data.muscles || [],
+        type: data.type || 'reps'
+      };
+      state.customExercises.push(ex);
+      save();
+      return global.ExerciseDB.normalize(ex);
+    },
+    removeCustomExercise: function (id) {
+      state.customExercises = state.customExercises.filter(function (e) { return e.id !== id; });
+      save();
+    },
+
+    // ── 루틴 ───────────────────────────────────────────
+    routines: function () { return state.routines; },
+    getRoutine: function (id) {
+      return state.routines.filter(function (r) { return r.id === id; })[0] || null;
+    },
+    createRoutine: function (name) {
+      var r = {
+        id: uid('rt'), name: name || '새 루틴', memo: '',
+        createdAt: Date.now(), updatedAt: Date.now(), items: []
+      };
+      state.routines.unshift(r);
+      save();
+      return r;
+    },
+    updateRoutine: function (id, patch) {
+      var r = this.getRoutine(id);
+      if (!r) return null;
+      Object.assign(r, patch, { updatedAt: Date.now() });
+      save();
+      return r;
+    },
+    deleteRoutine: function (id) {
+      state.routines = state.routines.filter(function (r) { return r.id !== id; });
+      save();
+    },
+    duplicateRoutine: function (id) {
+      var r = this.getRoutine(id);
+      if (!r) return null;
+      var copy = clone(r);
+      copy.id = uid('rt');
+      copy.name = r.name + ' 복사본';
+      copy.createdAt = copy.updatedAt = Date.now();
+      copy.items.forEach(function (it) { it.id = uid('it'); });
+      state.routines.unshift(copy);
+      save();
+      return copy;
+    },
+
+    // ── 루틴 항목 ──────────────────────────────────────
+    addItem: function (routineId, exercise, opts) {
+      var r = this.getRoutine(routineId);
+      if (!r) return null;
+      opts = opts || {};
+      var sets = opts.sets || 3;
+      var reps = opts.reps || 10;
+      var sec = opts.sec || 60;
+      var arr = [];
+      for (var i = 0; i < sets; i++) {
+        arr.push(exercise.type === 'time' ? { sec: sec } : { reps: reps, weight: opts.weight || 0 });
+      }
+      var item = {
+        id: uid('it'),
+        exerciseId: exercise.id,
+        name: exercise.name,
+        type: exercise.type,
+        restSec: state.settings.defaultRest,
+        memo: '',
+        sets: arr
+      };
+      r.items.push(item);
+      r.updatedAt = Date.now();
+      save();
+      return item;
+    },
+    updateItem: function (routineId, itemId, patch) {
+      var r = this.getRoutine(routineId);
+      if (!r) return;
+      var it = r.items.filter(function (i) { return i.id === itemId; })[0];
+      if (!it) return;
+      Object.assign(it, patch);
+      r.updatedAt = Date.now();
+      save();
+    },
+    removeItem: function (routineId, itemId) {
+      var r = this.getRoutine(routineId);
+      if (!r) return;
+      r.items = r.items.filter(function (i) { return i.id !== itemId; });
+      r.updatedAt = Date.now();
+      save();
+    },
+    moveItem: function (routineId, itemId, dir) {
+      var r = this.getRoutine(routineId);
+      if (!r) return;
+      var idx = r.items.findIndex(function (i) { return i.id === itemId; });
+      var next = idx + dir;
+      if (idx < 0 || next < 0 || next >= r.items.length) return;
+      var tmp = r.items[idx];
+      r.items[idx] = r.items[next];
+      r.items[next] = tmp;
+      r.updatedAt = Date.now();
+      save();
+    },
+
+    // ── 세션(운동 진행) ────────────────────────────────
+    active: function () { return state.active; },
+    startSession: function (routineId) {
+      var r = this.getRoutine(routineId);
+      if (!r) return null;
+      state.active = {
+        id: uid('ss'),
+        routineId: r.id,
+        routineName: r.name,
+        startedAt: Date.now(),
+        finishedAt: null,
+        memo: '',
+        items: r.items.map(function (it) {
+          return {
+            id: it.id,
+            exerciseId: it.exerciseId,
+            name: it.name,
+            type: it.type,
+            restSec: it.restSec,
+            memo: it.memo,
+            sets: it.sets.map(function (s) {
+              return Object.assign({}, s, { done: false, doneAt: null });
+            })
+          };
+        })
+      };
+      save();
+      return state.active;
+    },
+    updateActive: function (mutator) {
+      if (!state.active) return;
+      mutator(state.active);
+      save();
+    },
+    cancelSession: function () { state.active = null; save(); },
+    finishSession: function () {
+      if (!state.active) return null;
+      var s = state.active;
+      s.finishedAt = Date.now();
+      // 체크하지 않은 세트는 기록에서 제외
+      s.items.forEach(function (it) {
+        it.sets = it.sets.filter(function (st) { return st.done; });
+      });
+      s.items = s.items.filter(function (it) { return it.sets.length > 0; });
+      state.active = null;
+      if (s.items.length) state.sessions.unshift(s);
+      save();
+      return s.items.length ? s : null;
+    },
+
+    // ── 기록 ───────────────────────────────────────────
+    sessions: function () { return state.sessions; },
+    getSession: function (id) {
+      return state.sessions.filter(function (s) { return s.id === id; })[0] || null;
+    },
+    deleteSession: function (id) {
+      state.sessions = state.sessions.filter(function (s) { return s.id !== id; });
+      save();
+    },
+
+    // ── 백업 ───────────────────────────────────────────
+    exportJSON: function () { return JSON.stringify(state, null, 2); },
+    importJSON: function (text) {
+      var parsed = JSON.parse(text);
+      if (!parsed || !Array.isArray(parsed.routines)) throw new Error('형식이 올바르지 않습니다.');
+      state = Object.assign(clone(DEFAULT), parsed, {
+        settings: Object.assign(clone(DEFAULT.settings), parsed.settings || {})
+      });
+      save();
+    },
+    resetAll: function () {
+      state = clone(DEFAULT);
+      save();
+    }
+  };
+
+  // ── 통계 헬퍼 ────────────────────────────────────────
+  Store.volumeOf = function (session) {
+    var v = 0;
+    session.items.forEach(function (it) {
+      it.sets.forEach(function (s) {
+        if (s.done === false) return;
+        if (it.type !== 'time') v += (Number(s.reps) || 0) * (Number(s.weight) || 0);
+      });
+    });
+    return Math.round(v);
+  };
+  Store.countSets = function (session, onlyDone) {
+    var total = 0, done = 0;
+    session.items.forEach(function (it) {
+      it.sets.forEach(function (s) { total++; if (s.done) done++; });
+    });
+    return onlyDone ? done : { total: total, done: done };
+  };
+
+  global.Store = Store;
+})(window);
+
+</script>
+  <script>
 /* GymMate — 헬스 루틴 & 세트 체크 앱 */
 (function () {
   'use strict';
@@ -979,3 +1890,7 @@
   restoreRest();
   render();
 })();
+
+</script>
+</body>
+</html>

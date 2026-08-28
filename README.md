@@ -14,15 +14,29 @@ npx http-server -p 8080 .
 
 ## 안드로이드 휴대폰에서 앱처럼 쓰기
 
-홈 화면 설치와 오프라인 캐시는 **https 주소**에서만 동작합니다. 가장 쉬운 방법은 GitHub Pages 입니다.
+앱스토어에서 받는 앱이 아니라 **웹 주소를 홈 화면에 추가**하는 방식입니다.
+홈 화면 설치와 오프라인 캐시는 **https 주소**에서만 동작하므로, GitHub Pages 로 올려두고 그 주소를 쓰면 됩니다.
+
+> **먼저 확인:** GitHub Pages 는 비공개(private) 저장소에서는 유료 플랜에서만 동작합니다.
+> 무료 계정이라면 **Settings → General → 맨 아래 Danger Zone → Change visibility → Public** 으로 바꿔야 합니다.
 
 1. 저장소 **Settings → Pages → Source** 를 `GitHub Actions` 로 선택
 2. 이 브랜치를 push 하면 `.github/workflows/pages.yml` 이 자동 배포
-   (`Actions` 탭에서 배포 주소 확인 — 보통 `https://<계정>.github.io/test/`)
+   (`Actions` 탭에서 초록 체크가 뜨면 완료 — 주소는 보통 `https://<계정>.github.io/test/`)
 3. 안드로이드 **Chrome** 으로 그 주소를 열기
 4. 주소창 오른쪽 `⋮` → **앱 설치** 또는 **홈 화면에 추가**
 
 설치하면 주소창 없는 전체 화면으로 뜨고, 홈 화면에 덤벨 아이콘이 생깁니다.
+
+### 파일 하나로 쓰기
+
+```bash
+node tools/build-single.js      # → dist/gymmate.html (CSS·JS 가 모두 들어간 단일 파일)
+```
+
+`dist/gymmate.html` 은 이 저장소에 함께 들어 있습니다. 이 파일 하나만 있으면 어디서든 열립니다.
+단, 파일을 직접 여는 방식(`file://`)은 홈 화면 설치·오프라인 캐시가 적용되지 않고,
+브라우저에 따라 저장이 초기화될 수 있으니 **기록을 계속 쌓을 목적이라면 위의 Pages 주소를 쓰세요.**
 
 안드로이드에서 특히 신경 쓴 부분:
 
@@ -73,7 +87,8 @@ npx http-server -p 8080 .
 ### 5. 설정
 - 기본 휴식 시간(새로 담는 운동에 적용), 무게 단위(kg/lb), 알림음 on/off
 - 내가 추가한 운동 관리
-- **JSON 내보내기 / 가져오기** 백업, 전체 초기화
+- 백업 — 내용 **복사하기**(어디서나 동작) 또는 **파일로 저장**, 되돌릴 때는 파일 선택 또는 **붙여넣기로 가져오기**
+- 전체 초기화
 
 ## 파일 구조
 
@@ -86,10 +101,12 @@ icons/                      앱 아이콘 (192·512·maskable PNG, 원본 SVG)
 js/exercises.js             내장 운동 DB 115종 + 검색(초성 포함)
 js/store.js                 localStorage 저장소 · 루틴/세션/기록 CRUD
 js/app.js                   라우팅 · 화면 렌더링 · 휴식 타이머 · Wake Lock
+tools/build-single.js       CSS·JS 를 끼워 넣어 단일 파일로 만드는 스크립트
+dist/gymmate.html           그 결과물 (파일 하나짜리 앱)
 .github/workflows/pages.yml GitHub Pages 자동 배포
 ```
 
 ## 데이터 보관 위치
 
 모든 데이터는 `localStorage`의 `gymmate.v1` 키에 저장되며 서버로 전송되지 않습니다.
-브라우저 데이터를 지우면 함께 삭제되므로, 기기를 바꾸기 전에 **설정 → JSON 내보내기**로 백업하세요.
+브라우저 데이터를 지우면 함께 삭제되므로, 기기를 바꾸기 전에 **설정 → 백업 내보내기**로 백업하세요.
