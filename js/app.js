@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-17';
+  var APP_VERSION = '2026.08.28-18';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -309,7 +309,17 @@
     if (it.type === 'time') {
       var secs = it.sets.map(function (s) { return s.sec; });
       var same = secs.every(function (v) { return v === secs[0]; });
-      return it.sets.length + '세트 × ' + (same ? secs[0] + '초' : secs.join('/') + '초');
+      var txt = it.sets.length + '세트 × ' + (same ? secs[0] + '초' : secs.join('/') + '초');
+      // 유산소는 속도가 곧 강도라 요약에도 같이 적는다
+      var sp = it.sets.map(function (s) { return s.speed; });
+      if (sp.some(function (v) { return v != null; })) {
+        // 무게와 같은 규칙: 전부 같은 값일 때만 숫자, 아니면 "가변"
+        var sameSp = sp.every(function (v) { return v != null && v === sp[0]; });
+        txt += ' · ' + (sameSp ? sp[0] + 'km/h' : '속도 가변');
+        var gr = it.sets.map(function (s) { return s.grade; });
+        if (sameSp && gr.every(function (v) { return v === gr[0]; }) && gr[0]) txt += ' 경사 ' + gr[0] + '%';
+      }
+      return txt;
     }
     var reps = it.sets.map(function (s) { return s.reps; });
     var ws = it.sets.map(function (s) { return s.weight; });
@@ -409,9 +419,18 @@
 
   function itemEditor(r, it) {
     var unit = S.settings.unit;
+    var cc = cardioCfg(it);
     var rows = it.sets.map(function (st, i) {
       var fields = it.type === 'time'
-        ? '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
+        ? (cc
+            ? '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + (st.speed == null ? '' : st.speed) + '" ' +
+                'placeholder="속도" data-bind="set-speed" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>km/h</span></label>' +
+              (cc.grade
+                ? '<label class="mini"><input type="number" inputmode="decimal" min="0" max="30" step="0.5" value="' + (st.grade == null ? '' : st.grade) + '" ' +
+                    'placeholder="경사" data-bind="set-grade" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>%</span></label>'
+                : '')
+            : '') +
+          '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
             'data-bind="set-sec" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>'
         : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
             'data-bind="set-weight" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>' + unit + '</span></label>' +
@@ -419,7 +438,8 @@
           '<label class="mini"><input type="number" inputmode="numeric" min="0" step="1" value="' + num(st.reps, 0) + '" ' +
             'data-bind="set-reps" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>회</span></label>';
       return '<div class="setrow">' +
-        '<span class="setno">' + (i + 1) + '세트</span>' + fields +
+        '<span class="setno">' + (i + 1) + '세트</span>' +
+        '<div class="setfields' + (cc ? ' cardio' : '') + '">' + fields + '</div>' +
         '<button class="icon danger" title="세트 삭제" data-act="del-set" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '">✕</button>' +
         '</div>';
     }).join('');
@@ -465,7 +485,7 @@
     if (!r) return '';
     var u = S.settings.unit;
     var v = r.type === 'time'
-      ? fmtSec(r.totalSec)
+      ? fmtSec(r.totalSec) + (r.topSpeed ? ' · ' + r.topSpeed + 'km/h' : '')
       : (r.best ? r.best.weight + u + ' × ' + r.best.reps + '회' : '');
     if (!v) return '';
     return '<p class="lastrec" data-act="open-progress" data-id="' + item.exerciseId + '">' +
@@ -501,22 +521,34 @@
       '<div class="bar"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
       '<div class="row between"><span class="dim">' + c.done + ' / ' + c.total + ' 세트</span>' +
       '<span class="dim">' + S.volumeOf(s).toLocaleString() + S.settings.unit +
-      ' · 약 ' + kcalOf(s).toLocaleString() + ' kcal</span></div>' +
+      ' · 약 <span data-tick="kcal">' + kcalOf(s).toLocaleString() + '</span> kcal</span></div>' +
       '</div>';
 
     html += s.items.map(function (it, idx) {
       var doneCount = it.sets.filter(function (x) { return x.done; }).length;
       var allDone = doneCount === it.sets.length && it.sets.length > 0;
+      var cc = cardioCfg(it);
+      var burned = it.type === 'time' ? itemKcal(it) : 0;
       return '<section class="card exercise' + (allDone ? ' done' : '') + '">' +
         '<div class="row between">' +
           '<h3>' + (idx + 1) + '. ' + esc(it.name) + (allDone ? ' ✅' : '') + '</h3>' +
-          '<span class="dim">' + doneCount + '/' + it.sets.length + '</span>' +
+          '<span class="dim" data-kcal="' + it.id + '">' +
+            (burned ? '약 ' + burned.toLocaleString() + ' kcal · ' : '') +
+            doneCount + '/' + it.sets.length + '</span>' +
         '</div>' +
         (it.memo ? '<p class="dim memo">📝 ' + esc(it.memo) + '</p>' : '') +
         lastRecordLine(it) +
         '<div class="setlist">' + it.sets.map(function (st, i) {
           var fields = it.type === 'time'
-            ? '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
+            ? (cc
+                ? '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + (st.speed == null ? '' : st.speed) + '" ' +
+                    'placeholder="속도" data-bind="live-speed" data-iid="' + it.id + '" data-si="' + i + '"><span>km/h</span></label>' +
+                  (cc.grade
+                    ? '<label class="mini"><input type="number" inputmode="decimal" min="0" max="30" step="0.5" value="' + (st.grade == null ? '' : st.grade) + '" ' +
+                        'placeholder="경사" data-bind="live-grade" data-iid="' + it.id + '" data-si="' + i + '"><span>%</span></label>'
+                    : '')
+                : '') +
+              '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
                 'data-bind="live-sec" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>'
             : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
                 'data-bind="live-weight" data-iid="' + it.id + '" data-si="' + i + '"><span>' + S.settings.unit + '</span></label>' +
@@ -524,7 +556,8 @@
               '<label class="mini"><input type="number" inputmode="numeric" min="0" step="1" value="' + num(st.reps, 0) + '" ' +
                 'data-bind="live-reps" data-iid="' + it.id + '" data-si="' + i + '"><span>회</span></label>';
           return '<div class="setrow live' + (st.done ? ' checked' : '') + '">' +
-            '<span class="setno">' + (i + 1) + '</span>' + fields +
+            '<span class="setno">' + (i + 1) + '</span>' +
+            '<div class="setfields' + (cc ? ' cardio' : '') + '">' + fields + '</div>' +
             '<button class="check' + (st.done ? ' on' : '') + '" data-act="toggle-set" data-iid="' + it.id + '" data-si="' + i + '" ' +
               'aria-pressed="' + (st.done ? 'true' : 'false') + '" title="세트 완료 체크">' + (st.done ? '✓' : '') + '</button>' +
             '</div>';
@@ -544,6 +577,38 @@
     html += '<button class="btn primary block lg" data-act="finish-session">운동 완료하고 기록 저장</button>';
     html += '</main>';
     return html;
+  }
+
+  // 유산소는 속도가 소모량을 지배하므로 속도 칸을 따로 준다.
+  // 어떤 운동이 속도를 받는지는 칼로리 모듈이 알고 있다.
+  // 빈 칸은 null(기본 강도), 숫자는 범위 안으로 자른다
+  function blankOrNum(v, lo, hi) {
+    if (String(v).trim() === '') return null;
+    return Math.min(hi, Math.max(lo, Math.round(num(v, 0) * 10) / 10));
+  }
+  // 속도를 고치는 동안 전체를 다시 그리면 입력칸이 날아간다. 숫자만 갈아 끼운다.
+  function refreshKcal() {
+    var sess = S.active();
+    if (!sess) return;
+    sess.items.forEach(function (it) {
+      var el = document.querySelector('[data-kcal="' + it.id + '"]');
+      if (!el) return;
+      var burned = it.type === 'time' ? itemKcal(it) : 0;
+      el.textContent = (burned ? '약 ' + burned.toLocaleString() + ' kcal · ' : '') +
+        it.sets.filter(function (x) { return x.done; }).length + '/' + it.sets.length;
+    });
+    var tot = document.querySelector('[data-tick="kcal"]');
+    if (tot) tot.textContent = kcalOf(sess).toLocaleString();
+  }
+
+  function cardioCfg(item) {
+    if (!item || item.type !== 'time' || !window.Calories) return null;
+    return window.Calories.cardioOf(item.exerciseId, S.findExercise(item.exerciseId));
+  }
+  // 유산소 운동 하나가 태운 열량
+  function itemKcal(item) {
+    if (!window.Calories) return 0;
+    return window.Calories.timeItem(item, S.findExercise(item.exerciseId), S.settings.bodyWeight);
   }
 
   function kcalOf(sess) {
@@ -740,11 +805,21 @@
         '<div><strong>' + rows.length + '</strong><span class="dim">수행 횟수</span></div>' +
         '</div>';
       html += lineChart({
-        title: '시간 추이(초)', key: 'sec', color: '#5588f0',
+        title: '시간 추이', key: 'sec', color: '#5588f0',
         points: rows.map(function (r) {
-          return { at: r.at, v: r.totalSec, label: fmtSec(r.totalSec) };
+          return { at: r.at, v: r.totalSec,
+                   label: fmtSec(r.totalSec) + (r.topSpeed ? ' (' + r.topSpeed + 'km/h)' : '') };
         })
       });
+      // 속도를 적어 둔 기록이 있으면 속도 변화도 함께 본다
+      if (rows.some(function (r) { return r.topSpeed; })) {
+        html += lineChart({
+          title: '속도 추이(km/h)', key: 'spd', color: '#25a98f',
+          points: rows.filter(function (r) { return r.topSpeed; }).map(function (r) {
+            return { at: r.at, v: r.topSpeed, label: r.topSpeed + 'km/h' };
+          })
+        });
+      }
     } else {
       var pr = rows.reduce(function (a, r) { return r.topWeight > a.topWeight ? r : a; }, rows[0]);
       var bestE = rows.reduce(function (a, r) { return Math.max(a, r.e1rm); }, 0);
@@ -775,7 +850,7 @@
     html += '<section class="card"><h3>날짜별 기록</h3><ul class="loglist">' +
       rows.slice().reverse().map(function (r) {
         var v = timed
-          ? fmtSec(r.totalSec)
+          ? fmtSec(r.totalSec) + (r.topSpeed ? ' · ' + r.topSpeed + 'km/h' : '')
           : (r.best ? r.best.weight + u + ' × ' + r.best.reps + '회' : '-');
         return '<li data-act="open-history" data-id="' + r.sessionId + '">' +
           '<span class="dim">' + fmtDate(r.at) + '</span>' +
@@ -1387,6 +1462,9 @@
       case 'set-weight': editSet(function (st) { st.weight = num(t.value, 0); }); refreshItemSummary(rid, iid); break;
       case 'set-reps': editSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); refreshItemSummary(rid, iid); break;
       case 'set-sec': editSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); refreshItemSummary(rid, iid); break;
+      // 속도·경사는 비워 두면 그 운동의 기본 강도로 계산한다
+      case 'set-speed': editSet(function (st) { st.speed = blankOrNum(t.value, 0, 40); }); refreshItemSummary(rid, iid); break;
+      case 'set-grade': editSet(function (st) { st.grade = blankOrNum(t.value, 0, 30); }); refreshItemSummary(rid, iid); break;
       case 'item-rest':
         // 빈 칸은 "기본값 따름"(null) 이다
         S.updateItem(rid, iid, {
@@ -1399,6 +1477,8 @@
       case 'live-weight': editLiveSet(function (st) { st.weight = num(t.value, 0); }); break;
       case 'live-reps': editLiveSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); break;
       case 'live-sec': editLiveSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); break;
+      case 'live-speed': editLiveSet(function (st) { st.speed = blankOrNum(t.value, 0, 40); }); refreshKcal(); break;
+      case 'live-grade': editLiveSet(function (st) { st.grade = blankOrNum(t.value, 0, 30); }); refreshKcal(); break;
       case 'live-rest': {
         // 빈 칸은 "기본값 따름"(null) 이다
         var blank = t.value.trim() === '';

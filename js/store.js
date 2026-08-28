@@ -322,11 +322,16 @@
     var row = {
       sessionId: session.id, routineName: session.routineName,
       at: session.startedAt, type: item.type,
-      setCount: sets.length, totalReps: 0, totalSec: 0,
+      setCount: sets.length, totalReps: 0, totalSec: 0, topSpeed: 0,
       volume: 0, topWeight: 0, topReps: 0, best: null, e1rm: 0
     };
     sets.forEach(function (st) {
-      if (item.type === 'time') { row.totalSec += Number(st.sec) || 0; return; }
+      if (item.type === 'time') {
+        row.totalSec += Number(st.sec) || 0;
+        // 유산소는 같은 30분이라도 속도가 다르면 다른 운동이다
+        row.topSpeed = Math.max(row.topSpeed, Number(st.speed) || 0);
+        return;
+      }
       var w = Number(st.weight) || 0, r = Number(st.reps) || 0;
       row.totalReps += r;
       row.volume += w * r;

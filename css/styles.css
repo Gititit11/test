@@ -224,6 +224,18 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .x { color: var(--dim); flex: none; }
 .mini.restedit { flex: 0 0 auto; gap: 4px; }
 .mini.restedit input { width: 68px; text-align: center; padding: 7px 6px; }
+/* 유산소는 속도·경사·시간 세 칸이라 좁다. 입력칸 묶음만 안에서 줄바꿈하고
+   세트 번호와 체크 버튼은 양 끝에 그대로 둔다. */
+.setfields { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; row-gap: 6px; }
+.setfields .mini > span { font-size: 11px; }
+/* 유산소 칸은 늘리지 않고 제 크기를 지킨다. 줄이 넘어가도 마지막 칸이
+   혼자 화면 폭을 다 먹지 않는다. */
+.setfields.cardio .mini { flex: 0 1 auto; }
+.setfields.cardio .mini input { width: 64px; }
+/* 숫자 스피너가 좁은 칸에서 글자를 가린다 */
+.mini input[type=number] { -moz-appearance: textfield; }
+.mini input[type=number]::-webkit-outer-spin-button,
+.mini input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* 운동 진행 */
 .progress-card { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 58px; z-index: 10; }

@@ -77,6 +77,63 @@
   };
   var TIME_MET_DEFAULT = 3.5;
 
+  /* 유산소는 속도가 소모량을 지배한다. 8km/h 로 뛴 20분과 14km/h 로 뛴 20분을
+   * 같은 값으로 볼 수 없어서, 속도를 적으면 고정 MET 대신 아래 식을 쓴다.
+   *
+   * 걷기·달리기는 ACSM 대사 공식(VO2, mL/kg/분)을 그대로 쓴다.
+   *   걷기   : 0.1 × 속도(m/분) + 1.8 × 속도(m/분) × 경사 + 3.5
+   *   달리기 : 0.2 × 속도(m/분) + 0.9 × 속도(m/분) × 경사 + 3.5
+   * 자전거는 속도로 나눈 통용 MET 구간을 쓴다(실내 자전거의 km/h 표시 기준).
+   *
+   * 나온 값에 0.85를 곱해 낮춰 잡는다. 이 앱의 다른 계수와 같은 방침이고,
+   * 9km/h 달리기에서 기존 고정값 8.0 과 거의 같은 값이 나오도록 맞춘 값이다. */
+  var CARDIO_SHADE = 0.85;
+  // 걷기 식은 6.4km/h 까지, 달리기 식은 8km/h 부터가 검증 구간이다. 그 사이를
+  // 한 지점에서 잘라 쓰면 6.9 와 7.1 이 두 배 차이가 나므로 구간을 섞는다.
+  var WALK_MAX = 6.4, RUN_MIN = 8.0;
+
+  // 속도를 받을 유산소 운동과 그 계산 방식
+  var CARDIO = {
+    'x-treadmill-running': { model: 'walkrun', grade: true },
+    'x-incline-treadmill-walk': { model: 'walkrun', grade: true },
+    'x-stationary-bike': { model: 'bike' }
+  };
+  function cardioOf(exerciseId, ex) {
+    if (CARDIO[exerciseId]) return CARDIO[exerciseId];
+    // 사용자가 직접 추가한 시간형 유산소도 속도를 받는다
+    if (ex && ex.part === '유산소' && ex.type === 'time') return { model: 'walkrun', grade: true };
+    return null;
+  }
+
+  // 실내 자전거: 속도 구간별 통용 MET (야외 자전거 기준값을 그대로 쓰지 않고 아래쪽으로)
+  function bikeMet(kmh) {
+    if (kmh < 16) return 4.8;
+    if (kmh < 19) return 6.0;
+    if (kmh < 22) return 7.2;
+    if (kmh < 25) return 8.8;
+    return 10.5;
+  }
+
+  /* 속도(km/h)와 경사(%)로 MET 을 낸다. 속도가 없으면 null 을 돌려
+   * 호출한 쪽이 고정 MET 으로 돌아가게 한다. */
+  function speedMet(cfg, kmh, gradePct) {
+    kmh = num(kmh);
+    if (!cfg || kmh <= 0) return null;
+    if (cfg.model === 'bike') return bikeMet(kmh) * CARDIO_SHADE;
+    var mpm = kmh * 1000 / 60;                       // m/분
+    var g = cfg.grade ? Math.max(0, num(gradePct)) / 100 : 0;
+    var walk = 0.1 * mpm + 1.8 * mpm * g + 3.5;
+    var run  = 0.2 * mpm + 0.9 * mpm * g + 3.5;
+    var vo2;
+    if (kmh <= WALK_MAX) vo2 = walk;
+    else if (kmh >= RUN_MIN) vo2 = run;
+    else {
+      var t = (kmh - WALK_MAX) / (RUN_MIN - WALK_MAX);
+      vo2 = walk + (run - walk) * t;                 // 걷기↔달리기 사이는 섞어 쓴다
+    }
+    return (vo2 / 3.5) * CARDIO_SHADE;
+  }
+
   function num(v) { var n = Number(v); return isNaN(n) ? 0 : n; }
 
   function romOf(item, ex) {
@@ -95,7 +152,12 @@
     return weight + bodyWeight * (frac || 0);
   }
 
-  function metOf(item, ex) {
+  function metOf(item, ex, set) {
+    var cfg = cardioOf(item.exerciseId, ex);
+    if (cfg && set) {
+      var m = speedMet(cfg, set.speed, set.grade);
+      if (m) return m;                                // 속도를 적었으면 그 값으로
+    }
     return TIME_MET[item.exerciseId] ||
       (ex && ex.part === '유산소' ? 5.0 : TIME_MET_DEFAULT);
   }
@@ -136,7 +198,7 @@
       it.sets.forEach(function (st) {
         if (st.done === false) return;
         if (it.type === 'time') {
-          var extra = Math.max(0, metOf(it, ex) - CONFIG.MET_REST);
+          var extra = Math.max(0, metOf(it, ex, st) - CONFIG.MET_REST);
           kcal += metKcal(extra, bodyWeight, num(st.sec) / 60);
         } else {
           var reps = num(st.reps);
@@ -151,6 +213,19 @@
     return Math.round(kcal);
   }
 
+  /* 시간형 운동 하나가 태운 열량. 유산소 카드에 바로 보여 주려고 따로 뺐다.
+   * 기초 대사분을 뺀 순수 추가분이므로 세션 합계와 같은 기준이다. */
+  function timeItem(item, ex, bodyWeight) {
+    if (!item || item.type !== 'time' || !bodyWeight) return 0;
+    var kcal = 0;
+    item.sets.forEach(function (st) {
+      if (st.done === false) return;
+      var extra = Math.max(0, metOf(item, ex, st) - CONFIG.MET_REST);
+      kcal += metKcal(extra, bodyWeight, num(st.sec) / 60);
+    });
+    return Math.round(kcal);
+  }
+
   function total(sessions, bodyWeight, findExercise) {
     return sessions.reduce(function (a, s) {
       return a + session(s, bodyWeight, findExercise);
@@ -159,6 +234,9 @@
 
   global.Calories = {
     CONFIG: CONFIG,
+    cardioOf: cardioOf,
+    speedMet: speedMet,
+    timeItem: timeItem,
     session: session,
     total: total,
     romOf: romOf,
