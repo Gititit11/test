@@ -228,10 +228,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .voicerow.on { border-color: var(--brand); background: rgba(77, 124, 255, .12); }
 .voicepick {
   flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--text);
-  font-family: inherit; cursor: pointer; padding: 4px 0; display: flex; flex-direction: column; gap: 1px;
+  font-family: inherit; cursor: pointer; padding: 10px 0;
 }
-.voicepick strong { font-size: 15px; }
-.voicepick .dim { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voicepick strong { font-size: 16px; }
 
 /* 근육 지도 */
 .bodymap { display: flex; flex-direction: column; gap: 10px; }

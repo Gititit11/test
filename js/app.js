@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-4';
+  var APP_VERSION = '2026.08.28-5';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -151,7 +151,8 @@
     var all = [];
     try { all = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; }
     catch (e) { return []; }
-    var isKo = function (v) { return /^ko/i.test(v.lang || ''); };
+    // /^ko/ 는 코카니어(kok-IN)까지 통과시킨다. 한국어만 남긴다.
+    var isKo = function (v) { return /^ko([-_]|$)/i.test(v.lang || ''); };
     // 한국어 목소리에 먼저 이름을 붙여, 다른 언어를 켜도 이름이 밀리지 않게 한다
     var ko = withNames(voiceList(all.filter(isKo)), 0);
     if (!includeAll) return ko;
@@ -880,15 +881,12 @@
         '안드로이드라면 <b>설정 → 접근성 → 텍스트 음성 변환</b>에서 “Google 음성 서비스”를 고르고 ' +
         '한국어 음성 데이터를 내려받으면 훨씬 자연스러워집니다.</p>';
     } else {
-      out += '<p class="dim">' + ko.length + '개를 하나씩 들어보고 고르세요. ' +
-        '이름이 같아도 화자가 다를 수 있어 전부 보여줍니다.</p>' +
+      out += '<p class="dim">▶ 로 들어보고 마음에 드는 것을 고르세요.</p>' +
         '<ul class="voicelist">' + ko.map(function (v) {
           var on = st.voiceURI === v.uri ? ' on' : '';
           return '<li class="voicerow' + on + '">' +
-            '<button class="voicepick" data-act="voice-pick" data-uri="' + esc(v.uri) + '">' +
-              '<strong>' + esc(v.label) + '</strong>' +
-              '<span class="dim">' + esc(v.system) + '</span>' +
-            '</button>' +
+            '<button class="voicepick" data-act="voice-pick" data-uri="' + esc(v.uri) + '" ' +
+              'title="' + esc(v.system) + '"><strong>' + esc(v.label) + '</strong></button>' +
             '<button class="btn sm" data-act="voice-play" data-uri="' + esc(v.uri) + '" ' +
               'aria-label="' + esc(v.label) + ' 들어보기">▶</button>' +
           '</li>';
