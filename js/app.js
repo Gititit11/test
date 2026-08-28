@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-13';
+  var APP_VERSION = '2026.08.28-14';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -273,6 +273,20 @@
     }).join('') + '</nav>';
   }
   function badge(text, cls) { return '<span class="badge ' + (cls || '') + '">' + esc(text) + '</span>'; }
+
+  // 부위마다 파스텔 색을 하나씩 준다. 색은 눈에 띄라고 넣은 것이고,
+  // 배지 글자가 곧 운동 이름이라 색을 구분 못 해도 잃는 정보는 없다.
+  var PART_CLASS = {
+    '가슴': 'pt-chest', '등': 'pt-back', '어깨': 'pt-shoulder', '팔': 'pt-arm',
+    '하체': 'pt-leg', '코어': 'pt-core', '유산소': 'pt-cardio'
+  };
+  function partBadge(item) {
+    var ex = S.findExercise(item.exerciseId);
+    var part = ex && ex.part;
+    var cls = PART_CLASS[part];
+    if (!cls) return badge(item.name);
+    return '<span class="badge ' + cls + '" title="' + esc(part) + '">' + esc(item.name) + '</span>';
+  }
   function empty(msg, sub) {
     return '<div class="empty"><div class="empty-ico">🗒️</div><p>' + esc(msg) + '</p>' +
       (sub ? '<p class="dim">' + esc(sub) + '</p>' : '') + '</div>';
@@ -324,7 +338,7 @@
               'aria-label="' + esc(r.name) + ' 옵션" title="옵션">⋮</button>' +
           '</div>' +
           '<div class="routine-preview">' +
-            (r.items.slice(0, 4).map(function (it) { return badge(it.name); }).join('') || '<span class="dim">운동을 추가해 주세요</span>') +
+            (r.items.slice(0, 4).map(partBadge).join('') || '<span class="dim">운동을 추가해 주세요</span>') +
             (r.items.length > 4 ? badge('+' + (r.items.length - 4)) : '') +
           '</div>' +
         '</li>';
