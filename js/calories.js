@@ -109,6 +109,14 @@
   };
   var LEVEL_DEFAULT = [3.5, 5.0, 7.0];      // 사용자가 직접 추가한 유산소
 
+  /* 횟수로 세지만 실제로는 유산소인 운동. 역학적 일로 계산하면 몸을 계속
+   * 띄웠다 내리는 몫이 빠져 크게 낮게 나온다(버피 60회에 9kcal 남짓).
+   * 이런 운동은 횟수로 시간을 추정해 MET 으로 계산한다. */
+  var REP_CARDIO = {
+    'x-burpee': { met: 8.0, secPerRep: 4 },
+    'x-mountain-climber': { met: 6.0, secPerRep: 1.2 }
+  };
+
   function cardioOf(exerciseId, ex) {
     if (CARDIO[exerciseId]) return CARDIO[exerciseId];
     // 직접 추가한 유산소는 어떤 기구인지 알 수 없으니 강도만 받는다
@@ -222,6 +230,12 @@
         if (it.type === 'time') {
           var extra = Math.max(0, metOf(it, ex, st, bodyWeight) - CONFIG.MET_REST);
           kcal += metKcal(extra, bodyWeight, num(st.sec) / 60);
+        } else if (REP_CARDIO[it.exerciseId]) {
+          var rc = REP_CARDIO[it.exerciseId];
+          var reps0 = num(st.reps);
+          if (!reps0) return;
+          var extra2 = Math.max(0, rc.met * CARDIO_SHADE - CONFIG.MET_REST);
+          kcal += metKcal(extra2, bodyWeight, reps0 * rc.secPerRep / 60);
         } else {
           var reps = num(st.reps);
           if (!reps) return;

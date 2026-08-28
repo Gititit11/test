@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-21';
+  var APP_VERSION = '2026.08.28-22';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -334,7 +334,9 @@
     var ws = it.sets.map(function (s) { return s.weight; });
     var sameR = reps.every(function (v) { return v === reps[0]; });
     var sameW = ws.every(function (v) { return v === ws[0]; });
-    var w = sameW ? (ws[0] ? ws[0] + S.settings.unit : '맨몸') : '가변';
+    // 맨몸 운동에 무게가 있으면 그건 "더 단" 무게다
+    var plus = bodyweight(it) ? '+' : '';
+    var w = sameW ? (ws[0] ? plus + ws[0] + S.settings.unit : '맨몸') : '가변';
     return it.sets.length + '세트 × ' + (sameR ? reps[0] + '회' : reps.join('/') + '회') + ' · ' + w;
   }
 
@@ -439,11 +441,12 @@
           cardioFields(cc, st, 'set-', ids) +
         '</div>';
       }
+      var bw = bodyweight(it);        // 맨몸 운동이면 무게는 "추가로 든 것"
       var fields = it.type === 'time'
         ? '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
             'data-bind="set-sec" ' + ids + '><span>초</span></label>'
-        : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
-            'data-bind="set-weight" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>' + unit + '</span></label>' +
+        : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + wVal(st, bw) + '" ' +
+            (bw ? 'placeholder="맨몸" ' : '') + 'data-bind="set-weight" ' + ids + '><span>' + (bw ? '+' : '') + unit + '</span></label>' +
           '<span class="x">×</span>' +
           '<label class="mini"><input type="number" inputmode="numeric" min="0" step="1" value="' + num(st.reps, 0) + '" ' +
             'data-bind="set-reps" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>회</span></label>';
@@ -561,11 +564,12 @@
               cardioFields(cc, st, 'live-', lids) +
             '</div>';
           }
+          var bw = bodyweight(it);
           var fields = it.type === 'time'
             ? '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
                 'data-bind="live-sec" ' + lids + '><span>초</span></label>'
-            : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
-                'data-bind="live-weight" data-iid="' + it.id + '" data-si="' + i + '"><span>' + S.settings.unit + '</span></label>' +
+            : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + wVal(st, bw) + '" ' +
+                (bw ? 'placeholder="맨몸" ' : '') + 'data-bind="live-weight" ' + lids + '><span>' + (bw ? '+' : '') + S.settings.unit + '</span></label>' +
               '<span class="x">×</span>' +
               '<label class="mini"><input type="number" inputmode="numeric" min="0" step="1" value="' + num(st.reps, 0) + '" ' +
                 'data-bind="live-reps" data-iid="' + it.id + '" data-si="' + i + '"><span>회</span></label>';
@@ -650,6 +654,18 @@
     });
     var tot = document.querySelector('[data-tick="kcal"]');
     if (tot) tot.textContent = kcalOf(sess).toLocaleString();
+  }
+
+  /* 맨몸 운동에 "kg" 칸만 덩그러니 있으면 뭘 적으라는 건지 알 수 없다.
+   * 실제로는 벨트나 덤벨로 더 단 무게를 적는 칸이므로 "+kg" 으로 적고,
+   * 비어 있으면 맨몸이라는 뜻이 되게 한다. */
+  function bodyweight(item) {
+    var ex = S.findExercise(item.exerciseId);
+    return !!(ex && ex.equip === '맨몸' && item.type !== 'time');
+  }
+  function wVal(st, bw) {
+    var w = num(st.weight, 0);
+    return (bw && !w) ? '' : w;        // 맨몸이면 0 을 빈 칸으로 보여 준다
   }
 
   function cardioCfg(item) {
