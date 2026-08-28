@@ -27,6 +27,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+        with:
+          # Pages 가 아직 켜져 있지 않아도 워크플로가 직접 켜도록 한다
+          enablement: true
       - name: 정적 파일 업로드
         uses: actions/upload-pages-artifact@v3
         with:
