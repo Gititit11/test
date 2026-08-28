@@ -122,15 +122,16 @@ a { color: inherit; text-decoration: none; }
 }
 .badge.part { color: #9fc0ff; border-color: #2d3a5c; }
 
-/* 부위별 파스텔 배지 — 루틴 카드의 운동 이름에 쓴다.
-   글자색은 카드(#1b2029) 위 배경 대비 4.7:1 이상으로 잡았다. */
-.badge.pt-chest    { color: #ffb0a0; background: #45231d; border-color: #92574b; }
-.badge.pt-shoulder { color: #f2ca7e; background: #3c2b04; border-color: #826424; }
-.badge.pt-leg      { color: #8fdca4; background: #12361e; border-color: #3a784e; }
-.badge.pt-core     { color: #7ad3e4; background: #05343c; border-color: #297482; }
-.badge.pt-back     { color: #9ab8f7; background: #202d48; border-color: #516898; }
-.badge.pt-arm      { color: #e0aeea; background: #3a243e; border-color: #7f5986; }
-.badge.pt-cardio   { color: #f79bbb; background: #461f2e; border-color: #954f69; }
+/* 부위별 파스텔 글자색 — 루틴 카드의 운동 이름에 쓴다.
+   배경·테두리는 기본 배지 그대로 두고 글자색만 바꾼다.
+   기본 배지 배경(#222836) 기준 대비 7.2:1 이상. */
+.badge.pt-chest    { color: #ffb0a0; }
+.badge.pt-shoulder { color: #f2ca7e; }
+.badge.pt-leg      { color: #8fdca4; }
+.badge.pt-core     { color: #7ad3e4; }
+.badge.pt-back     { color: #9ab8f7; }
+.badge.pt-arm      { color: #e0aeea; }
+.badge.pt-cardio   { color: #f79bbb; }
 .badge.equip { color: #ffd28a; border-color: #4a3c22; }
 .badge.mine { color: var(--ok); border-color: #24483a; }
 .tags { margin-top: 6px; }
@@ -1506,7 +1507,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-14';
+  var APP_VERSION = '2026.08.28-15';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');

@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-14';
+  var APP_VERSION = '2026.08.28-15';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
