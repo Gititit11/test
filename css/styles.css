@@ -214,6 +214,38 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
 .stats > div { display: flex; flex-direction: column; gap: 2px; }
 .stats strong { font-size: 22px; }
 
+/* 근육 지도 */
+.bodymap { display: flex; flex-direction: column; gap: 10px; }
+.bm-figs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bm-fig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bm-fig figcaption { font-size: 11px; color: var(--dim); letter-spacing: .08em; }
+.bm-svg { width: 100%; height: auto; max-height: 320px; display: block; }
+.bm-base { fill: #232a36; stroke: #363f52; stroke-width: 1; }
+.bm-m { cursor: pointer; transition: opacity .15s ease; }
+.bm-m:hover { opacity: .85; }
+.bm-m.bm-on { stroke: var(--text); stroke-width: 1.6; paint-order: stroke; }
+
+.bm-legend { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; }
+.bm-legend i { width: 20px; height: 10px; border-radius: 2px; display: inline-block; }
+.bm-legend .bm-idle { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--dim); }
+
+.bm-detail {
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px;
+}
+.bm-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bm-row {
+  display: grid; grid-template-columns: 74px 1fr 34px;
+  align-items: center; gap: 8px; cursor: pointer;
+  padding: 3px 4px; border-radius: 8px;
+}
+.bm-row.on { background: var(--bg-2); }
+.bm-name { font-size: 13px; color: var(--dim); }
+.bm-row.on .bm-name { color: var(--text); }
+.bm-bar { height: 10px; background: var(--bg-2); border-radius: 5px; overflow: hidden; }
+.bm-bar i { display: block; height: 100%; border-radius: 5px; }
+.bm-val { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; color: var(--dim); }
+
 /* 빈 상태 */
 .empty { text-align: center; padding: 40px 16px; color: var(--dim); }
 .empty.small { padding: 24px; }

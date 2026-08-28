@@ -1,8 +1,8 @@
 /* 오프라인 캐시 (헬스장 지하 등 네트워크가 끊겨도 동작) */
-var CACHE = 'gymmate-v3';
+var CACHE = 'gymmate-v4';
 var ASSETS = [
   './', './index.html', './manifest.json',
-  './css/styles.css', './js/exercises.js', './js/store.js', './js/app.js',
+  './css/styles.css', './js/exercises.js', './js/store.js', './js/bodymap.js', './js/app.js',
   './icons/icon-192.png', './icons/icon-512.png',
   './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'
 ];

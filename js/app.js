@@ -452,6 +452,66 @@
   }
 
   // ── 화면: 기록 ───────────────────────────────────────
+  var bmSel = null;   // 근육 지도에서 선택한 부위
+
+  function bodyMapCard(sessions) {
+    var BM = window.BodyMap;
+    if (!BM) return '';
+    var data = BM.aggregate(sessions, 7, function (id) { return S.findExercise(id); });
+    var ranked = BM.GROUPS.map(function (g) {
+      return { id: g.id, ko: g.ko, sets: data.byGroup[g.id].sets, volume: data.byGroup[g.id].volume };
+    }).sort(function (a, b) { return b.sets - a.sets; });
+
+    var trained = ranked.filter(function (r) { return r.sets > 0; });
+    var sel = bmSel && data.byGroup[bmSel] ? bmSel : (trained[0] ? trained[0].id : null);
+
+    var legend = '<div class="bm-legend">' +
+      '<span class="dim">적음</span>' +
+      BM.RAMP.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') +
+      '<span class="dim">많음</span>' +
+      '<span class="bm-idle"><i style="background:' + BM.IDLE + '"></i>미실시</span>' +
+      '</div>';
+
+    var detail = '';
+    if (sel) {
+      var d = data.byGroup[sel];
+      var tops = Object.keys(d.top).sort(function (a, b) { return d.top[b] - d.top[a]; }).slice(0, 3);
+      detail = '<div class="bm-detail">' +
+        '<div class="row between"><strong>' + esc(BM.LABEL[sel]) + '</strong>' +
+        '<span class="dim">' + BM.fmtSets(d.sets) + '세트' +
+        (d.volume ? ' · ' + Math.round(d.volume).toLocaleString() + S.settings.unit : '') + '</span></div>' +
+        (tops.length
+          ? '<p class="dim">' + tops.map(function (n) {
+              return esc(n) + ' ' + BM.fmtSets(d.top[n]);
+            }).join(' · ') + '</p>'
+          : '<p class="dim">최근 7일 동안 이 부위 기록이 없습니다.</p>') +
+        '</div>';
+    }
+
+    var rank = trained.length
+      ? '<ul class="bm-rank">' + trained.map(function (r) {
+          var pct = data.max ? Math.max(4, (r.sets / data.max) * 100) : 0;
+          var on = r.id === sel ? ' on' : '';
+          return '<li class="bm-row' + on + '" data-act="bm-sel" data-m="' + r.id + '">' +
+            '<span class="bm-name">' + esc(r.ko) + '</span>' +
+            '<span class="bm-bar"><i style="width:' + pct.toFixed(1) + '%;background:' +
+              BM.colorFor(r.sets, data.max) + '"></i></span>' +
+            '<span class="bm-val">' + BM.fmtSets(r.sets) + '</span></li>';
+        }).join('') + '</ul>'
+      : '<p class="dim center">최근 7일 기록이 없습니다.</p>';
+
+    return '<section class="card bodymap">' +
+      '<div class="row between"><h3>최근 7일 부위별 운동량</h3>' +
+      '<span class="dim">' + data.sessions + '회 운동</span></div>' +
+      '<p class="dim">주동근 1세트, 보조근 0.4세트로 계산합니다. 부위를 눌러 자세히 보세요.</p>' +
+      '<div class="bm-figs">' +
+        '<figure class="bm-fig">' + BM.figure('front', data, sel) + '<figcaption>앞</figcaption></figure>' +
+        '<figure class="bm-fig">' + BM.figure('back', data, sel) + '<figcaption>뒤</figcaption></figure>' +
+      '</div>' +
+      legend + detail + rank +
+      '</section>';
+  }
+
   function viewHistory(id) {
     if (id) return viewHistoryDetail(id);
     var list = S.sessions();
@@ -469,6 +529,8 @@
         '<div><strong>' + weekVol.toLocaleString() + '</strong><span class="dim">7일 볼륨(' + S.settings.unit + ')</span></div>' +
         '<div><strong>' + list.length + '</strong><span class="dim">총 운동 횟수</span></div>' +
         '</div>';
+
+      html += bodyMapCard(list);
 
       html += '<ul class="list">' + list.map(function (s) {
         return '<li class="card row between" data-act="open-history" data-id="' + s.id + '">' +
@@ -850,6 +912,10 @@
       }
 
       // ── 기록 ──
+      case 'bm-sel':
+        bmSel = (bmSel === t.dataset.m) ? null : t.dataset.m;
+        render();
+        break;
       case 'open-history': go('history/' + id); break;
       case 'del-history':
         if (confirm('이 기록을 삭제할까요?')) { S.deleteSession(id); go('history'); }

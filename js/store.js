@@ -19,7 +19,11 @@
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
-      if (!raw) return seed(clone(DEFAULT));
+      if (!raw) {
+        var seeded = seed(clone(DEFAULT));
+        try { localStorage.setItem(KEY, JSON.stringify(seeded)); } catch (e) { /* 무시 */ }
+        return seeded;
+      }
       var parsed = JSON.parse(raw);
       return Object.assign(clone(DEFAULT), parsed, {
         settings: Object.assign(clone(DEFAULT.settings), parsed.settings || {})
