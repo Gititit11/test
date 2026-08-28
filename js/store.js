@@ -91,6 +91,29 @@
     get state() { return state; },
     get settings() { return state.settings; },
 
+    // 운동에 개별 휴식 시간이 없으면(null) 설정의 기본값을 쓴다.
+    // 그래야 설정을 바꿨을 때 기존 루틴에도 바로 반영된다.
+    // 모든 루틴(과 진행 중인 운동)의 개별 휴식 시간을 지워 기본값을 따르게 한다.
+    // 예전 버전에서 추가한 운동은 추가 당시의 값이 박혀 있어 설정을 바꿔도
+    // 변하지 않는데, 이걸 한 번에 정리하는 용도다.
+    resetAllRest: function () {
+      var n = 0;
+      state.routines.forEach(function (r) {
+        r.items.forEach(function (it) { if (it.restSec != null) { it.restSec = null; n++; } });
+      });
+      if (state.active) {
+        state.active.items.forEach(function (it) { if (it.restSec != null) it.restSec = null; });
+      }
+      save();
+      return n;
+    },
+
+    restOf: function (item) {
+      if (!item) return state.settings.defaultRest;
+      return (item.restSec === null || item.restSec === undefined)
+        ? state.settings.defaultRest : item.restSec;
+    },
+
     subscribe: function (fn) { listeners.push(fn); },
     commit: save,
 
@@ -177,7 +200,7 @@
         exerciseId: exercise.id,
         name: exercise.name,
         type: exercise.type,
-        restSec: state.settings.defaultRest,
+        restSec: null,   // null = 설정의 기본 휴식 시간을 따른다
         memo: '',
         sets: arr
       };

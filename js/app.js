@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-15';
+  var APP_VERSION = '2026.08.28-16';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -377,7 +377,7 @@
             '<div class="item-main">' +
               '<h3>' + esc(it.name) + '</h3>' +
               '<p class="dim" data-summary="' + it.id + '">' + esc(itemSummary(it)) +
-              ' · 휴식 ' + it.restSec + '초' + '</p>' +
+              ' · 휴식 ' + S.restOf(it) + '초' + '</p>' +
               (ex ? '<div class="tags">' + badge(ex.part, 'part') + badge(ex.equip, 'equip') + '</div>' : '') +
             '</div>' +
             '<span class="chev">' + (open ? '⌄' : '›') + '</span>' +
@@ -420,7 +420,10 @@
       '</div>' +
       '<div class="row gap wrap">' +
         '<label class="field inline"><span>휴식(초)</span>' +
-          '<input type="number" inputmode="numeric" min="0" step="10" value="' + it.restSec + '" data-bind="item-rest" data-rid="' + r.id + '" data-iid="' + it.id + '"></label>' +
+          '<input type="number" inputmode="numeric" min="0" step="10"' +
+            ' value="' + (it.restSec == null ? '' : it.restSec) + '"' +
+            ' placeholder="기본 ' + S.settings.defaultRest + '"' +
+            ' data-bind="item-rest" data-rid="' + r.id + '" data-iid="' + it.id + '"></label>' +
         '<label class="field inline grow"><span>운동 메모</span>' +
           '<input type="text" value="' + esc(it.memo || '') + '" placeholder="예: 3번 핀, 등받이 4칸" data-bind="item-memo" data-rid="' + r.id + '" data-iid="' + it.id + '"></label>' +
       '</div>' +
@@ -439,7 +442,7 @@
     var it = r.items.filter(function (i) { return i.id === iid; })[0];
     if (!it) return;
     var el = document.querySelector('[data-summary="' + iid + '"]');
-    if (el) el.textContent = itemSummary(it) + ' · 휴식 ' + it.restSec + '초';
+    if (el) el.textContent = itemSummary(it) + ' · 휴식 ' + S.restOf(it) + '초';
   }
 
   // ── 화면: 운동 진행 ──────────────────────────────────
@@ -500,8 +503,10 @@
           '<button class="btn sm" data-act="live-add-set" data-iid="' + it.id + '">+ 세트</button>' +
           '<button class="btn sm" data-act="live-del-set" data-iid="' + it.id + '">− 세트</button>' +
           '<label class="mini restedit right"><span>휴식</span>' +
-            '<input type="number" inputmode="numeric" min="0" step="10" value="' + it.restSec + '" ' +
-            'data-bind="live-rest" data-iid="' + it.id + '" aria-label="휴식 시간(초)"><span>초</span></label>' +
+            '<input type="number" inputmode="numeric" min="0" step="10"' +
+            ' value="' + (it.restSec == null ? '' : it.restSec) + '"' +
+            ' placeholder="' + S.settings.defaultRest + '"' +
+            ' data-bind="live-rest" data-iid="' + it.id + '" aria-label="휴식 시간(초)"><span>초</span></label>' +
         '</div>' +
       '</section>';
     }).join('');
@@ -648,6 +653,7 @@
     html += '<div class="card">' +
       '<label class="field inline"><span>기본 휴식 시간(초)</span>' +
       '<input type="number" inputmode="numeric" min="0" step="10" value="' + st.defaultRest + '" data-bind="set-rest"></label>' +
+      '<button class="btn sm block" data-act="reset-rest">모든 루틴을 기본 휴식 시간으로</button>' +
       '<label class="field inline"><span>무게 단위</span>' +
       '<select data-bind="set-unit">' +
         '<option value="kg"' + (st.unit === 'kg' ? ' selected' : '') + '>kg</option>' +
@@ -946,6 +952,11 @@
         break;
 
       case 'open-picker': openPicker(id); break;
+      case 'reset-rest': {
+        var n = S.resetAllRest();
+        toast(n ? n + '개 운동을 기본값으로 되돌렸습니다' : '모두 이미 기본값입니다');
+        break;
+      }
       case 'close-modal': closeModal(); break;
       case 'pk-filter':
         picker[t.dataset.key] = t.dataset.v;
@@ -1000,7 +1011,8 @@
         st.doneAt = st.done ? Date.now() : null;
         S.commit();
         if (st.done) {
-          if (item.restSec) startRest(item.restSec, item.name + ' ' + (si + 1) + '세트 완료');
+          var restSec = S.restOf(item);
+          if (restSec) startRest(restSec, item.name + ' ' + (si + 1) + '세트 완료');
           else beep();
         }
         render();
@@ -1163,7 +1175,10 @@
       case 'set-reps': editSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); refreshItemSummary(rid, iid); break;
       case 'set-sec': editSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); refreshItemSummary(rid, iid); break;
       case 'item-rest':
-        S.updateItem(rid, iid, { restSec: Math.max(0, Math.round(num(t.value, 0))) });
+        // 빈 칸은 "기본값 따름"(null) 이다
+        S.updateItem(rid, iid, {
+          restSec: t.value.trim() === '' ? null : Math.max(0, Math.round(num(t.value, 0)))
+        });
         refreshItemSummary(rid, iid);
         break;
       case 'item-memo': S.updateItem(rid, iid, { memo: t.value }); break;
@@ -1172,7 +1187,9 @@
       case 'live-reps': editLiveSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); break;
       case 'live-sec': editLiveSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); break;
       case 'live-rest': {
-        var sec = Math.max(0, Math.round(num(t.value, 0)));
+        // 빈 칸은 "기본값 따름"(null) 이다
+        var blank = t.value.trim() === '';
+        var sec = blank ? null : Math.max(0, Math.round(num(t.value, 0)));
         S.updateActive(function (s) {
           var it = s.items.filter(function (i) { return i.id === iid; })[0];
           if (it) it.restSec = sec;
@@ -1180,11 +1197,16 @@
         // 오늘 운동뿐 아니라 원래 루틴에도 반영해 다음에도 같은 값이 쓰이게 한다
         var cur = S.active();
         if (cur && S.getRoutine(cur.routineId)) S.updateItem(cur.routineId, iid, { restSec: sec });
-        if (ev.type === 'change') toast('휴식 ' + sec + '초 · 루틴에도 저장됨');
+        if (ev.type === 'change') {
+          toast(blank ? '기본 휴식 시간을 따릅니다' : '휴식 ' + sec + '초 · 루틴에도 저장됨');
+        }
         break;
       }
 
-      case 'set-rest': S.settings.defaultRest = Math.max(0, Math.round(num(t.value, 90))); S.commit(); break;
+      case 'set-rest':
+        S.settings.defaultRest = Math.max(0, Math.round(num(t.value, 90)));
+        S.commit();
+        break;
       case 'set-unit':
         S.settings.unit = t.value; S.commit();
         if (ev.type === 'change') render();
