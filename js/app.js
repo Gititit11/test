@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-23';
+  var APP_VERSION = '2026.08.28-24';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -283,6 +283,8 @@
   }
   function badge(text, cls) { return '<span class="badge ' + (cls || '') + '">' + esc(text) + '</span>'; }
 
+  var PREVIEW_MAX = 5;   // 루틴 카드에 이름으로 보여줄 운동 수. 나머지는 "+N"
+
   // 부위마다 파스텔 색을 하나씩 준다. 색은 눈에 띄라고 넣은 것이고,
   // 배지 글자가 곧 운동 이름이라 색을 구분 못 해도 잃는 정보는 없다.
   var PART_CLASS = {
@@ -372,8 +374,8 @@
               'aria-label="' + esc(r.name) + ' 옵션" title="옵션">⋮</button>' +
           '</div>' +
           '<div class="routine-preview">' +
-            (r.items.slice(0, 4).map(partBadge).join('') || '<span class="dim">운동을 추가해 주세요</span>') +
-            (r.items.length > 4 ? badge('+' + (r.items.length - 4)) : '') +
+            (r.items.slice(0, PREVIEW_MAX).map(partBadge).join('') || '<span class="dim">운동을 추가해 주세요</span>') +
+            (r.items.length > PREVIEW_MAX ? badge('+' + (r.items.length - PREVIEW_MAX)) : '') +
           '</div>' +
         '</li>';
       }).join('') + '</ul>';
