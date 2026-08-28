@@ -210,9 +210,10 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); }
 .check.on { background: var(--ok); border-color: var(--ok); color: #06301f; }
 
 /* 기록 통계 */
-.stats { display: flex; justify-content: space-around; text-align: center; }
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 8px; text-align: center; }
 .stats > div { display: flex; flex-direction: column; gap: 2px; }
-.stats strong { font-size: 22px; }
+.stats strong { font-size: 21px; font-variant-numeric: tabular-nums; }
+@media (min-width: 460px) { .stats { grid-template-columns: repeat(4, 1fr); } }
 
 /* 근육 지도 */
 .bodymap { display: flex; flex-direction: column; gap: 10px; }

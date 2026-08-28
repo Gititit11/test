@@ -93,6 +93,63 @@
     } catch (e) { /* 무시 */ }
   }
 
+  // ── 휴식 종료 음성 안내 ──────────────────────────────
+  // 이어폰으로 음악을 듣는 중에도 안내가 들리도록 브라우저 음성합성(TTS)을 쓴다.
+  // 안드로이드에서는 TTS 가 일시적 오디오 포커스를 잡아 음악을 잠깐 줄이고
+  // 같은 출력(이어폰)으로 안내를 내보낸 뒤 원래 볼륨으로 돌아간다.
+  var REST_END_TEXT = '휴식 시간이 종료되었습니다. 운동을 시작해주세요.';
+  var koVoice = null;
+
+  function loadVoices() {
+    var synth = window.speechSynthesis;
+    if (!synth) return;
+    var all = [];
+    try { all = synth.getVoices() || []; } catch (e) { return; }
+    var ko = all.filter(function (v) { return /^ko/i.test(v.lang || ''); });
+    // 여성 목소리를 우선 고른다 (안드로이드의 'Google 한국의', 윈도우 'Heami' 등)
+    var female = /female|여성|여자|yuna|heami|sora|nara|seoyeon|jimin|google/i;
+    koVoice = ko.filter(function (v) { return female.test(v.name || ''); })[0] || ko[0] || null;
+  }
+  if (window.speechSynthesis) {
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+
+  function speak(text) {
+    var synth = window.speechSynthesis;
+    if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined') return false;
+    try {
+      synth.cancel();
+      var u = new window.SpeechSynthesisUtterance(text);
+      u.lang = 'ko-KR';
+      if (koVoice) u.voice = koVoice;
+      u.rate = 1;
+      u.pitch = 1.15;   // 여성 목소리가 없는 기기에서도 높은 음색으로
+      u.volume = 1;
+      synth.speak(u);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // 모바일은 첫 사용자 조작 전에는 소리를 낼 수 없어 미리 깨워 둔다
+  function warmUpSpeech() {
+    var synth = window.speechSynthesis;
+    if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined') return;
+    try {
+      var u = new window.SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      u.lang = 'ko-KR';
+      synth.speak(u);
+    } catch (e) { /* 무시 */ }
+  }
+
+  function announceRestEnd() {
+    beep();
+    if (!S.settings.voice) return;
+    // 알림음과 겹치지 않게 잠깐 뒤에 말한다
+    setTimeout(function () { speak(REST_END_TEXT); }, 600);
+  }
+
   // 모바일 브라우저는 사용자 조작 이후에만 소리를 낼 수 있다
   function unlockAudio() {
     try {
@@ -100,7 +157,10 @@
       if (audioCtx.state === 'suspended') audioCtx.resume();
     } catch (e) { /* 오디오 미지원 무시 */ }
   }
-  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  document.addEventListener('pointerdown', function () {
+    unlockAudio();
+    warmUpSpeech();
+  }, { once: true });
 
   function beep() {
     if (!S.settings.sound) return;
@@ -146,7 +206,7 @@
     if (left <= 0) {
       rest.running = false;
       saveRest();
-      if (!silent) { beep(); toast('휴식 끝! 다음 세트 시작'); }
+      if (!silent) { announceRestEnd(); toast('휴식 끝! 다음 세트 시작'); }
     }
     drawRest();
   }
@@ -409,7 +469,8 @@
       '<div class="row between"><span class="dim">경과</span><strong data-tick="elapsed">' + fmtClock((Date.now() - s.startedAt) / 1000) + '</strong></div>' +
       '<div class="bar"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
       '<div class="row between"><span class="dim">' + c.done + ' / ' + c.total + ' 세트</span>' +
-      '<span class="dim">총 볼륨 ' + S.volumeOf(s).toLocaleString() + S.settings.unit + '</span></div>' +
+      '<span class="dim">' + S.volumeOf(s).toLocaleString() + S.settings.unit +
+      ' · 약 ' + kcalOf(s).toLocaleString() + ' kcal</span></div>' +
       '</div>';
 
     html += s.items.map(function (it, idx) {
@@ -449,6 +510,13 @@
     html += '<button class="btn primary block lg" data-act="finish-session">운동 완료하고 기록 저장</button>';
     html += '</main>';
     return html;
+  }
+
+  function kcalOf(sess) {
+    if (!window.Calories) return 0;
+    return window.Calories.session(sess, S.settings.bodyWeight, function (id) {
+      return S.findExercise(id);
+    });
   }
 
   // ── 화면: 기록 ───────────────────────────────────────
@@ -524,8 +592,10 @@
       var weekAgo = Date.now() - 7 * 864e5;
       var week = list.filter(function (s) { return s.startedAt >= weekAgo; });
       var weekVol = week.reduce(function (a, s) { return a + S.volumeOf(s); }, 0);
+      var weekKcal = week.reduce(function (a, s) { return a + kcalOf(s); }, 0);
       html += '<div class="card stats">' +
         '<div><strong>' + week.length + '</strong><span class="dim">최근 7일 운동</span></div>' +
+        '<div><strong>' + weekKcal.toLocaleString() + '</strong><span class="dim">7일 칼로리(kcal)</span></div>' +
         '<div><strong>' + weekVol.toLocaleString() + '</strong><span class="dim">7일 볼륨(' + S.settings.unit + ')</span></div>' +
         '<div><strong>' + list.length + '</strong><span class="dim">총 운동 횟수</span></div>' +
         '</div>';
@@ -536,7 +606,7 @@
         return '<li class="card row between" data-act="open-history" data-id="' + s.id + '">' +
           '<div><strong>' + esc(s.routineName) + '</strong>' +
           '<p class="dim">' + fmtDate(s.startedAt) + ' · ' + fmtDur(s.finishedAt - s.startedAt) +
-          ' · ' + S.countSets(s, true) + '세트 · ' + S.volumeOf(s).toLocaleString() + S.settings.unit + '</p></div>' +
+          ' · ' + S.countSets(s, true) + '세트 · 약 ' + kcalOf(s).toLocaleString() + ' kcal</p></div>' +
           '<span class="chev">›</span></li>';
       }).join('') + '</ul>';
     }
@@ -554,6 +624,7 @@
       '<p class="dim">' + fmtDate(s.startedAt) + ' · ' + fmtDur(s.finishedAt - s.startedAt) + '</p>' +
       '<div class="row gap" style="margin-top:8px">' +
       badge(S.countSets(s, true) + '세트 완료') + badge('볼륨 ' + S.volumeOf(s).toLocaleString() + S.settings.unit) +
+      badge('약 ' + kcalOf(s).toLocaleString() + ' kcal') +
       '</div></div>';
     html += s.items.map(function (it) {
       return '<section class="card">' +
@@ -585,6 +656,18 @@
       '</select></label>' +
       '<label class="field inline"><span>휴식 종료 알림음</span>' +
       '<input type="checkbox" data-bind="set-sound"' + (st.sound ? ' checked' : '') + '></label>' +
+      '<label class="field inline"><span>휴식 종료 음성 안내</span>' +
+      '<input type="checkbox" data-bind="set-voice"' + (st.voice ? ' checked' : '') + '></label>' +
+      '<button class="btn sm" data-act="voice-test">음성 안내 들어보기</button>' +
+      '</div>';
+
+    html += '<div class="card">' +
+      '<h3>칼로리 추정</h3>' +
+      '<label class="field inline"><span>체중(kg)</span>' +
+      '<input type="number" inputmode="decimal" min="20" max="250" step="0.5" value="' + st.bodyWeight + '" data-bind="set-weight-kg"></label>' +
+      '<p class="dim">체중이 있어야 계산됩니다. 들어올린 무게·횟수·가동거리로 구한 일에 ' +
+      '휴식 구간 대사량을 더해 추정하며, 계수는 소모가 적게 나오는 쪽으로 잡았습니다. ' +
+      '실제와 ±20~30% 차이가 날 수 있는 추정치입니다.</p>' +
       '</div>';
 
     html += '<div class="card">' +
@@ -922,6 +1005,11 @@
         break;
 
       // ── 설정 ──
+      case 'voice-test':
+        unlockAudio();
+        if (!speak(REST_END_TEXT)) alert('이 브라우저는 음성 안내를 지원하지 않습니다.');
+        else if (!koVoice) toast('한국어 음성이 없어 기본 목소리로 재생합니다');
+        break;
       case 'del-custom':
         if (confirm('이 운동을 삭제할까요? 기존 루틴의 항목은 그대로 유지됩니다.')) {
           S.removeCustomExercise(id); render();
@@ -1032,6 +1120,11 @@
         if (ev.type === 'change') render();
         break;
       case 'set-sound': S.settings.sound = t.checked; S.commit(); break;
+      case 'set-voice': S.settings.voice = t.checked; S.commit(); break;
+      case 'set-weight-kg':
+        S.settings.bodyWeight = Math.min(250, Math.max(20, num(t.value, 70)));
+        S.commit();
+        break;
 
       case 'pk-sets': picker.sets = Math.max(1, Math.round(num(t.value, 3))); break;
       case 'pk-reps': picker.reps = Math.max(1, Math.round(num(t.value, 10))); break;
