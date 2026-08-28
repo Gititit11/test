@@ -25,6 +25,13 @@ html = html
   .replace(/[ \t]*<link rel="(icon|apple-touch-icon)"[^>]*>\n?/g, '')
   .replace(/[ \t]*<script>\s*if \('serviceWorker' in navigator[\s\S]*?<\/script>\n?/g, '');
 
+// 안내 음성 mp3 를 data URI 로 심어 파일 하나만으로도 소리가 나게 한다
+html = html.replace(/'(audio\/[\w.-]+\.mp3)'/g, function (m, rel) {
+  const file = path.join(root, rel);
+  if (!fs.existsSync(file)) return m;
+  return "'data:audio/mpeg;base64," + fs.readFileSync(file).toString('base64') + "'";
+});
+
 if (fragment) {
   // Artifact 처럼 <head>·<body> 를 감싸주는 환경용: 내용만 남긴다
   html = html

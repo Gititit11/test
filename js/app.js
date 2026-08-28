@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-6';
+  var APP_VERSION = '2026.08.28-7';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -95,8 +95,48 @@
     } catch (e) { /* 무시 */ }
   }
 
+  // ── 휴식 종료 안내 음성 ──────────────────────────────
+  // 동봉한 mp3 를 알림음과 같은 Web Audio 경로로 재생한다.
+  // <audio> 로 재생하면 안드로이드가 음악을 아예 멈출 수 있다.
+  var VOICES = [
+    { id: 'ash',    label: 'Ash',    src: 'audio/ash.mp3' },
+    { id: 'ivy',    label: 'Ivy',    src: 'audio/ivy.mp3' },
+    { id: 'winter', label: 'Winter', src: 'audio/winter.mp3' }
+  ];
+  var voiceBuffers = {};
+
+  function loadVoice(id) {
+    if (voiceBuffers[id]) return Promise.resolve(voiceBuffers[id]);
+    var v = VOICES.filter(function (x) { return x.id === id; })[0];
+    if (!v) return Promise.resolve(null);
+    unlockAudio();
+    if (!audioCtx) return Promise.resolve(null);
+    return fetch(v.src)
+      .then(function (r) { return r.arrayBuffer(); })
+      .then(function (b) { return audioCtx.decodeAudioData(b); })
+      .then(function (buf) { voiceBuffers[id] = buf; return buf; })
+      .catch(function () { return null; });
+  }
+
+  function playVoice(id) {
+    return loadVoice(id).then(function (buf) {
+      if (!buf || !audioCtx) return false;
+      try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        var src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start();
+        return true;
+      } catch (e) { return false; }
+    });
+  }
+
   function announceRestEnd() {
     beep();
+    if (!S.settings.voice) return;
+    // 알림음과 겹치지 않게 잠깐 뒤에 안내한다
+    setTimeout(function () { playVoice(S.settings.voice); }, 600);
   }
 
   // 모바일 브라우저는 사용자 조작 이후에만 소리를 낼 수 있다
@@ -106,7 +146,10 @@
       if (audioCtx.state === 'suspended') audioCtx.resume();
     } catch (e) { /* 오디오 미지원 무시 */ }
   }
-  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  document.addEventListener('pointerdown', function () {
+    unlockAudio();
+    if (S.settings.voice) loadVoice(S.settings.voice);
+  }, { once: true });
 
   function beep() {
     if (!S.settings.sound) return;
@@ -605,6 +648,23 @@
       '</div>';
 
     html += '<div class="card">' +
+      '<h3>안내 목소리</h3>' +
+      '<p class="dim">휴식이 끝나면 “휴식 시간이 종료되었습니다. 운동을 시작해주세요.” 라고 알려줍니다.</p>' +
+      '<ul class="voicelist">' +
+        '<li class="voicerow' + (st.voice ? '' : ' on') + '">' +
+          '<button class="voicepick" data-act="voice-pick" data-v="">' +
+            '<strong>사용 안 함</strong></button></li>' +
+        VOICES.map(function (v) {
+          return '<li class="voicerow' + (st.voice === v.id ? ' on' : '') + '">' +
+            '<button class="voicepick" data-act="voice-pick" data-v="' + v.id + '">' +
+              '<strong>' + esc(v.label) + '</strong></button>' +
+            '<button class="btn sm" data-act="voice-play" data-v="' + v.id + '" ' +
+              'aria-label="' + esc(v.label) + ' 들어보기">▶</button>' +
+          '</li>';
+        }).join('') +
+      '</ul></div>';
+
+    html += '<div class="card">' +
       '<h3>칼로리 추정</h3>' +
       '<label class="field inline"><span>체중(kg)</span>' +
       '<input type="number" inputmode="decimal" min="20" max="250" step="0.5" value="' + st.bodyWeight + '" data-bind="set-weight-kg"></label>' +
@@ -963,6 +1023,16 @@
         }
         break;
       }
+      case 'voice-pick':
+        S.settings.voice = t.dataset.v || '';
+        S.commit();
+        if (S.settings.voice) { unlockAudio(); playVoice(S.settings.voice); }
+        render();
+        break;
+      case 'voice-play':
+        unlockAudio();
+        playVoice(t.dataset.v);
+        break;
       case 'del-custom':
         if (confirm('이 운동을 삭제할까요? 기존 루틴의 항목은 그대로 유지됩니다.')) {
           S.removeCustomExercise(id); render();
