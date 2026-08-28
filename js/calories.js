@@ -174,8 +174,10 @@
         var w = wattMet(num(set.watt), bodyWeight);
         if (w) return w * CARDIO_SHADE;               // 와트가 있으면 가장 정확하다
       }
-      // 와트가 없거나 강도만 받는 기구는 고른 단계로
-      var lv = cfg.levels && cfg.levels[Number(set.level)];
+      /* 와트가 없거나 강도만 받는 기구는 고른 단계로. 고르지 않았으면
+       * "보통"(1번)으로 본다. 예전에는 여기서 고정 MET 표로 빠졌는데,
+       * 그 값들은 0.85 보정 이전 기준이라 "보통"보다 오히려 높게 나왔다. */
+      var lv = cfg.levels && cfg.levels[set.level == null ? 1 : Number(set.level)];
       if (lv) return lv * CARDIO_SHADE;
     }
     return TIME_MET[item.exerciseId] ||

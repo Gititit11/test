@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-20';
+  var APP_VERSION = '2026.08.28-21';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -621,10 +621,12 @@
         // 기계에 표시되는 이름 그대로 "와트". 없으면 아래 강도로 잡는다
         html += field('와트', numIn('watt', st.watt, 'W', 'step="5" max="600"'));
       }
-      var opts = '<option value=""' + (st.level == null ? ' selected' : '') + '>기본</option>' +
-        LEVEL_LABELS.map(function (t, i) {
-          return '<option value="' + i + '"' + (Number(st.level) === i ? ' selected' : '') + '>' + t + '</option>';
-        }).join('');
+      // "기본"이라는 선택지는 없앴다. 뭐가 기본인지 알 수 없는 데다,
+      // 고정 MET 표를 쓰느라 "보통"보다 높게 나오는 역전이 있었다.
+      var cur = st.level == null ? 1 : Number(st.level);
+      var opts = LEVEL_LABELS.map(function (t, i) {
+        return '<option value="' + i + '"' + (cur === i ? ' selected' : '') + '>' + t + '</option>';
+      }).join('');
       html += field('강도', '<span class="cs-in"><select data-bind="' + pre + 'level" ' + attrs + '>' + opts + '</select></span>');
     }
     return '<div class="cs-grid">' + html + '</div>';
@@ -1515,7 +1517,7 @@
       case 'set-sec': editSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); refreshItemSummary(rid, iid); break;
       // 속도·경사는 비워 두면 그 운동의 기본 강도로 계산한다
       case 'set-watt': editSet(function (st) { st.watt = blankOrNum(t.value, 0, 600); }); refreshItemSummary(rid, iid); break;
-      case 'set-level': editSet(function (st) { st.level = t.value === '' ? null : Number(t.value); }); refreshItemSummary(rid, iid); break;
+      case 'set-level': editSet(function (st) { st.level = Number(t.value); }); refreshItemSummary(rid, iid); break;
       case 'set-min': editSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0) * 60)); }); refreshItemSummary(rid, iid); break;
       case 'set-speed': editSet(function (st) { st.speed = blankOrNum(t.value, 0, 40); }); refreshItemSummary(rid, iid); break;
       case 'set-grade': editSet(function (st) { st.grade = blankOrNum(t.value, 0, 30); }); refreshItemSummary(rid, iid); break;
@@ -1532,7 +1534,7 @@
       case 'live-reps': editLiveSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); break;
       case 'live-sec': editLiveSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); break;
       case 'live-watt': editLiveSet(function (st) { st.watt = blankOrNum(t.value, 0, 600); }); refreshKcal(); break;
-      case 'live-level': editLiveSet(function (st) { st.level = t.value === '' ? null : Number(t.value); }); refreshKcal(); break;
+      case 'live-level': editLiveSet(function (st) { st.level = Number(t.value); }); refreshKcal(); break;
       case 'live-min': editLiveSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0) * 60)); }); refreshKcal(); break;
       case 'live-speed': editLiveSet(function (st) { st.speed = blankOrNum(t.value, 0, 40); }); refreshKcal(); break;
       case 'live-grade': editLiveSet(function (st) { st.grade = blankOrNum(t.value, 0, 30); }); refreshKcal(); break;
