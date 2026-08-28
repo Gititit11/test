@@ -308,9 +308,13 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .bm-m:hover { opacity: .85; }
 .bm-m.bm-on { stroke: #0f1115; stroke-width: 0.55; }
 
-.bm-legend { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; }
-.bm-legend i { width: 20px; height: 10px; border-radius: 2px; display: inline-block; }
-.bm-legend .bm-idle { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--dim); }
+/* 구간은 색만으로 읽히지 않으므로 범례·목록 모두 이름을 함께 적는다. */
+.bm-legend { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+.bm-key { display: inline-flex; align-items: center; gap: 4px; }
+.bm-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: none; }
+.bm-band { font-size: 13px; font-weight: 600; }
+.bm-advice { margin: 2px 0 0; font-size: 13px; }
+.bm-tag { font-size: 12px; text-align: right; min-width: 30px; }
 
 .bm-detail {
   background: var(--bg-2); border: 1px solid var(--line);
@@ -318,7 +322,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 }
 .bm-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .bm-row {
-  display: grid; grid-template-columns: 74px 1fr 34px;
+  display: grid; grid-template-columns: 88px 1fr 30px 30px;
   align-items: center; gap: 8px; cursor: pointer;
   padding: 3px 4px; border-radius: 8px;
 }

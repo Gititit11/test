@@ -321,9 +321,13 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .bm-m:hover { opacity: .85; }
 .bm-m.bm-on { stroke: #0f1115; stroke-width: 0.55; }
 
-.bm-legend { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; }
-.bm-legend i { width: 20px; height: 10px; border-radius: 2px; display: inline-block; }
-.bm-legend .bm-idle { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--dim); }
+/* 구간은 색만으로 읽히지 않으므로 범례·목록 모두 이름을 함께 적는다. */
+.bm-legend { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+.bm-key { display: inline-flex; align-items: center; gap: 4px; }
+.bm-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: none; }
+.bm-band { font-size: 13px; font-weight: 600; }
+.bm-advice { margin: 2px 0 0; font-size: 13px; }
+.bm-tag { font-size: 12px; text-align: right; min-width: 30px; }
 
 .bm-detail {
   background: var(--bg-2); border: 1px solid var(--line);
@@ -331,7 +335,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 }
 .bm-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .bm-row {
-  display: grid; grid-template-columns: 74px 1fr 34px;
+  display: grid; grid-template-columns: 88px 1fr 30px 30px;
   align-items: center; gap: 8px; cursor: pointer;
   padding: 3px 4px; border-radius: 8px;
 }
@@ -1755,29 +1759,36 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
 </script>
   <script>
-/* 최근 운동량을 근육 부위별로 모아 인체 그림에 표시한다.
- * 세기 표현은 단일 색조 순차 램프(다크 배경 기준 검증 완료).
+/* 최근 7일 운동량을 근육 부위별로 모아 인체 그림에 표시한다.
+ * 색은 부위마다 정해진 주당 볼륨 랜드마크(MV/MEV/MAV/MRV)로 판정한다.
  */
 (function (global) {
   'use strict';
 
-  // 그림에 표시하는 근육 그룹
+  // 그림에 표시하는 근육 그룹.
+  // mv/mev/mav/mrv 는 주당 세트 수 기준선이다 (Israetel 계열 볼륨 랜드마크).
+  //   MV  유지에 필요한 최소치     MEV 성장이 시작되는 최소치
+  //   MAV 가장 효율적인 구간의 시작 MRV 회복 가능한 한계
+  // 문헌의 일반 권장치라 개인차가 크다. 우리 세트 수는 보조근을 0.4 로 세는
+  // 가중치라 직접 세트만 세는 원 표와 완전히 같지는 않다.
   var GROUPS = [
-    { id: 'traps',      ko: '승모근' },
-    { id: 'shoulders',  ko: '어깨' },
-    { id: 'chest',      ko: '가슴' },
-    { id: 'lats',       ko: '등(광배)' },
-    { id: 'lowerback',  ko: '허리(기립근)' },
-    { id: 'biceps',     ko: '이두' },
-    { id: 'triceps',    ko: '삼두' },
-    { id: 'forearms',   ko: '전완' },
-    { id: 'abs',        ko: '복근' },
-    { id: 'obliques',   ko: '복사근' },
-    { id: 'glutes',     ko: '둔근' },
-    { id: 'quads',      ko: '대퇴사두' },
-    { id: 'hamstrings', ko: '햄스트링' },
-    { id: 'calves',     ko: '종아리' }
+    { id: 'traps',      ko: '승모근',      mv: 0, mev: 6,  mav: 16, mrv: 26 },
+    { id: 'shoulders',  ko: '어깨',        mv: 0, mev: 8,  mav: 16, mrv: 26 },
+    { id: 'chest',      ko: '가슴',        mv: 8, mev: 10, mav: 16, mrv: 22 },
+    { id: 'lats',       ko: '등(광배)',    mv: 8, mev: 10, mav: 18, mrv: 25 },
+    { id: 'lowerback',  ko: '허리(기립근)', mv: 0, mev: 4,  mav: 10, mrv: 16 },
+    { id: 'biceps',     ko: '이두',        mv: 4, mev: 8,  mav: 16, mrv: 26 },
+    { id: 'triceps',    ko: '삼두',        mv: 4, mev: 6,  mav: 12, mrv: 18 },
+    { id: 'forearms',   ko: '전완',        mv: 2, mev: 6,  mav: 13, mrv: 20 },
+    { id: 'abs',        ko: '복근',        mv: 0, mev: 6,  mav: 16, mrv: 25 },
+    { id: 'obliques',   ko: '복사근',      mv: 0, mev: 4,  mav: 12, mrv: 20 },
+    { id: 'glutes',     ko: '둔근',        mv: 0, mev: 4,  mav: 12, mrv: 16 },
+    { id: 'quads',      ko: '대퇴사두',    mv: 6, mev: 8,  mav: 15, mrv: 20 },
+    { id: 'hamstrings', ko: '햄스트링',    mv: 4, mev: 6,  mav: 13, mrv: 20 },
+    { id: 'calves',     ko: '종아리',      mv: 6, mev: 8,  mav: 14, mrv: 20 }
   ];
+  var MARK = {};
+  GROUPS.forEach(function (g) { MARK[g.id] = g; });
   var LABEL = {};
   GROUPS.forEach(function (g) { LABEL[g.id] = g.ko; });
 
@@ -1865,23 +1876,53 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       });
     });
 
-    var max = 0;
-    GROUPS.forEach(function (g) { max = Math.max(max, acc[g.id].sets); });
-    return { byGroup: acc, max: max, sessions: used };
+    return { byGroup: acc, sessions: used };
   }
 
-  // ── 색 ─────────────────────────────────────────────────
-  // 단일 색조(빨강) 순차 램프. 해부도처럼 많이 한 곳일수록 붉고,
-  // 적게 한 곳일수록 하얗다. 안 한 곳(IDLE)이 가장 하얗다.
-  var RAMP = ['#ffc7b8', '#ffa08c', '#f77358', '#e04434', '#bd1a1a'];
-  var IDLE = '#eef1f6';
+  // ── 구간과 색 ──────────────────────────────────────────
+  // 그 주에 제일 많이 한 부위를 기준으로 삼던 상대 척도를 버리고,
+  // 부위마다 정해진 볼륨 랜드마크로 절대 판정한다. 그래서 가볍게 한 주는
+  // 전체가 옅게, 잘 채운 주는 전체가 짙게 나온다.
+  //
+  // 색은 한 색조(청록) 램프로 부족 → 최적까지 짙어지고, 회복 한계를 넘은
+  // 초과만 빨강으로 따로 뗀다. 많이 할수록 좋은 값이 아니라 넘으면 나쁜
+  // 값이라, 눈에 띄는 경고색은 위쪽 끝에만 둔다.
+  // 다크 표면(#1b2029) 기준 검증: 램프 명도 단조·인접 ΔL 0.09~0.10·단일
+  // 색조, 초과와 램프 각 단계의 색약 ΔE 11.5~28.2, 전 단계 대비 4:1 이상.
+  var BANDS = [
+    { key: 'none',  ko: '안 함', color: '#eef1f6', desc: '이번 주에 하지 않았습니다' },
+    { key: 'below', ko: '부족',  color: '#a8e6d6', desc: '유지에 필요한 양(MV)에 못 미칩니다' },
+    { key: 'keep',  ko: '유지',  color: '#77d5c2', desc: '유지는 되지만 성장 자극은 부족합니다 (MV~MEV)' },
+    { key: 'grow',  ko: '성장',  color: '#1dbaa3', desc: '성장이 일어나는 구간입니다 (MEV~MAV)' },
+    { key: 'best',  ko: '최적',  color: '#009c86', desc: '회복 범위 안에서 가장 효율이 좋은 구간입니다 (MAV~MRV)' },
+    { key: 'over',  ko: '초과',  color: '#e8443c', desc: '회복 한계(MRV)를 넘었습니다' }
+  ];
 
-  function colorFor(value, max) {
-    if (!value || !max) return IDLE;
-    var i = Math.floor((value / max) * RAMP.length - 1e-9);
-    if (i < 0) i = 0;
-    if (i > RAMP.length - 1) i = RAMP.length - 1;
-    return RAMP[i];
+  // 세트 수가 어느 구간에 있는지. mv 나 mev 가 0 인 부위는 그 구간을 건너뛴다.
+  function bandOf(sets, groupId) {
+    var m = MARK[groupId];
+    if (!m || !sets) return 0;
+    if (sets < m.mv) return 1;
+    if (sets < m.mev) return 2;
+    if (sets < m.mav) return 3;
+    if (sets <= m.mrv) return 4;
+    return 5;
+  }
+
+  function colorFor(sets, groupId) {
+    return BANDS[bandOf(sets, groupId)].color;
+  }
+
+  // 다음으로 할 일 한 줄. 성장 아래면 MEV 까지, 성장이면 MAV 까지 남은 양을
+  // 알려 주고, 초과면 얼마나 넘었는지 말한다.
+  function adviceFor(sets, groupId) {
+    var m = MARK[groupId];
+    if (!m) return '';
+    var b = bandOf(sets, groupId);
+    if (b === 5) return 'MRV보다 ' + fmtSets(sets - m.mrv) + '세트 많습니다. 줄이는 편이 좋습니다';
+    if (b === 4) return '최적 구간입니다. 이대로 유지하세요';
+    if (b === 3) return '최적 구간까지 ' + fmtSets(m.mav - sets) + '세트 남았습니다';
+    return '성장 구간까지 ' + fmtSets(m.mev - sets) + '세트 남았습니다';
   }
 
   // ── 인체 그림 ────────────────────────────────────────
@@ -1895,12 +1936,10 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       var d = paths[g.id];
       if (!d || !d.length) return '';
       var load = data.byGroup[g.id] || { sets: 0 };
-      var fill = colorFor(load.sets, data.max);
-      var cls = 'bm-m' +
-        (fill === IDLE ? ' bm-idle' : '') +
-        (selected === g.id ? ' bm-on' : '');
-      return '<g class="' + cls + '" data-act="bm-sel" data-m="' + g.id + '" fill="' + fill + '">' +
-        '<title>' + g.ko + ' · ' + fmtSets(load.sets) + '세트</title>' +
+      var band = BANDS[bandOf(load.sets, g.id)];
+      var cls = 'bm-m' + (selected === g.id ? ' bm-on' : '');
+      return '<g class="' + cls + '" data-act="bm-sel" data-m="' + g.id + '" fill="' + band.color + '">' +
+        '<title>' + g.ko + ' · ' + fmtSets(load.sets) + '세트 · ' + band.ko + '</title>' +
         d.map(function (p) { return '<path d="' + p + '"/>'; }).join('') + '</g>';
     }).join('');
 
@@ -1921,8 +1960,10 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   global.BodyMap = {
     GROUPS: GROUPS,
     LABEL: LABEL,
-    RAMP: RAMP,
-    IDLE: IDLE,
+    MARK: MARK,
+    BANDS: BANDS,
+    bandOf: bandOf,
+    adviceFor: adviceFor,
     PRIMARY: PRIMARY,
     SECONDARY: SECONDARY,
     aggregate: aggregate,
@@ -1941,7 +1982,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-26';
+  var APP_VERSION = '2026.08.28-27';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -2675,45 +2716,54 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     var trained = ranked.filter(function (r) { return r.sets > 0; });
     var sel = bmSel && data.byGroup[bmSel] ? bmSel : (trained[0] ? trained[0].id : null);
 
+    // 구간은 색만으로 뜻이 전해지지 않으므로 범례에 이름을 함께 적는다.
     var legend = '<div class="bm-legend">' +
-      '<span class="dim">적음</span>' +
-      BM.RAMP.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') +
-      '<span class="dim">많음</span>' +
-      '<span class="bm-idle"><i style="background:' + BM.IDLE + '"></i>미실시</span>' +
-      '</div>';
+      BM.BANDS.map(function (b) {
+        return '<span class="bm-key" title="' + esc(b.desc) + '">' +
+          '<i style="background:' + b.color + '"></i>' + b.ko + '</span>';
+      }).join('') + '</div>';
 
     var detail = '';
     if (sel) {
       var d = data.byGroup[sel];
+      var m = BM.MARK[sel];
+      var band = BM.BANDS[BM.bandOf(d.sets, sel)];
       var tops = Object.keys(d.top).sort(function (a, b) { return d.top[b] - d.top[a]; }).slice(0, 3);
       detail = '<div class="bm-detail">' +
         '<div class="row between"><strong>' + esc(BM.LABEL[sel]) + '</strong>' +
-        '<span class="dim">' + BM.fmtSets(d.sets) + '세트' +
-        (d.volume ? ' · ' + Math.round(d.volume).toLocaleString() + S.settings.unit : '') + '</span></div>' +
+        '<span class="bm-band" style="color:' + band.color + '">' + band.ko + '</span></div>' +
+        '<p class="dim">' + BM.fmtSets(d.sets) + '세트' +
+        (d.volume ? ' · ' + Math.round(d.volume).toLocaleString() + S.settings.unit : '') +
+        (m ? ' · 성장 ' + m.mev + ' / 최적 ' + m.mav + ' / 한계 ' + m.mrv : '') + '</p>' +
+        '<p class="bm-advice">' + esc(BM.adviceFor(d.sets, sel)) + '</p>' +
         (tops.length
           ? '<p class="dim">' + tops.map(function (n) {
               return esc(n) + ' ' + BM.fmtSets(d.top[n]);
             }).join(' · ') + '</p>'
-          : '<p class="dim">최근 7일 동안 이 부위 기록이 없습니다.</p>') +
+          : '') +
         '</div>';
     }
 
-    var rank = trained.length
-      ? '<ul class="bm-rank">' + trained.map(function (r) {
-          var pct = data.max ? Math.max(4, (r.sets / data.max) * 100) : 0;
-          var on = r.id === sel ? ' on' : '';
-          return '<li class="bm-row' + on + '" data-act="bm-sel" data-m="' + r.id + '">' +
-            '<span class="bm-name">' + esc(r.ko) + '</span>' +
-            '<span class="bm-bar"><i style="width:' + pct.toFixed(1) + '%;background:' +
-              BM.colorFor(r.sets, data.max) + '"></i></span>' +
-            '<span class="bm-val">' + BM.fmtSets(r.sets) + '</span></li>';
-        }).join('') + '</ul>'
-      : '<p class="dim center">최근 7일 기록이 없습니다.</p>';
+    // 안 한 부위야말로 봐야 할 대상이라 14개를 모두 싣는다.
+    var rank = '<ul class="bm-rank">' + ranked.map(function (r) {
+        var mk = BM.MARK[r.id];
+        var band = BM.BANDS[BM.bandOf(r.sets, r.id)];
+        var pct = mk ? Math.min(100, (r.sets / mk.mrv) * 100) : 0;
+        var on = r.id === sel ? ' on' : '';
+        return '<li class="bm-row' + on + '" data-act="bm-sel" data-m="' + r.id + '">' +
+          '<span class="bm-name">' + esc(r.ko) + '</span>' +
+          '<span class="bm-bar" title="MRV ' + (mk ? mk.mrv : 0) + '세트 대비">' +
+            (pct > 0 ? '<i style="width:' + Math.max(3, pct).toFixed(1) + '%;background:' + band.color + '"></i>' : '') +
+          '</span>' +
+          '<span class="bm-val">' + BM.fmtSets(r.sets) + '</span>' +
+          '<span class="bm-tag" style="color:' + band.color + '">' + band.ko + '</span></li>';
+      }).join('') + '</ul>';
 
     return '<section class="card bodymap">' +
       '<div class="row between"><h3>최근 7일 부위별 운동량</h3>' +
       '<span class="dim">' + data.sessions + '회 운동</span></div>' +
-      '<p class="dim">주동근 1세트, 보조근 0.4세트로 계산합니다. 부위를 눌러 자세히 보세요.</p>' +
+      '<p class="dim">주동근 1세트, 보조근 0.4세트로 세고, 부위마다 정해진 주당 볼륨 ' +
+        '기준(MV·MEV·MAV·MRV)과 견줍니다. 부위를 눌러 자세히 보세요.</p>' +
       '<div class="bm-figs">' +
         '<figure class="bm-fig">' + BM.figure('front', data, sel) + '<figcaption>앞</figcaption></figure>' +
         '<figure class="bm-fig">' + BM.figure('back', data, sel) + '<figcaption>뒤</figcaption></figure>' +

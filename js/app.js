@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-26';
+  var APP_VERSION = '2026.08.28-27';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -739,45 +739,54 @@
     var trained = ranked.filter(function (r) { return r.sets > 0; });
     var sel = bmSel && data.byGroup[bmSel] ? bmSel : (trained[0] ? trained[0].id : null);
 
+    // 구간은 색만으로 뜻이 전해지지 않으므로 범례에 이름을 함께 적는다.
     var legend = '<div class="bm-legend">' +
-      '<span class="dim">적음</span>' +
-      BM.RAMP.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') +
-      '<span class="dim">많음</span>' +
-      '<span class="bm-idle"><i style="background:' + BM.IDLE + '"></i>미실시</span>' +
-      '</div>';
+      BM.BANDS.map(function (b) {
+        return '<span class="bm-key" title="' + esc(b.desc) + '">' +
+          '<i style="background:' + b.color + '"></i>' + b.ko + '</span>';
+      }).join('') + '</div>';
 
     var detail = '';
     if (sel) {
       var d = data.byGroup[sel];
+      var m = BM.MARK[sel];
+      var band = BM.BANDS[BM.bandOf(d.sets, sel)];
       var tops = Object.keys(d.top).sort(function (a, b) { return d.top[b] - d.top[a]; }).slice(0, 3);
       detail = '<div class="bm-detail">' +
         '<div class="row between"><strong>' + esc(BM.LABEL[sel]) + '</strong>' +
-        '<span class="dim">' + BM.fmtSets(d.sets) + '세트' +
-        (d.volume ? ' · ' + Math.round(d.volume).toLocaleString() + S.settings.unit : '') + '</span></div>' +
+        '<span class="bm-band" style="color:' + band.color + '">' + band.ko + '</span></div>' +
+        '<p class="dim">' + BM.fmtSets(d.sets) + '세트' +
+        (d.volume ? ' · ' + Math.round(d.volume).toLocaleString() + S.settings.unit : '') +
+        (m ? ' · 성장 ' + m.mev + ' / 최적 ' + m.mav + ' / 한계 ' + m.mrv : '') + '</p>' +
+        '<p class="bm-advice">' + esc(BM.adviceFor(d.sets, sel)) + '</p>' +
         (tops.length
           ? '<p class="dim">' + tops.map(function (n) {
               return esc(n) + ' ' + BM.fmtSets(d.top[n]);
             }).join(' · ') + '</p>'
-          : '<p class="dim">최근 7일 동안 이 부위 기록이 없습니다.</p>') +
+          : '') +
         '</div>';
     }
 
-    var rank = trained.length
-      ? '<ul class="bm-rank">' + trained.map(function (r) {
-          var pct = data.max ? Math.max(4, (r.sets / data.max) * 100) : 0;
-          var on = r.id === sel ? ' on' : '';
-          return '<li class="bm-row' + on + '" data-act="bm-sel" data-m="' + r.id + '">' +
-            '<span class="bm-name">' + esc(r.ko) + '</span>' +
-            '<span class="bm-bar"><i style="width:' + pct.toFixed(1) + '%;background:' +
-              BM.colorFor(r.sets, data.max) + '"></i></span>' +
-            '<span class="bm-val">' + BM.fmtSets(r.sets) + '</span></li>';
-        }).join('') + '</ul>'
-      : '<p class="dim center">최근 7일 기록이 없습니다.</p>';
+    // 안 한 부위야말로 봐야 할 대상이라 14개를 모두 싣는다.
+    var rank = '<ul class="bm-rank">' + ranked.map(function (r) {
+        var mk = BM.MARK[r.id];
+        var band = BM.BANDS[BM.bandOf(r.sets, r.id)];
+        var pct = mk ? Math.min(100, (r.sets / mk.mrv) * 100) : 0;
+        var on = r.id === sel ? ' on' : '';
+        return '<li class="bm-row' + on + '" data-act="bm-sel" data-m="' + r.id + '">' +
+          '<span class="bm-name">' + esc(r.ko) + '</span>' +
+          '<span class="bm-bar" title="MRV ' + (mk ? mk.mrv : 0) + '세트 대비">' +
+            (pct > 0 ? '<i style="width:' + Math.max(3, pct).toFixed(1) + '%;background:' + band.color + '"></i>' : '') +
+          '</span>' +
+          '<span class="bm-val">' + BM.fmtSets(r.sets) + '</span>' +
+          '<span class="bm-tag" style="color:' + band.color + '">' + band.ko + '</span></li>';
+      }).join('') + '</ul>';
 
     return '<section class="card bodymap">' +
       '<div class="row between"><h3>최근 7일 부위별 운동량</h3>' +
       '<span class="dim">' + data.sessions + '회 운동</span></div>' +
-      '<p class="dim">주동근 1세트, 보조근 0.4세트로 계산합니다. 부위를 눌러 자세히 보세요.</p>' +
+      '<p class="dim">주동근 1세트, 보조근 0.4세트로 세고, 부위마다 정해진 주당 볼륨 ' +
+        '기준(MV·MEV·MAV·MRV)과 견줍니다. 부위를 눌러 자세히 보세요.</p>' +
       '<div class="bm-figs">' +
         '<figure class="bm-fig">' + BM.figure('front', data, sel) + '<figcaption>앞</figcaption></figure>' +
         '<figure class="bm-fig">' + BM.figure('back', data, sel) + '<figcaption>뒤</figcaption></figure>' +

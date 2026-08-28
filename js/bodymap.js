@@ -1,26 +1,33 @@
-/* 최근 운동량을 근육 부위별로 모아 인체 그림에 표시한다.
- * 세기 표현은 단일 색조 순차 램프(다크 배경 기준 검증 완료).
+/* 최근 7일 운동량을 근육 부위별로 모아 인체 그림에 표시한다.
+ * 색은 부위마다 정해진 주당 볼륨 랜드마크(MV/MEV/MAV/MRV)로 판정한다.
  */
 (function (global) {
   'use strict';
 
-  // 그림에 표시하는 근육 그룹
+  // 그림에 표시하는 근육 그룹.
+  // mv/mev/mav/mrv 는 주당 세트 수 기준선이다 (Israetel 계열 볼륨 랜드마크).
+  //   MV  유지에 필요한 최소치     MEV 성장이 시작되는 최소치
+  //   MAV 가장 효율적인 구간의 시작 MRV 회복 가능한 한계
+  // 문헌의 일반 권장치라 개인차가 크다. 우리 세트 수는 보조근을 0.4 로 세는
+  // 가중치라 직접 세트만 세는 원 표와 완전히 같지는 않다.
   var GROUPS = [
-    { id: 'traps',      ko: '승모근' },
-    { id: 'shoulders',  ko: '어깨' },
-    { id: 'chest',      ko: '가슴' },
-    { id: 'lats',       ko: '등(광배)' },
-    { id: 'lowerback',  ko: '허리(기립근)' },
-    { id: 'biceps',     ko: '이두' },
-    { id: 'triceps',    ko: '삼두' },
-    { id: 'forearms',   ko: '전완' },
-    { id: 'abs',        ko: '복근' },
-    { id: 'obliques',   ko: '복사근' },
-    { id: 'glutes',     ko: '둔근' },
-    { id: 'quads',      ko: '대퇴사두' },
-    { id: 'hamstrings', ko: '햄스트링' },
-    { id: 'calves',     ko: '종아리' }
+    { id: 'traps',      ko: '승모근',      mv: 0, mev: 6,  mav: 16, mrv: 26 },
+    { id: 'shoulders',  ko: '어깨',        mv: 0, mev: 8,  mav: 16, mrv: 26 },
+    { id: 'chest',      ko: '가슴',        mv: 8, mev: 10, mav: 16, mrv: 22 },
+    { id: 'lats',       ko: '등(광배)',    mv: 8, mev: 10, mav: 18, mrv: 25 },
+    { id: 'lowerback',  ko: '허리(기립근)', mv: 0, mev: 4,  mav: 10, mrv: 16 },
+    { id: 'biceps',     ko: '이두',        mv: 4, mev: 8,  mav: 16, mrv: 26 },
+    { id: 'triceps',    ko: '삼두',        mv: 4, mev: 6,  mav: 12, mrv: 18 },
+    { id: 'forearms',   ko: '전완',        mv: 2, mev: 6,  mav: 13, mrv: 20 },
+    { id: 'abs',        ko: '복근',        mv: 0, mev: 6,  mav: 16, mrv: 25 },
+    { id: 'obliques',   ko: '복사근',      mv: 0, mev: 4,  mav: 12, mrv: 20 },
+    { id: 'glutes',     ko: '둔근',        mv: 0, mev: 4,  mav: 12, mrv: 16 },
+    { id: 'quads',      ko: '대퇴사두',    mv: 6, mev: 8,  mav: 15, mrv: 20 },
+    { id: 'hamstrings', ko: '햄스트링',    mv: 4, mev: 6,  mav: 13, mrv: 20 },
+    { id: 'calves',     ko: '종아리',      mv: 6, mev: 8,  mav: 14, mrv: 20 }
   ];
+  var MARK = {};
+  GROUPS.forEach(function (g) { MARK[g.id] = g; });
   var LABEL = {};
   GROUPS.forEach(function (g) { LABEL[g.id] = g.ko; });
 
@@ -108,23 +115,53 @@
       });
     });
 
-    var max = 0;
-    GROUPS.forEach(function (g) { max = Math.max(max, acc[g.id].sets); });
-    return { byGroup: acc, max: max, sessions: used };
+    return { byGroup: acc, sessions: used };
   }
 
-  // ── 색 ─────────────────────────────────────────────────
-  // 단일 색조(빨강) 순차 램프. 해부도처럼 많이 한 곳일수록 붉고,
-  // 적게 한 곳일수록 하얗다. 안 한 곳(IDLE)이 가장 하얗다.
-  var RAMP = ['#ffc7b8', '#ffa08c', '#f77358', '#e04434', '#bd1a1a'];
-  var IDLE = '#eef1f6';
+  // ── 구간과 색 ──────────────────────────────────────────
+  // 그 주에 제일 많이 한 부위를 기준으로 삼던 상대 척도를 버리고,
+  // 부위마다 정해진 볼륨 랜드마크로 절대 판정한다. 그래서 가볍게 한 주는
+  // 전체가 옅게, 잘 채운 주는 전체가 짙게 나온다.
+  //
+  // 색은 한 색조(청록) 램프로 부족 → 최적까지 짙어지고, 회복 한계를 넘은
+  // 초과만 빨강으로 따로 뗀다. 많이 할수록 좋은 값이 아니라 넘으면 나쁜
+  // 값이라, 눈에 띄는 경고색은 위쪽 끝에만 둔다.
+  // 다크 표면(#1b2029) 기준 검증: 램프 명도 단조·인접 ΔL 0.09~0.10·단일
+  // 색조, 초과와 램프 각 단계의 색약 ΔE 11.5~28.2, 전 단계 대비 4:1 이상.
+  var BANDS = [
+    { key: 'none',  ko: '안 함', color: '#eef1f6', desc: '이번 주에 하지 않았습니다' },
+    { key: 'below', ko: '부족',  color: '#a8e6d6', desc: '유지에 필요한 양(MV)에 못 미칩니다' },
+    { key: 'keep',  ko: '유지',  color: '#77d5c2', desc: '유지는 되지만 성장 자극은 부족합니다 (MV~MEV)' },
+    { key: 'grow',  ko: '성장',  color: '#1dbaa3', desc: '성장이 일어나는 구간입니다 (MEV~MAV)' },
+    { key: 'best',  ko: '최적',  color: '#009c86', desc: '회복 범위 안에서 가장 효율이 좋은 구간입니다 (MAV~MRV)' },
+    { key: 'over',  ko: '초과',  color: '#e8443c', desc: '회복 한계(MRV)를 넘었습니다' }
+  ];
 
-  function colorFor(value, max) {
-    if (!value || !max) return IDLE;
-    var i = Math.floor((value / max) * RAMP.length - 1e-9);
-    if (i < 0) i = 0;
-    if (i > RAMP.length - 1) i = RAMP.length - 1;
-    return RAMP[i];
+  // 세트 수가 어느 구간에 있는지. mv 나 mev 가 0 인 부위는 그 구간을 건너뛴다.
+  function bandOf(sets, groupId) {
+    var m = MARK[groupId];
+    if (!m || !sets) return 0;
+    if (sets < m.mv) return 1;
+    if (sets < m.mev) return 2;
+    if (sets < m.mav) return 3;
+    if (sets <= m.mrv) return 4;
+    return 5;
+  }
+
+  function colorFor(sets, groupId) {
+    return BANDS[bandOf(sets, groupId)].color;
+  }
+
+  // 다음으로 할 일 한 줄. 성장 아래면 MEV 까지, 성장이면 MAV 까지 남은 양을
+  // 알려 주고, 초과면 얼마나 넘었는지 말한다.
+  function adviceFor(sets, groupId) {
+    var m = MARK[groupId];
+    if (!m) return '';
+    var b = bandOf(sets, groupId);
+    if (b === 5) return 'MRV보다 ' + fmtSets(sets - m.mrv) + '세트 많습니다. 줄이는 편이 좋습니다';
+    if (b === 4) return '최적 구간입니다. 이대로 유지하세요';
+    if (b === 3) return '최적 구간까지 ' + fmtSets(m.mav - sets) + '세트 남았습니다';
+    return '성장 구간까지 ' + fmtSets(m.mev - sets) + '세트 남았습니다';
   }
 
   // ── 인체 그림 ────────────────────────────────────────
@@ -138,12 +175,10 @@
       var d = paths[g.id];
       if (!d || !d.length) return '';
       var load = data.byGroup[g.id] || { sets: 0 };
-      var fill = colorFor(load.sets, data.max);
-      var cls = 'bm-m' +
-        (fill === IDLE ? ' bm-idle' : '') +
-        (selected === g.id ? ' bm-on' : '');
-      return '<g class="' + cls + '" data-act="bm-sel" data-m="' + g.id + '" fill="' + fill + '">' +
-        '<title>' + g.ko + ' · ' + fmtSets(load.sets) + '세트</title>' +
+      var band = BANDS[bandOf(load.sets, g.id)];
+      var cls = 'bm-m' + (selected === g.id ? ' bm-on' : '');
+      return '<g class="' + cls + '" data-act="bm-sel" data-m="' + g.id + '" fill="' + band.color + '">' +
+        '<title>' + g.ko + ' · ' + fmtSets(load.sets) + '세트 · ' + band.ko + '</title>' +
         d.map(function (p) { return '<path d="' + p + '"/>'; }).join('') + '</g>';
     }).join('');
 
@@ -164,8 +199,10 @@
   global.BodyMap = {
     GROUPS: GROUPS,
     LABEL: LABEL,
-    RAMP: RAMP,
-    IDLE: IDLE,
+    MARK: MARK,
+    BANDS: BANDS,
+    bandOf: bandOf,
+    adviceFor: adviceFor,
     PRIMARY: PRIMARY,
     SECONDARY: SECONDARY,
     aggregate: aggregate,
