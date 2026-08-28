@@ -87,6 +87,8 @@ node tools/build-single.js      # → dist/gymmate.html (CSS·JS 가 모두 들�
   - 승모근·어깨·가슴·등(광배)·허리·이두·삼두·전완·복근·복사근·둔근·대퇴사두·햄스트링·종아리 14개 부위
   - 그림이나 순위 목록에서 부위를 누르면 그 부위의 세트 수·볼륨·많이 한 운동 확인
   - 색은 단일 색조 순차 램프(어두울수록 적음)로, 다크 배경 대비를 검증해 선택
+  - 인체 도해는 [body-muscles](https://github.com/vulovix/body-muscles)(Apache-2.0)의 경로를 사용합니다.
+    고지와 변경 내용은 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 참고
 - 기록 상세에서 세트별 무게·횟수 확인
 
 ### 5. 설정
@@ -104,7 +106,11 @@ sw.js                       오프라인 캐시용 서비스워커
 css/styles.css              다크 테마 스타일 (모바일 우선)
 icons/                      앱 아이콘 (192·512·maskable PNG, 원본 SVG)
 js/exercises.js             내장 운동 DB 115종 + 검색(초성 포함)
-js/bodymap.js               근육 부위 집계 + 인체 그림(SVG) 히트맵
+js/bodymap.js               근육 부위 집계 + 히트맵 렌더
+js/bodyfigure.js            인체 도해 경로 (자동 생성 · 출처는 아래 고지 참고)
+tools/build-bodyfigure.js   인체 도해 경로 생성 스크립트
+THIRD_PARTY_NOTICES.md      제3자 저작물 고지
+licenses/                   원저작물 라이선스 전문·고지
 js/store.js                 localStorage 저장소 · 루틴/세션/기록 CRUD
 js/app.js                   라우팅 · 화면 렌더링 · 휴식 타이머 · Wake Lock
 tools/build-single.js       CSS·JS 를 끼워 넣어 단일 파일로 만드는 스크립트
