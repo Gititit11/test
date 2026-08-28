@@ -314,6 +314,79 @@
     }
   };
 
+  // ── 운동별 성장 기록 ────────────────────────────────
+  // 한 세션에서 그 운동을 어떻게 했는지 한 줄로 요약한다.
+  function summarize(session, item) {
+    var sets = item.sets.filter(function (st) { return st.done !== false; });
+    if (!sets.length) return null;
+    var row = {
+      sessionId: session.id, routineName: session.routineName,
+      at: session.startedAt, type: item.type,
+      setCount: sets.length, totalReps: 0, totalSec: 0,
+      volume: 0, topWeight: 0, topReps: 0, best: null, e1rm: 0
+    };
+    sets.forEach(function (st) {
+      if (item.type === 'time') { row.totalSec += Number(st.sec) || 0; return; }
+      var w = Number(st.weight) || 0, r = Number(st.reps) || 0;
+      row.totalReps += r;
+      row.volume += w * r;
+      // 그 날 가장 무겁게 친 세트 (무게가 같으면 횟수가 많은 쪽)
+      if (!row.best || w > row.best.weight || (w === row.best.weight && r > row.best.reps)) {
+        row.best = { weight: w, reps: r };
+      }
+      if (r > row.topReps) row.topReps = r;
+      // Epley 공식으로 1회 최대 무게를 추정한다
+      if (w > 0 && r > 0) row.e1rm = Math.max(row.e1rm, w * (1 + r / 30));
+    });
+    if (row.best) row.topWeight = row.best.weight;
+    row.volume = Math.round(row.volume);
+    row.e1rm = Math.round(row.e1rm);
+    return row;
+  }
+
+  // 그 운동을 한 세션들을 오래된 것 → 최근 순으로 돌려준다
+  Store.progressOf = function (exerciseId) {
+    var out = [];
+    state.sessions.forEach(function (s) {
+      s.items.forEach(function (it) {
+        if (it.exerciseId !== exerciseId) return;
+        var row = summarize(s, it);
+        if (row) { row.name = it.name; out.push(row); }
+      });
+    });
+    return out.sort(function (a, b) { return a.at - b.at; });
+  };
+
+  // 한 번이라도 한 운동들을 최근에 한 순서로 돌려준다
+  Store.trainedExercises = function () {
+    var map = {};
+    state.sessions.forEach(function (s) {
+      s.items.forEach(function (it) {
+        if (!it.exerciseId) return;
+        var row = summarize(s, it);
+        if (!row) return;
+        var e = map[it.exerciseId];
+        if (!e) {
+          e = map[it.exerciseId] = {
+            exerciseId: it.exerciseId, name: it.name, type: it.type,
+            days: 0, lastAt: 0, last: null, topWeight: 0
+          };
+        }
+        e.days++;
+        if (row.at > e.lastAt) { e.lastAt = row.at; e.last = row; e.name = it.name; }
+        if (row.topWeight > e.topWeight) e.topWeight = row.topWeight;
+      });
+    });
+    return Object.keys(map).map(function (k) { return map[k]; })
+      .sort(function (a, b) { return b.lastAt - a.lastAt; });
+  };
+
+  // 직전에 이 운동을 했을 때의 기록. 진행 중인 세션은 제외한다.
+  Store.lastRecordOf = function (exerciseId) {
+    var rows = Store.progressOf(exerciseId);
+    return rows.length ? rows[rows.length - 1] : null;
+  };
+
   // ── 통계 헬퍼 ────────────────────────────────────────
   Store.volumeOf = function (session) {
     var v = 0;

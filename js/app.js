@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-16';
+  var APP_VERSION = '2026.08.28-17';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -27,6 +27,13 @@
     var m = Math.round(ms / 60000);
     if (m < 60) return m + '분';
     return Math.floor(m / 60) + '시간 ' + (m % 60) + '분';
+  }
+  // 플랭크처럼 1~2분짜리는 분 단위로 자르면 변화가 안 보인다
+  function fmtSec(sec) {
+    sec = Math.round(sec);
+    if (sec < 60) return sec + '초';
+    var m = Math.floor(sec / 60), r = sec % 60;
+    return m + '분' + (r ? ' ' + r + '초' : '');
   }
   function fmtDate(ts) {
     var d = new Date(ts);
@@ -262,12 +269,14 @@
   function nav() {
     var items = [
       ['routines', '루틴', '📋'],
-      ['session', '운동', '🏋️'],
+      ['progress', '성장', '📊'],
       ['history', '기록', '📈'],
       ['settings', '설정', '⚙️']
     ];
     return '<nav class="tabbar">' + items.map(function (it) {
-      var on = route.name === it[0] ? ' on' : '';
+      // 운동 진행 화면은 탭이 없다. 루틴에서 들어오므로 루틴을 켜 둔다
+      var here = route.name === 'session' ? 'routines' : route.name;
+      var on = here === it[0] ? ' on' : '';
       return '<a class="tab' + on + '" href="#/' + it[0] + '">' +
         '<span class="tab-ico">' + it[2] + '</span><span>' + it[1] + '</span></a>';
     }).join('') + '</nav>';
@@ -281,11 +290,14 @@
     '하체': 'pt-leg', '코어': 'pt-core', '유산소': 'pt-cardio'
   };
   function partBadge(item) {
-    var ex = S.findExercise(item.exerciseId);
-    var part = ex && ex.part;
-    var cls = PART_CLASS[part];
-    if (!cls) return badge(item.name);
-    return '<span class="badge ' + cls + '" title="' + esc(part) + '">' + esc(item.name) + '</span>';
+    return partBadgeOf(S.findExercise(item.exerciseId), item.name);
+  }
+  // 운동을 알면 부위 색을, 모르면 기본 배지를 준다
+  function partBadgeOf(ex, text) {
+    var label = text || (ex ? ex.part : '');
+    var cls = ex && PART_CLASS[ex.part];
+    if (!cls) return badge(label);
+    return '<span class="badge ' + cls + '" title="' + esc(ex.part) + '">' + esc(label) + '</span>';
   }
   function empty(msg, sub) {
     return '<div class="empty"><div class="empty-ico">🗒️</div><p>' + esc(msg) + '</p>' +
@@ -445,6 +457,23 @@
     if (el) el.textContent = itemSummary(it) + ' · 휴식 ' + S.restOf(it) + '초';
   }
 
+  // 지난번에 이 운동을 어떻게 했는지 한 줄로 보여 준다.
+  // 진행 중인 세션은 아직 기록에 없으므로 그대로 직전 기록이 나온다.
+  function lastRecordLine(item) {
+    if (!item.exerciseId) return '';
+    var r = S.lastRecordOf(item.exerciseId);
+    if (!r) return '';
+    var u = S.settings.unit;
+    var v = r.type === 'time'
+      ? fmtSec(r.totalSec)
+      : (r.best ? r.best.weight + u + ' × ' + r.best.reps + '회' : '');
+    if (!v) return '';
+    return '<p class="lastrec" data-act="open-progress" data-id="' + item.exerciseId + '">' +
+      '<span class="dim">지난번</span> <strong>' + esc(v) + '</strong>' +
+      '<span class="dim"> · ' + fmtShortDate(r.at) + ' · ' + r.setCount + '세트</span>' +
+      '<span class="chev">›</span></p>';
+  }
+
   // ── 화면: 운동 진행 ──────────────────────────────────
   function viewSession() {
     var s = S.active();
@@ -484,6 +513,7 @@
           '<span class="dim">' + doneCount + '/' + it.sets.length + '</span>' +
         '</div>' +
         (it.memo ? '<p class="dim memo">📝 ' + esc(it.memo) + '</p>' : '') +
+        lastRecordLine(it) +
         '<div class="setlist">' + it.sets.map(function (st, i) {
           var fields = it.type === 'time'
             ? '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
@@ -582,6 +612,180 @@
       '</div>' +
       legend + detail + rank +
       '</section>';
+  }
+
+  // ── 성장: 꺾은선 차트 ────────────────────────────────
+  // 한 차트에 한 가지 값만 그린다. 무게와 횟수는 단위가 달라
+  // 축을 겹치지 않고 차트를 위아래로 나눈다.
+  function lineChart(opts) {
+    var pts = opts.points;                       // [{ at, v }] 오래된 것 → 최근
+    if (!pts.length) return '';
+    var W = 320, H = 132, L = 34, R = 12, T = 14, B = 22;
+    var iw = W - L - R, ih = H - T - B;
+
+    var vs = pts.map(function (p) { return p.v; });
+    var lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs);
+    if (hi === lo) { hi = lo + (lo || 1) * 0.1; lo = Math.max(0, lo - (lo || 1) * 0.1); }
+    var pad = (hi - lo) * 0.12; hi += pad; lo = Math.max(0, lo - pad);
+
+    var x = function (i) { return pts.length === 1 ? L + iw / 2 : L + (i / (pts.length - 1)) * iw; };
+    var y = function (v) { return T + ih - ((v - lo) / (hi - lo)) * ih; };
+
+    // 눈금은 위·가운데·아래 세 개면 충분하다
+    var ticks = [lo, (lo + hi) / 2, hi];
+    var grid = ticks.map(function (v) {
+      return '<line class="ch-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/>' +
+        '<text class="ch-tick" x="' + (L - 6) + '" y="' + (y(v) + 3.5).toFixed(1) + '">' + Math.round(v) + '</text>';
+    }).join('');
+
+    var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.v).toFixed(1); }).join(' ');
+    var maxI = vs.lastIndexOf(Math.max.apply(null, vs));
+    var lastI = pts.length - 1;
+
+    var dots = pts.map(function (p, i) {
+      var lab = fmtShortDate(p.at) + ' · ' + p.label;
+      return '<circle class="ch-dot" cx="' + x(i).toFixed(1) + '" cy="' + y(p.v).toFixed(1) + '" r="4.5"' +
+        ' data-act="ch-pick" data-lab="' + esc(lab) + '" data-key="' + opts.key + '">' +
+        '<title>' + esc(lab) + '</title></circle>' +
+        // 터치 목표는 점보다 크게 잡는다
+        '<circle class="ch-hit" cx="' + x(i).toFixed(1) + '" cy="' + y(p.v).toFixed(1) + '" r="14"' +
+        ' data-act="ch-pick" data-lab="' + esc(lab) + '" data-key="' + opts.key + '"/>';
+    }).join('');
+
+    // 값은 전부 적지 않고 최고점과 마지막만 직접 표시한다.
+    // 라벨 폭을 미리 재서 서로 겹치면 마지막 것만 남긴다.
+    var CH = 5.6;                                     // 10px 글자의 대략적인 자폭
+    function box(i) {
+      var w = pts[i].label.length * CH;
+      var cx = x(i), a = 'middle', x0 = cx - w / 2;
+      if (cx > W - R - w / 2) { a = 'end'; x0 = cx - w; }
+      else if (cx < L + w / 2) { a = 'start'; x0 = cx; }
+      return { a: a, x0: x0, x1: x0 + w };
+    }
+    function tag(i) {
+      if (i < 0 || i >= pts.length) return '';
+      var b = box(i);
+      return '<text class="ch-val" text-anchor="' + b.a + '" x="' + x(i).toFixed(1) + '" y="' + (y(pts[i].v) - 9).toFixed(1) + '">' +
+        esc(pts[i].label) + '</text>';
+    }
+    var labels = tag(lastI);
+    if (maxI !== lastI) {
+      var bm = box(maxI), bl = box(lastI);
+      var overlap = bm.x1 + 6 > bl.x0 && bl.x1 + 6 > bm.x0;
+      if (!overlap) labels = tag(maxI) + labels;      // 겹치면 최고점 라벨은 생략
+    }
+
+    return '<figure class="chart" style="--ch:' + opts.color + '">' +
+      '<figcaption>' + esc(opts.title) + '</figcaption>' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(opts.title) +
+        ' — ' + pts.length + '회 기록, ' + esc(pts[0].label) + ' 에서 ' + esc(pts[lastI].label) + '">' +
+        grid +
+        '<path class="ch-line" d="' + d + '"/>' + dots + labels +
+      '</svg>' +
+      '<div class="ch-x"><span>' + fmtShortDate(pts[0].at) + '</span>' +
+        (pts.length > 1 ? '<span>' + fmtShortDate(pts[lastI].at) + '</span>' : '') + '</div>' +
+      '<p class="ch-read dim" data-read="' + opts.key + '">점을 누르면 그 날 기록이 보입니다</p>' +
+    '</figure>';
+  }
+
+  function fmtShortDate(ts) {
+    var d = new Date(ts);
+    return (d.getMonth() + 1) + '/' + d.getDate();
+  }
+
+  // ── 화면: 성장 ───────────────────────────────────────
+  function viewProgress(id) {
+    if (id) return viewProgressDetail(id);
+    var list = S.trainedExercises();
+    var html = header('성장');
+    html += '<main class="page">';
+    if (!list.length) {
+      html += empty('아직 기록이 없습니다.', '운동을 한 번 완료하면 여기에서 무게와 횟수 변화를 볼 수 있습니다.');
+    } else {
+      html += '<ul class="list">' + list.map(function (e) {
+        var ex = S.findExercise(e.exerciseId);
+        var sub = e.type === 'time'
+          ? fmtSec(e.last.totalSec)
+          : (e.last.best ? e.last.best.weight + S.settings.unit + ' × ' + e.last.best.reps + '회' : '기록 없음');
+        return '<li class="card row between" data-act="open-progress" data-id="' + e.exerciseId + '">' +
+          '<div><strong>' + esc(e.name) + '</strong>' +
+          '<p class="dim">최근 ' + esc(sub) + ' · ' + e.days + '회 수행 · ' + fmtDate(e.lastAt) + '</p>' +
+          (ex ? '<div class="tags">' + partBadgeOf(ex) + '</div>' : '') + '</div>' +
+          '<span class="chev">›</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</main>';
+    return html;
+  }
+
+  function viewProgressDetail(id) {
+    var rows = S.progressOf(id);
+    var ex = S.findExercise(id);
+    var name = rows.length ? rows[rows.length - 1].name : (ex ? ex.name : '운동');
+    var html = header(name, '<button class="btn sm" data-act="back-progress">목록</button>');
+    html += '<main class="page">';
+
+    if (!rows.length) {
+      html += empty('아직 기록이 없습니다.', '이 운동을 완료하면 변화가 쌓입니다.');
+      return html + '</main>';
+    }
+
+    var timed = rows[rows.length - 1].type === 'time';
+    var u = S.settings.unit;
+
+    if (timed) {
+      var bestSec = rows.reduce(function (a, r) { return Math.max(a, r.totalSec); }, 0);
+      html += '<div class="card stats">' +
+        '<div><strong>' + fmtSec(bestSec) + '</strong><span class="dim">최고 시간</span></div>' +
+        '<div><strong>' + rows.length + '</strong><span class="dim">수행 횟수</span></div>' +
+        '</div>';
+      html += lineChart({
+        title: '시간 추이(초)', key: 'sec', color: '#5588f0',
+        points: rows.map(function (r) {
+          return { at: r.at, v: r.totalSec, label: fmtSec(r.totalSec) };
+        })
+      });
+    } else {
+      var pr = rows.reduce(function (a, r) { return r.topWeight > a.topWeight ? r : a; }, rows[0]);
+      var bestE = rows.reduce(function (a, r) { return Math.max(a, r.e1rm); }, 0);
+      var lastRow = rows[rows.length - 1];
+      html += '<div class="card stats">' +
+        '<div><strong>' + pr.topWeight + u + '</strong><span class="dim">최고 무게</span></div>' +
+        '<div><strong>' + bestE + u + '</strong><span class="dim">추정 1RM</span></div>' +
+        '<div><strong>' + rows.length + '</strong><span class="dim">수행 횟수</span></div>' +
+        '<div><strong>' + (lastRow.best ? lastRow.best.weight + '×' + lastRow.best.reps : '-') + '</strong>' +
+          '<span class="dim">마지막 기록</span></div>' +
+        '</div>';
+
+      html += lineChart({
+        title: '무게 추이(' + u + ') — 그 날 가장 무겁게 친 세트', key: 'w', color: '#5588f0',
+        points: rows.map(function (r) {
+          return { at: r.at, v: r.topWeight, label: r.topWeight + u + ' × ' + (r.best ? r.best.reps : 0) + '회' };
+        })
+      });
+      html += lineChart({
+        title: '횟수 추이(회) — 그 세트의 반복 횟수', key: 'r', color: '#25a98f',
+        points: rows.map(function (r) {
+          return { at: r.at, v: r.best ? r.best.reps : 0, label: (r.best ? r.best.reps : 0) + '회 (' + r.topWeight + u + ')' };
+        })
+      });
+    }
+
+    // 색만으로 읽히지 않도록 같은 내용을 표로도 둔다
+    html += '<section class="card"><h3>날짜별 기록</h3><ul class="loglist">' +
+      rows.slice().reverse().map(function (r) {
+        var v = timed
+          ? fmtSec(r.totalSec)
+          : (r.best ? r.best.weight + u + ' × ' + r.best.reps + '회' : '-');
+        return '<li data-act="open-history" data-id="' + r.sessionId + '">' +
+          '<span class="dim">' + fmtDate(r.at) + '</span>' +
+          '<strong>' + esc(v) + '</strong>' +
+          '<span class="dim">' + r.setCount + '세트' +
+          (timed ? '' : ' · ' + r.volume.toLocaleString() + u) + '</span></li>';
+      }).join('') + '</ul></section>';
+
+    html += '</main>';
+    return html;
   }
 
   function viewHistory(id) {
@@ -888,6 +1092,7 @@
     switch (route.name) {
       case 'routine': body = viewRoutineEdit(route.param); break;
       case 'session': body = viewSession(); break;
+      case 'progress': body = viewProgress(route.param); break;
       case 'history': body = viewHistory(route.param); break;
       case 'settings': body = viewSettings(); break;
       default: body = viewRoutines();
@@ -916,6 +1121,14 @@
       case 'edit-routine': go('routine/' + id); break;
       case 'back': go('routines'); break;
       case 'back-history': go('history'); break;
+      case 'open-progress': go('progress/' + id); break;
+      case 'back-progress': go('progress'); break;
+      case 'ch-pick': {
+        // 점을 누르면 그 차트 아래에 그 날 기록을 적는다
+        var read = document.querySelector('[data-read="' + t.dataset.key + '"]');
+        if (read) { read.textContent = t.dataset.lab; read.classList.add('on'); }
+        break;
+      }
       case 'goto-session': go('session'); break;
 
       case 'dup-routine': S.duplicateRoutine(id); toast('복제했습니다'); render(); break;
