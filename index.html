@@ -25,8 +25,14 @@
   <script src="js/app.js"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      var hadController = !!navigator.serviceWorker.controller;
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function () { /* 오프라인 캐시 미지원 */ });
+      });
+      // 새 버전이 설치되면 새로고침해 최신 코드로 바꾼다.
+      // 단, 운동 중이라면 진행을 끊지 않도록 그대로 둔다.
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (hadController && !(window.Store && window.Store.active())) location.reload();
       });
     }
   </script>

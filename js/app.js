@@ -563,8 +563,41 @@
   }
   function closeModal() { modalRoot.innerHTML = ''; modalRoot.classList.remove('show'); }
 
-  function drawPicker(keepFocus) {
+  function pickerResults() {
     var list = DB.search(S.allExercises(), picker.q, { part: picker.part, equip: picker.equip });
+    if (!list.length) return '<div class="empty small"><p>검색 결과가 없습니다.</p></div>';
+    return list.map(function (e) {
+      return '<div class="ex" data-act="pk-add" data-id="' + e.id + '">' +
+        '<div><strong>' + esc(e.name) + '</strong>' +
+        '<p class="dim">' + esc(e.en || '') + (e.muscles.length ? ' · ' + esc(e.muscles.join(', ')) : '') + '</p>' +
+        '<div class="tags">' + badge(e.part, 'part') + badge(e.equip, 'equip') +
+        (e.type === 'time' ? badge('시간') : '') + (e.custom ? badge('내 운동', 'mine') : '') + '</div></div>' +
+        '<span class="plus">+</span></div>';
+    }).join('');
+  }
+
+  // 검색어를 칠 때 시트 전체를 다시 그리면 입력창이 새 요소로 교체돼
+  // 한글 조합(IME)이 매 글자마다 끊긴다. 그래서 결과 목록만 갈아끼운다.
+  function updatePicker() {
+    var sheet = modalRoot.querySelector('.sheet');
+    if (!sheet) return;
+    var chips = sheet.querySelectorAll('.fchip');
+    for (var i = 0; i < chips.length; i++) {
+      var c = chips[i];
+      c.classList.toggle('on', picker[c.dataset.key] === c.dataset.v);
+    }
+    var listEl = sheet.querySelector('.sheet-list');
+    if (listEl) {
+      listEl.innerHTML = pickerResults();
+      listEl.scrollTop = 0;
+    }
+    var customBtn = sheet.querySelector('[data-act="pk-custom"]');
+    if (customBtn) {
+      customBtn.innerHTML = '＋ 직접 추가하기' + (picker.q ? ' (“' + esc(picker.q) + '”)' : '');
+    }
+  }
+
+  function drawPicker() {
     var chips = function (label, key, values) {
       return '<div class="chiprow"><span class="chiprow-label">' + label + '</span>' +
         '<button class="fchip' + (picker[key] === '' ? ' on' : '') + '" data-act="pk-filter" data-key="' + key + '" data-v="">전체</button>' +
@@ -590,25 +623,11 @@
           '기본값 <input type="number" inputmode="numeric" min="1" max="20" value="' + picker.sets + '" data-bind="pk-sets">세트 × ' +
           '<input type="number" inputmode="numeric" min="1" max="100" value="' + picker.reps + '" data-bind="pk-reps">회로 추가' +
         '</div>' +
-        '<div class="sheet-list">' +
-          (list.length ? list.map(function (e) {
-            return '<div class="ex" data-act="pk-add" data-id="' + e.id + '">' +
-              '<div><strong>' + esc(e.name) + '</strong>' +
-              '<p class="dim">' + esc(e.en || '') + (e.muscles.length ? ' · ' + esc(e.muscles.join(', ')) : '') + '</p>' +
-              '<div class="tags">' + badge(e.part, 'part') + badge(e.equip, 'equip') +
-              (e.type === 'time' ? badge('시간') : '') + (e.custom ? badge('내 운동', 'mine') : '') + '</div></div>' +
-              '<span class="plus">+</span></div>';
-          }).join('') : '<div class="empty small"><p>검색 결과가 없습니다.</p></div>') +
-        '</div>' +
+        '<div class="sheet-list">' + pickerResults() + '</div>' +
         '<div class="sheet-foot">' +
           '<button class="btn block" data-act="pk-custom">＋ 직접 추가하기' + (picker.q ? ' (“' + esc(picker.q) + '”)' : '') + '</button>' +
         '</div>' +
       '</div>';
-
-    if (keepFocus) {
-      var i = document.getElementById('pk-q');
-      if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
-    }
   }
 
   function copyText(text) {
@@ -732,7 +751,7 @@
       case 'close-modal': closeModal(); break;
       case 'pk-filter':
         picker[t.dataset.key] = t.dataset.v;
-        drawPicker();
+        updatePicker();
         break;
       case 'pk-add': {
         var ex = S.findExercise(t.dataset.id);
@@ -740,7 +759,6 @@
         S.addItem(picker.routineId, ex, { sets: picker.sets, reps: picker.reps });
         toast('“' + ex.name + '” 추가됨');
         render();
-        drawPicker();
         break;
       }
       case 'pk-custom': customExerciseForm(); break;
@@ -956,12 +974,20 @@
   document.addEventListener('change', onFieldChange);
   document.addEventListener('input', onFieldChange);
 
-  // 검색어는 입력 즉시 반영
+  // 검색어는 입력 즉시 반영 (입력창은 건드리지 않아 한글 조합이 유지된다)
   document.addEventListener('input', function (ev) {
     var t = ev.target;
     if (t.dataset && t.dataset.bind === 'pk-q') {
       picker.q = t.value;
-      drawPicker(true);
+      updatePicker();
+    }
+  });
+  // 한글·일본어 등 조합 입력이 확정되는 순간에도 한 번 갱신
+  document.addEventListener('compositionend', function (ev) {
+    var t = ev.target;
+    if (t && t.dataset && t.dataset.bind === 'pk-q') {
+      picker.q = t.value;
+      updatePicker();
     }
   });
 
