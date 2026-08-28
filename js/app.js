@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-24';
+  var APP_VERSION = '2026.08.28-25';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -670,6 +670,44 @@
     var ex = S.findExercise(item.exerciseId);
     return !!(ex && ex.equip === '맨몸' && item.type !== 'time');
   }
+  /* 세트 하나를 읽을 수 있는 문장으로 바꾼다. 유산소는 분·속도·경사,
+   * 맨몸은 횟수만, 기구 운동은 무게 × 횟수. 기록 상세만 예전 표기가
+   * 남아 "1800초", "0kg × 20회" 로 나오던 걸 여기로 모았다. */
+  function setText(item, st) {
+    var u = S.settings.unit;
+    if (item.type === 'time') {
+      var cc = cardioCfg(item);
+      var out = fmtSec(num(st.sec, 0));
+      if (!cc) return out;
+      if (st.speed != null) out += ' · ' + st.speed + 'km/h';
+      if (st.grade) out += ' 경사 ' + st.grade + '%';
+      if (st.watt != null) out += ' · ' + st.watt + 'W';
+      if (st.level != null && st.watt == null) out += ' · ' + (LEVEL_LABELS[st.level] || '');
+      return out;
+    }
+    var reps = num(st.reps, 0) + '회';
+    var w = num(st.weight, 0);
+    return (bodyweight(item) || !w) ? reps : w + u + ' × ' + reps;
+  }
+
+  // 한 세션에서 체크한 총 횟수 (맨몸처럼 볼륨이 0 인 날의 대체 지표)
+  function repsOf(sess) {
+    var total = 0;
+    sess.items.forEach(function (it) {
+      if (it.type === 'time') return;
+      it.sets.forEach(function (st) { if (st.done !== false) total += num(st.reps, 0); });
+    });
+    return total;
+  }
+
+  // 가져온 결과를 한 줄로. 버린 항목이 있으면 숨기지 않고 알린다.
+  function importMsg(rep) {
+    if (!rep) return '가져오기 완료';
+    var msg = '루틴 ' + rep.routines + '개 · 기록 ' + rep.sessions + '개를 가져왔습니다';
+    if (rep.dropped) msg += ' (읽을 수 없는 항목 ' + rep.dropped + '개 제외)';
+    return msg;
+  }
+
   function cardioCfg(item) {
     if (!item || item.type !== 'time' || !window.Calories) return null;
     return window.Calories.cardioOf(item.exerciseId, S.findExercise(item.exerciseId));
@@ -962,10 +1000,15 @@
       var week = list.filter(function (s) { return s.startedAt >= weekAgo; });
       var weekVol = week.reduce(function (a, s) { return a + S.volumeOf(s); }, 0);
       var weekKcal = week.reduce(function (a, s) { return a + kcalOf(s); }, 0);
+      var weekReps = week.reduce(function (a, s) { return a + repsOf(s); }, 0);
+      /* 볼륨은 무게를 든 운동에만 있는 값이다. 맨몸·유산소만 한 주에는
+       * 0 이 뜨는데 아무것도 안 한 것처럼 읽혀서, 라벨에 기구 기준임을
+       * 밝히고 옆에 총 횟수를 같이 둔다. */
       html += '<div class="card stats">' +
         '<div><strong>' + week.length + '</strong><span class="dim">최근 7일 운동</span></div>' +
         '<div><strong>' + weekKcal.toLocaleString() + '</strong><span class="dim">7일 칼로리(kcal)</span></div>' +
-        '<div><strong>' + weekVol.toLocaleString() + '</strong><span class="dim">7일 볼륨(' + S.settings.unit + ')</span></div>' +
+        '<div><strong>' + weekVol.toLocaleString() + '</strong><span class="dim">7일 볼륨(기구 ' + S.settings.unit + ')</span></div>' +
+        '<div><strong>' + weekReps.toLocaleString() + '</strong><span class="dim">7일 총 횟수</span></div>' +
         '<div><strong>' + list.length + '</strong><span class="dim">총 운동 횟수</span></div>' +
         '</div>';
 
@@ -992,16 +1035,19 @@
       '<h3>' + esc(s.routineName) + '</h3>' +
       '<p class="dim">' + fmtDate(s.startedAt) + ' · ' + fmtDur(s.finishedAt - s.startedAt) + '</p>' +
       '<div class="row gap" style="margin-top:8px">' +
-      badge(S.countSets(s, true) + '세트 완료') + badge('볼륨 ' + S.volumeOf(s).toLocaleString() + S.settings.unit) +
+      badge(S.countSets(s, true) + '세트 완료') +
+      // 볼륨은 무게를 든 운동에만 있는 값이라, 맨몸·유산소만 한 날엔 0kg 이
+      // 아니라 총 횟수를 적는다
+      (S.volumeOf(s) ? badge('볼륨 ' + S.volumeOf(s).toLocaleString() + S.settings.unit) : '') +
+      (repsOf(s) ? badge('총 ' + repsOf(s).toLocaleString() + '회') : '') +
       badge('약 ' + kcalOf(s).toLocaleString() + ' kcal') +
       '</div></div>';
     html += s.items.map(function (it) {
       return '<section class="card">' +
         '<h3>' + esc(it.name) + '</h3>' +
         '<div class="setlist">' + it.sets.map(function (st, i) {
-          var d = it.type === 'time' ? num(st.sec, 0) + '초'
-            : num(st.weight, 0) + S.settings.unit + ' × ' + num(st.reps, 0) + '회';
-          return '<div class="setrow static"><span class="setno">' + (i + 1) + '세트</span><span>' + d + '</span></div>';
+          return '<div class="setrow static"><span class="setno">' + (i + 1) + '세트</span>' +
+            '<span>' + esc(setText(it, st)) + '</span></div>';
         }).join('') + '</div></section>';
     }).join('');
     html += '<button class="btn danger block" data-act="del-history" data-id="' + s.id + '">이 기록 삭제</button>';
@@ -1495,7 +1541,7 @@
       case 'import-text': {
         var text2 = prompt('백업 내용(JSON)을 붙여넣어 주세요.');
         if (!text2) return;
-        try { S.importJSON(text2); toast('가져오기 완료'); closeModal(); render(); }
+        try { var rep = S.importJSON(text2); toast(importMsg(rep)); closeModal(); render(); }
         catch (e) { alert('가져오기 실패: ' + e.message); }
         break;
       }
@@ -1508,7 +1554,7 @@
           if (!f) return;
           var reader = new FileReader();
           reader.onload = function () {
-            try { S.importJSON(reader.result); toast('가져오기 완료'); render(); }
+            try { var rep2 = S.importJSON(reader.result); toast(importMsg(rep2)); render(); }
             catch (e) { alert('가져오기 실패: ' + e.message); }
           };
           reader.readAsText(f);

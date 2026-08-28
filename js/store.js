@@ -34,11 +34,135 @@
     }
   }
 
+  // 저장은 입력할 때마다 일어난다. 공간이 차면 경고가 계속 튀어나와
+  // 앱을 못 쓰게 되므로 한 번만 알리고 이후에는 조용히 넘어간다.
+  var warnedFull = false;
+  /* 들여온 백업을 깨끗한 상태 객체로 다시 만든다.
+   * 고칠 수 있는 것(빠진 필드, 이상한 값)은 기본값으로 채우고,
+   * 운동 하나로 볼 수 없는 항목은 버린다. 몇 개를 버렸는지 함께 돌려준다. */
+  function sanitize(parsed) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('백업 형식이 아닙니다.');
+    }
+    if (!Array.isArray(parsed.routines)) {
+      throw new Error('백업에 루틴 목록이 없습니다. 이 앱에서 내보낸 백업이 맞는지 확인해 주세요.');
+    }
+
+    var dropped = 0;
+    function str(v, fallback) { return typeof v === 'string' && v ? v : fallback; }
+    function n(v, fallback) { var x = Number(v); return isFinite(x) ? x : fallback; }
+    function optN(v, lo, hi) {                      // null 을 허용하는 숫자 (휴식·속도 등)
+      if (v === null || v === undefined || v === '') return null;
+      var x = Number(v);
+      return isFinite(x) ? Math.min(hi, Math.max(lo, x)) : null;
+    }
+
+    function cleanSet(raw, type) {
+      if (!raw || typeof raw !== 'object') return null;
+      var st = {};
+      if (type === 'time') {
+        st.sec = Math.max(0, n(raw.sec, 0));
+        st.speed = optN(raw.speed, 0, 40);
+        st.grade = optN(raw.grade, 0, 30);
+        st.watt = optN(raw.watt, 0, 600);
+        st.level = optN(raw.level, 0, 2);
+      } else {
+        st.reps = Math.max(0, Math.round(n(raw.reps, 0)));
+        st.weight = Math.max(0, n(raw.weight, 0));
+      }
+      if (typeof raw.done === 'boolean') st.done = raw.done;
+      if (raw.doneAt != null) st.doneAt = n(raw.doneAt, null);
+      return st;
+    }
+
+    function cleanItem(raw) {
+      if (!raw || typeof raw !== 'object') { dropped++; return null; }
+      var type = raw.type === 'time' ? 'time' : 'reps';
+      var sets = (Array.isArray(raw.sets) ? raw.sets : [])
+        .map(function (x) { return cleanSet(x, type); })
+        .filter(Boolean);
+      if (!sets.length) sets = [type === 'time' ? { sec: 60 } : { reps: 10, weight: 0 }];
+      return {
+        id: str(raw.id, uid('it')),
+        exerciseId: str(raw.exerciseId, ''),
+        name: str(raw.name, '이름 없는 운동'),
+        type: type,
+        restSec: optN(raw.restSec, 0, 3600),
+        memo: str(raw.memo, ''),
+        sets: sets
+      };
+    }
+
+    function cleanRoutine(raw) {
+      if (!raw || typeof raw !== 'object') { dropped++; return null; }
+      return {
+        id: str(raw.id, uid('rt')),
+        name: str(raw.name, '이름 없는 루틴'),
+        memo: str(raw.memo, ''),
+        createdAt: n(raw.createdAt, Date.now()),
+        updatedAt: n(raw.updatedAt, Date.now()),
+        items: (Array.isArray(raw.items) ? raw.items : []).map(cleanItem).filter(Boolean)
+      };
+    }
+
+    function cleanSession(raw) {
+      if (!raw || typeof raw !== 'object') { dropped++; return null; }
+      var items = (Array.isArray(raw.items) ? raw.items : []).map(cleanItem).filter(Boolean);
+      if (!items.length) { dropped++; return null; }      // 내용 없는 기록은 버린다
+      return {
+        id: str(raw.id, uid('ss')),
+        routineName: str(raw.routineName, '운동'),
+        startedAt: n(raw.startedAt, Date.now()),
+        finishedAt: n(raw.finishedAt, null),
+        memo: str(raw.memo, ''),
+        items: items
+      };
+    }
+
+    function cleanCustom(raw) {
+      if (!raw || typeof raw !== 'object' || !str(raw.name, '')) { dropped++; return null; }
+      return {
+        id: str(raw.id, uid('cx')),
+        name: raw.name,
+        en: str(raw.en, ''),
+        part: str(raw.part, '기타'),
+        equip: str(raw.equip, '기타'),
+        muscles: Array.isArray(raw.muscles) ? raw.muscles.filter(function (m) { return typeof m === 'string'; }) : [],
+        type: raw.type === 'time' ? 'time' : 'reps'
+      };
+    }
+
+    var routines = parsed.routines.map(cleanRoutine).filter(Boolean);
+    var sessions = (Array.isArray(parsed.sessions) ? parsed.sessions : []).map(cleanSession).filter(Boolean);
+    var customs = (Array.isArray(parsed.customExercises) ? parsed.customExercises : []).map(cleanCustom).filter(Boolean);
+    var active = parsed.active ? cleanSession(parsed.active) : null;
+    if (active) active.routineId = str(parsed.active.routineId, '');
+
+    var settings = Object.assign(clone(DEFAULT.settings), (parsed.settings && typeof parsed.settings === 'object') ? parsed.settings : {});
+    settings.defaultRest = Math.min(3600, Math.max(0, n(settings.defaultRest, 90)));
+    settings.bodyWeight = Math.min(250, Math.max(20, n(settings.bodyWeight, 70)));
+    settings.unit = settings.unit === 'lb' ? 'lb' : 'kg';
+    settings.sound = settings.sound !== false;
+
+    var out = clone(DEFAULT);
+    out.routines = routines;
+    out.sessions = sessions;
+    out.customExercises = customs;
+    out.active = active;
+    out.settings = settings;
+    out.report = { routines: routines.length, sessions: sessions.length, dropped: dropped };
+    return out;
+  }
+
   function save() {
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
+      warnedFull = false;
     } catch (e) {
-      alert('저장 공간이 부족해 데이터를 저장하지 못했습니다.');
+      if (!warnedFull) {
+        warnedFull = true;
+        alert('저장 공간이 부족해 데이터를 저장하지 못했습니다.\n설정 → 데이터 백업으로 내보낸 뒤 오래된 기록을 정리해 주세요.');
+      }
     }
     listeners.forEach(function (fn) { fn(state); });
   }
@@ -309,13 +433,20 @@
 
     // ── 백업 ───────────────────────────────────────────
     exportJSON: function () { return JSON.stringify(state, null, 2); },
+    /* 백업을 들여올 때는 모양을 하나하나 확인한다. 예전에는 routines 가
+     * 배열이기만 하면 통과시켜서, 항목이 깨진 백업이 그대로 저장되고
+     * 루틴 화면이 렌더 도중 죽어 앱 안에서 되돌릴 방법이 없었다.
+     * 이제 다 만들어 본 뒤에야 기존 데이터를 갈아 끼운다. */
     importJSON: function (text) {
-      var parsed = JSON.parse(text);
-      if (!parsed || !Array.isArray(parsed.routines)) throw new Error('형식이 올바르지 않습니다.');
-      state = Object.assign(clone(DEFAULT), parsed, {
-        settings: Object.assign(clone(DEFAULT.settings), parsed.settings || {})
-      });
+      var parsed;
+      try { parsed = JSON.parse(text); }
+      catch (e) { throw new Error('JSON 형식이 아닙니다. 백업 내용을 그대로 붙여넣었는지 확인해 주세요.'); }
+      var next = sanitize(parsed);          // 여기서 실패하면 state 는 그대로다
+      var report = next.report;
+      delete next.report;                   // 보고용이라 저장하지 않는다
+      state = next;
       save();
+      return report;
     },
     resetAll: function () {
       state = clone(DEFAULT);

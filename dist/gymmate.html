@@ -798,11 +798,135 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     }
   }
 
+  // 저장은 입력할 때마다 일어난다. 공간이 차면 경고가 계속 튀어나와
+  // 앱을 못 쓰게 되므로 한 번만 알리고 이후에는 조용히 넘어간다.
+  var warnedFull = false;
+  /* 들여온 백업을 깨끗한 상태 객체로 다시 만든다.
+   * 고칠 수 있는 것(빠진 필드, 이상한 값)은 기본값으로 채우고,
+   * 운동 하나로 볼 수 없는 항목은 버린다. 몇 개를 버렸는지 함께 돌려준다. */
+  function sanitize(parsed) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('백업 형식이 아닙니다.');
+    }
+    if (!Array.isArray(parsed.routines)) {
+      throw new Error('백업에 루틴 목록이 없습니다. 이 앱에서 내보낸 백업이 맞는지 확인해 주세요.');
+    }
+
+    var dropped = 0;
+    function str(v, fallback) { return typeof v === 'string' && v ? v : fallback; }
+    function n(v, fallback) { var x = Number(v); return isFinite(x) ? x : fallback; }
+    function optN(v, lo, hi) {                      // null 을 허용하는 숫자 (휴식·속도 등)
+      if (v === null || v === undefined || v === '') return null;
+      var x = Number(v);
+      return isFinite(x) ? Math.min(hi, Math.max(lo, x)) : null;
+    }
+
+    function cleanSet(raw, type) {
+      if (!raw || typeof raw !== 'object') return null;
+      var st = {};
+      if (type === 'time') {
+        st.sec = Math.max(0, n(raw.sec, 0));
+        st.speed = optN(raw.speed, 0, 40);
+        st.grade = optN(raw.grade, 0, 30);
+        st.watt = optN(raw.watt, 0, 600);
+        st.level = optN(raw.level, 0, 2);
+      } else {
+        st.reps = Math.max(0, Math.round(n(raw.reps, 0)));
+        st.weight = Math.max(0, n(raw.weight, 0));
+      }
+      if (typeof raw.done === 'boolean') st.done = raw.done;
+      if (raw.doneAt != null) st.doneAt = n(raw.doneAt, null);
+      return st;
+    }
+
+    function cleanItem(raw) {
+      if (!raw || typeof raw !== 'object') { dropped++; return null; }
+      var type = raw.type === 'time' ? 'time' : 'reps';
+      var sets = (Array.isArray(raw.sets) ? raw.sets : [])
+        .map(function (x) { return cleanSet(x, type); })
+        .filter(Boolean);
+      if (!sets.length) sets = [type === 'time' ? { sec: 60 } : { reps: 10, weight: 0 }];
+      return {
+        id: str(raw.id, uid('it')),
+        exerciseId: str(raw.exerciseId, ''),
+        name: str(raw.name, '이름 없는 운동'),
+        type: type,
+        restSec: optN(raw.restSec, 0, 3600),
+        memo: str(raw.memo, ''),
+        sets: sets
+      };
+    }
+
+    function cleanRoutine(raw) {
+      if (!raw || typeof raw !== 'object') { dropped++; return null; }
+      return {
+        id: str(raw.id, uid('rt')),
+        name: str(raw.name, '이름 없는 루틴'),
+        memo: str(raw.memo, ''),
+        createdAt: n(raw.createdAt, Date.now()),
+        updatedAt: n(raw.updatedAt, Date.now()),
+        items: (Array.isArray(raw.items) ? raw.items : []).map(cleanItem).filter(Boolean)
+      };
+    }
+
+    function cleanSession(raw) {
+      if (!raw || typeof raw !== 'object') { dropped++; return null; }
+      var items = (Array.isArray(raw.items) ? raw.items : []).map(cleanItem).filter(Boolean);
+      if (!items.length) { dropped++; return null; }      // 내용 없는 기록은 버린다
+      return {
+        id: str(raw.id, uid('ss')),
+        routineName: str(raw.routineName, '운동'),
+        startedAt: n(raw.startedAt, Date.now()),
+        finishedAt: n(raw.finishedAt, null),
+        memo: str(raw.memo, ''),
+        items: items
+      };
+    }
+
+    function cleanCustom(raw) {
+      if (!raw || typeof raw !== 'object' || !str(raw.name, '')) { dropped++; return null; }
+      return {
+        id: str(raw.id, uid('cx')),
+        name: raw.name,
+        en: str(raw.en, ''),
+        part: str(raw.part, '기타'),
+        equip: str(raw.equip, '기타'),
+        muscles: Array.isArray(raw.muscles) ? raw.muscles.filter(function (m) { return typeof m === 'string'; }) : [],
+        type: raw.type === 'time' ? 'time' : 'reps'
+      };
+    }
+
+    var routines = parsed.routines.map(cleanRoutine).filter(Boolean);
+    var sessions = (Array.isArray(parsed.sessions) ? parsed.sessions : []).map(cleanSession).filter(Boolean);
+    var customs = (Array.isArray(parsed.customExercises) ? parsed.customExercises : []).map(cleanCustom).filter(Boolean);
+    var active = parsed.active ? cleanSession(parsed.active) : null;
+    if (active) active.routineId = str(parsed.active.routineId, '');
+
+    var settings = Object.assign(clone(DEFAULT.settings), (parsed.settings && typeof parsed.settings === 'object') ? parsed.settings : {});
+    settings.defaultRest = Math.min(3600, Math.max(0, n(settings.defaultRest, 90)));
+    settings.bodyWeight = Math.min(250, Math.max(20, n(settings.bodyWeight, 70)));
+    settings.unit = settings.unit === 'lb' ? 'lb' : 'kg';
+    settings.sound = settings.sound !== false;
+
+    var out = clone(DEFAULT);
+    out.routines = routines;
+    out.sessions = sessions;
+    out.customExercises = customs;
+    out.active = active;
+    out.settings = settings;
+    out.report = { routines: routines.length, sessions: sessions.length, dropped: dropped };
+    return out;
+  }
+
   function save() {
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
+      warnedFull = false;
     } catch (e) {
-      alert('저장 공간이 부족해 데이터를 저장하지 못했습니다.');
+      if (!warnedFull) {
+        warnedFull = true;
+        alert('저장 공간이 부족해 데이터를 저장하지 못했습니다.\n설정 → 데이터 백업으로 내보낸 뒤 오래된 기록을 정리해 주세요.');
+      }
     }
     listeners.forEach(function (fn) { fn(state); });
   }
@@ -1073,13 +1197,20 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
     // ── 백업 ───────────────────────────────────────────
     exportJSON: function () { return JSON.stringify(state, null, 2); },
+    /* 백업을 들여올 때는 모양을 하나하나 확인한다. 예전에는 routines 가
+     * 배열이기만 하면 통과시켜서, 항목이 깨진 백업이 그대로 저장되고
+     * 루틴 화면이 렌더 도중 죽어 앱 안에서 되돌릴 방법이 없었다.
+     * 이제 다 만들어 본 뒤에야 기존 데이터를 갈아 끼운다. */
     importJSON: function (text) {
-      var parsed = JSON.parse(text);
-      if (!parsed || !Array.isArray(parsed.routines)) throw new Error('형식이 올바르지 않습니다.');
-      state = Object.assign(clone(DEFAULT), parsed, {
-        settings: Object.assign(clone(DEFAULT.settings), parsed.settings || {})
-      });
+      var parsed;
+      try { parsed = JSON.parse(text); }
+      catch (e) { throw new Error('JSON 형식이 아닙니다. 백업 내용을 그대로 붙여넣었는지 확인해 주세요.'); }
+      var next = sanitize(parsed);          // 여기서 실패하면 state 는 그대로다
+      var report = next.report;
+      delete next.report;                   // 보고용이라 저장하지 않는다
+      state = next;
       save();
+      return report;
     },
     resetAll: function () {
       state = clone(DEFAULT);
@@ -1808,7 +1939,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-24';
+  var APP_VERSION = '2026.08.28-25';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -2473,6 +2604,44 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     var ex = S.findExercise(item.exerciseId);
     return !!(ex && ex.equip === '맨몸' && item.type !== 'time');
   }
+  /* 세트 하나를 읽을 수 있는 문장으로 바꾼다. 유산소는 분·속도·경사,
+   * 맨몸은 횟수만, 기구 운동은 무게 × 횟수. 기록 상세만 예전 표기가
+   * 남아 "1800초", "0kg × 20회" 로 나오던 걸 여기로 모았다. */
+  function setText(item, st) {
+    var u = S.settings.unit;
+    if (item.type === 'time') {
+      var cc = cardioCfg(item);
+      var out = fmtSec(num(st.sec, 0));
+      if (!cc) return out;
+      if (st.speed != null) out += ' · ' + st.speed + 'km/h';
+      if (st.grade) out += ' 경사 ' + st.grade + '%';
+      if (st.watt != null) out += ' · ' + st.watt + 'W';
+      if (st.level != null && st.watt == null) out += ' · ' + (LEVEL_LABELS[st.level] || '');
+      return out;
+    }
+    var reps = num(st.reps, 0) + '회';
+    var w = num(st.weight, 0);
+    return (bodyweight(item) || !w) ? reps : w + u + ' × ' + reps;
+  }
+
+  // 한 세션에서 체크한 총 횟수 (맨몸처럼 볼륨이 0 인 날의 대체 지표)
+  function repsOf(sess) {
+    var total = 0;
+    sess.items.forEach(function (it) {
+      if (it.type === 'time') return;
+      it.sets.forEach(function (st) { if (st.done !== false) total += num(st.reps, 0); });
+    });
+    return total;
+  }
+
+  // 가져온 결과를 한 줄로. 버린 항목이 있으면 숨기지 않고 알린다.
+  function importMsg(rep) {
+    if (!rep) return '가져오기 완료';
+    var msg = '루틴 ' + rep.routines + '개 · 기록 ' + rep.sessions + '개를 가져왔습니다';
+    if (rep.dropped) msg += ' (읽을 수 없는 항목 ' + rep.dropped + '개 제외)';
+    return msg;
+  }
+
   function cardioCfg(item) {
     if (!item || item.type !== 'time' || !window.Calories) return null;
     return window.Calories.cardioOf(item.exerciseId, S.findExercise(item.exerciseId));
@@ -2765,10 +2934,15 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       var week = list.filter(function (s) { return s.startedAt >= weekAgo; });
       var weekVol = week.reduce(function (a, s) { return a + S.volumeOf(s); }, 0);
       var weekKcal = week.reduce(function (a, s) { return a + kcalOf(s); }, 0);
+      var weekReps = week.reduce(function (a, s) { return a + repsOf(s); }, 0);
+      /* 볼륨은 무게를 든 운동에만 있는 값이다. 맨몸·유산소만 한 주에는
+       * 0 이 뜨는데 아무것도 안 한 것처럼 읽혀서, 라벨에 기구 기준임을
+       * 밝히고 옆에 총 횟수를 같이 둔다. */
       html += '<div class="card stats">' +
         '<div><strong>' + week.length + '</strong><span class="dim">최근 7일 운동</span></div>' +
         '<div><strong>' + weekKcal.toLocaleString() + '</strong><span class="dim">7일 칼로리(kcal)</span></div>' +
-        '<div><strong>' + weekVol.toLocaleString() + '</strong><span class="dim">7일 볼륨(' + S.settings.unit + ')</span></div>' +
+        '<div><strong>' + weekVol.toLocaleString() + '</strong><span class="dim">7일 볼륨(기구 ' + S.settings.unit + ')</span></div>' +
+        '<div><strong>' + weekReps.toLocaleString() + '</strong><span class="dim">7일 총 횟수</span></div>' +
         '<div><strong>' + list.length + '</strong><span class="dim">총 운동 횟수</span></div>' +
         '</div>';
 
@@ -2795,16 +2969,19 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       '<h3>' + esc(s.routineName) + '</h3>' +
       '<p class="dim">' + fmtDate(s.startedAt) + ' · ' + fmtDur(s.finishedAt - s.startedAt) + '</p>' +
       '<div class="row gap" style="margin-top:8px">' +
-      badge(S.countSets(s, true) + '세트 완료') + badge('볼륨 ' + S.volumeOf(s).toLocaleString() + S.settings.unit) +
+      badge(S.countSets(s, true) + '세트 완료') +
+      // 볼륨은 무게를 든 운동에만 있는 값이라, 맨몸·유산소만 한 날엔 0kg 이
+      // 아니라 총 횟수를 적는다
+      (S.volumeOf(s) ? badge('볼륨 ' + S.volumeOf(s).toLocaleString() + S.settings.unit) : '') +
+      (repsOf(s) ? badge('총 ' + repsOf(s).toLocaleString() + '회') : '') +
       badge('약 ' + kcalOf(s).toLocaleString() + ' kcal') +
       '</div></div>';
     html += s.items.map(function (it) {
       return '<section class="card">' +
         '<h3>' + esc(it.name) + '</h3>' +
         '<div class="setlist">' + it.sets.map(function (st, i) {
-          var d = it.type === 'time' ? num(st.sec, 0) + '초'
-            : num(st.weight, 0) + S.settings.unit + ' × ' + num(st.reps, 0) + '회';
-          return '<div class="setrow static"><span class="setno">' + (i + 1) + '세트</span><span>' + d + '</span></div>';
+          return '<div class="setrow static"><span class="setno">' + (i + 1) + '세트</span>' +
+            '<span>' + esc(setText(it, st)) + '</span></div>';
         }).join('') + '</div></section>';
     }).join('');
     html += '<button class="btn danger block" data-act="del-history" data-id="' + s.id + '">이 기록 삭제</button>';
@@ -3298,7 +3475,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       case 'import-text': {
         var text2 = prompt('백업 내용(JSON)을 붙여넣어 주세요.');
         if (!text2) return;
-        try { S.importJSON(text2); toast('가져오기 완료'); closeModal(); render(); }
+        try { var rep = S.importJSON(text2); toast(importMsg(rep)); closeModal(); render(); }
         catch (e) { alert('가져오기 실패: ' + e.message); }
         break;
       }
@@ -3311,7 +3488,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
           if (!f) return;
           var reader = new FileReader();
           reader.onload = function () {
-            try { S.importJSON(reader.result); toast('가져오기 완료'); render(); }
+            try { var rep2 = S.importJSON(reader.result); toast(importMsg(rep2)); render(); }
             catch (e) { alert('가져오기 실패: ' + e.message); }
           };
           reader.readAsText(f);
