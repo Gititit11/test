@@ -1884,14 +1884,16 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   // 부위마다 정해진 볼륨 랜드마크로 절대 판정한다. 그래서 가볍게 한 주는
   // 전체가 옅게, 잘 채운 주는 전체가 짙게 나온다.
   //
-  // 색은 한 색조(청록) 램프로 부족 → 최적까지 짙어지고, 회복 한계를 넘은
-  // 초과만 빨강으로 따로 뗀다. 많이 할수록 좋은 값이 아니라 넘으면 나쁜
-  // 값이라, 눈에 띄는 경고색은 위쪽 끝에만 둔다.
-  // 다크 표면(#1b2029) 기준 검증: 램프 명도 단조·인접 ΔL 0.09~0.10·단일
-  // 색조, 초과와 램프 각 단계의 색약 ΔE 11.5~28.2, 전 단계 대비 4:1 이상.
+  // 색은 청록 램프로 유지 → 최적까지 짙어지고, 양쪽 끝에 경고색을 하나씩
+  // 둔다. 유지에도 못 미치는 부족은 노랑, 회복 한계를 넘은 초과는 빨강.
+  // 많이 할수록 좋은 값이 아니라 모자라도 넘쳐도 나쁜 값이라, 가운데가
+  // 좋고 양 끝이 눈에 띄는 배치가 뜻과 맞는다.
+  // 다크 표면(#1b2029) 기준 검증: 청록 램프 명도 단조·인접 ΔL 0.09~0.10·
+  // 단일 색조, 부족·초과와 나머지 모든 구간의 색약 ΔE 11.6 이상·정상시각
+  // 15.3 이상, 여섯 색 모두 표면 대비 4:1 이상.
   var BANDS = [
     { key: 'none',  ko: '안 함', color: '#eef1f6', desc: '이번 주에 하지 않았습니다' },
-    { key: 'below', ko: '부족',  color: '#a8e6d6', desc: '유지에 필요한 양(MV)에 못 미칩니다' },
+    { key: 'below', ko: '부족',  color: '#ebd873', desc: '유지에 필요한 양(MV)에 못 미칩니다' },
     { key: 'keep',  ko: '유지',  color: '#77d5c2', desc: '유지는 되지만 성장 자극은 부족합니다 (MV~MEV)' },
     { key: 'grow',  ko: '성장',  color: '#1dbaa3', desc: '성장이 일어나는 구간입니다 (MEV~MAV)' },
     { key: 'best',  ko: '최적',  color: '#009c86', desc: '회복 범위 안에서 가장 효율이 좋은 구간입니다 (MAV~MRV)' },
@@ -1982,7 +1984,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-27';
+  var APP_VERSION = '2026.08.28-28';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
