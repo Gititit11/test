@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-12';
+  var APP_VERSION = '2026.08.28-13';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -314,22 +314,18 @@
     } else {
       html += '<ul class="list">' + routines.map(function (r) {
         var sets = r.items.reduce(function (a, it) { return a + it.sets.length; }, 0);
-        // 카드 전체가 시작 버튼이다. 안쪽 버튼은 각자의 동작이 우선한다.
+        // 카드 전체가 시작 버튼이다. 편집·복제·삭제는 ⋮ 버튼 안으로 넣었다.
         return '<li class="card routine" data-act="start-routine" data-id="' + r.id + '">' +
           '<div class="routine-head">' +
             '<div><h3>' + esc(r.name) + '</h3>' +
             '<p class="dim">' + r.items.length + '개 운동 · 총 ' + sets + '세트' +
             (r.memo ? ' · ' + esc(r.memo) : '') + '</p></div>' +
-            '<span class="chev">›</span>' +
+            '<button class="icon more" data-act="routine-menu" data-id="' + r.id + '" ' +
+              'aria-label="' + esc(r.name) + ' 옵션" title="옵션">⋮</button>' +
           '</div>' +
           '<div class="routine-preview">' +
             (r.items.slice(0, 4).map(function (it) { return badge(it.name); }).join('') || '<span class="dim">운동을 추가해 주세요</span>') +
             (r.items.length > 4 ? badge('+' + (r.items.length - 4)) : '') +
-          '</div>' +
-          '<div class="routine-actions">' +
-            '<button class="btn" data-act="edit-routine" data-id="' + r.id + '">편집</button>' +
-            '<button class="btn" data-act="dup-routine" data-id="' + r.id + '">복제</button>' +
-            '<button class="btn danger" data-act="del-routine" data-id="' + r.id + '">삭제</button>' +
           '</div>' +
         '</li>';
       }).join('') + '</ul>';
@@ -709,6 +705,35 @@
   }
   function closeModal() { modalRoot.innerHTML = ''; modalRoot.classList.remove('show'); }
 
+  // 루틴 카드의 ⋮ 메뉴
+  // ⋮ 옆에 붙는 작은 메뉴. 버튼 위치에 맞춰 띄운다.
+  function openRoutineMenu(id, btn) {
+    if (!S.getRoutine(id)) return;
+    modalRoot.classList.add('show');
+    modalRoot.innerHTML =
+      '<div class="pop-bg" data-act="close-modal"></div>' +
+      '<div class="popmenu" id="rt-menu">' +
+        '<button class="menu-item" data-act="menu-edit" data-id="' + id + '">편집</button>' +
+        '<button class="menu-item" data-act="menu-dup" data-id="' + id + '">복제</button>' +
+        '<button class="menu-item danger" data-act="menu-del" data-id="' + id + '">삭제</button>' +
+      '</div>';
+
+    var m = document.getElementById('rt-menu');
+    if (!btn) return;
+    var b = btn.getBoundingClientRect();
+    var w = m.offsetWidth, h = m.offsetHeight, pad = 8;
+
+    // 오른쪽 끝을 버튼에 맞추되 화면 밖으로 나가지 않게 한다
+    var left = Math.min(Math.max(pad, b.right - w), window.innerWidth - w - pad);
+    // 아래에 자리가 없으면 버튼 위로 띄운다
+    var top = b.bottom + 4;
+    if (top + h > window.innerHeight - pad) top = Math.max(pad, b.top - h - 4);
+
+    m.style.left = Math.round(left) + 'px';
+    m.style.top = Math.round(top) + 'px';
+    m.classList.add('ready');
+  }
+
   function pickerResults() {
     var list = DB.search(S.allExercises(), picker.q, { part: picker.part, equip: picker.equip });
     if (!list.length) return '<div class="empty small"><p>검색 결과가 없습니다.</p></div>';
@@ -875,6 +900,14 @@
 
       case 'dup-routine': S.duplicateRoutine(id); toast('복제했습니다'); render(); break;
       case 'del-routine':
+        if (confirm('루틴을 삭제할까요? 되돌릴 수 없습니다.')) { S.deleteRoutine(id); render(); }
+        break;
+
+      case 'routine-menu': openRoutineMenu(id, t); break;
+      case 'menu-edit': closeModal(); go('routine/' + id); break;
+      case 'menu-dup': closeModal(); S.duplicateRoutine(id); toast('복제했습니다'); render(); break;
+      case 'menu-del':
+        closeModal();
         if (confirm('루틴을 삭제할까요? 되돌릴 수 없습니다.')) { S.deleteRoutine(id); render(); }
         break;
 
