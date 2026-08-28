@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-7';
+  var APP_VERSION = '2026.08.28-8';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -649,7 +649,6 @@
 
     html += '<div class="card">' +
       '<h3>안내 목소리</h3>' +
-      '<p class="dim">휴식이 끝나면 “휴식 시간이 종료되었습니다. 운동을 시작해주세요.” 라고 알려줍니다.</p>' +
       '<ul class="voicelist">' +
         '<li class="voicerow' + (st.voice ? '' : ' on') + '">' +
           '<button class="voicepick" data-act="voice-pick" data-v="">' +
@@ -668,9 +667,6 @@
       '<h3>칼로리 추정</h3>' +
       '<label class="field inline"><span>체중(kg)</span>' +
       '<input type="number" inputmode="decimal" min="20" max="250" step="0.5" value="' + st.bodyWeight + '" data-bind="set-weight-kg"></label>' +
-      '<p class="dim">체중이 있어야 계산됩니다. 들어올린 무게·횟수·가동거리로 구한 일에 ' +
-      '휴식 구간 대사량을 더해 추정하며, 계수는 소모가 적게 나오는 쪽으로 잡았습니다. ' +
-      '실제와 ±20~30% 차이가 날 수 있는 추정치입니다.</p>' +
       '</div>';
 
     html += '<div class="card">' +
@@ -680,12 +676,11 @@
             return '<li class="chip">' + esc(e.name) +
               '<button class="icon" data-act="del-custom" data-id="' + e.id + '">✕</button></li>';
           }).join('') + '</ul>'
-        : '<p class="dim">운동 검색 화면에서 “직접 추가”로 나만의 운동을 등록할 수 있습니다.</p>') +
+        : '') +
       '</div>';
 
     html += '<div class="card">' +
       '<h3>데이터 백업</h3>' +
-      '<p class="dim">모든 데이터는 이 브라우저에만 저장됩니다. 기기를 바꾸기 전에 내보내기를 권장합니다.</p>' +
       '<div class="row gap wrap" style="margin-top:10px">' +
         '<button class="btn" data-act="export">백업 내보내기</button>' +
         '<button class="btn" data-act="import">파일로 가져오기</button>' +
