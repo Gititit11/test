@@ -1,19 +1,26 @@
 {
+  "id": "/gymmate/",
   "name": "GymMate · 헬스 루틴 & 세트 체크",
   "short_name": "GymMate",
   "description": "헬스 머신·프리웨이트를 검색해 루틴을 만들고 세트마다 체크하는 운동 보조 앱",
-  "start_url": "./index.html",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#0f1115",
   "theme_color": "#0f1115",
   "lang": "ko",
+  "dir": "ltr",
+  "categories": ["health", "fitness", "sports"],
+  "prefer_related_applications": false,
   "icons": [
-    {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230f1115'/%3E%3Ctext x='96' y='128' font-size='96' text-anchor='middle'%3E%F0%9F%8F%8B%EF%B8%8F%3C/text%3E%3C/svg%3E",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "운동 이어하기", "url": "./#/session" },
+    { "name": "운동 기록", "url": "./#/history" }
   ]
 }

@@ -61,13 +61,52 @@
   });
 
   // ── 휴식 타이머 ──────────────────────────────────────
-  var rest = { remain: 0, total: 0, label: '', running: false };
+  var REST_KEY = 'gymmate.rest';
+  var rest = { remain: 0, total: 0, label: '', running: false, endsAt: 0 };
   var audioCtx = null;
+
+  // 안드로이드에서 화면을 끄거나 앱을 전환하면 타이머 간격이 느려지므로
+  // 남은 시간은 종료 시각(endsAt) 기준으로 계산한다.
+  function saveRest() {
+    try {
+      if (rest.running) {
+        localStorage.setItem(REST_KEY, JSON.stringify({
+          endsAt: rest.endsAt, total: rest.total, label: rest.label
+        }));
+      } else {
+        localStorage.removeItem(REST_KEY);
+      }
+    } catch (e) { /* 저장 실패는 무시 */ }
+  }
+  function restoreRest() {
+    try {
+      var raw = localStorage.getItem(REST_KEY);
+      if (!raw) return;
+      var r = JSON.parse(raw);
+      if (r && r.endsAt > Date.now() && S.active()) {
+        rest.endsAt = r.endsAt; rest.total = r.total; rest.label = r.label;
+        rest.remain = Math.ceil((r.endsAt - Date.now()) / 1000);
+        rest.running = true;
+      } else {
+        localStorage.removeItem(REST_KEY);
+      }
+    } catch (e) { /* 무시 */ }
+  }
+
+  // 모바일 브라우저는 사용자 조작 이후에만 소리를 낼 수 있다
+  function unlockAudio() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { /* 오디오 미지원 무시 */ }
+  }
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
 
   function beep() {
     if (!S.settings.sound) return;
     try {
       audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
       [0, 0.18, 0.36].forEach(function (t) {
         var o = audioCtx.createOscillator();
         var g = audioCtx.createGain();
@@ -85,15 +124,36 @@
 
   function startRest(sec, label) {
     if (!sec) return;
-    rest.remain = sec; rest.total = sec; rest.label = label || ''; rest.running = true;
+    rest.total = sec;
+    rest.remain = sec;
+    rest.endsAt = Date.now() + sec * 1000;
+    rest.label = label || '';
+    rest.running = true;
+    saveRest();
     drawRest();
   }
-  function stopRest() { rest.running = false; rest.remain = 0; drawRest(); }
+  function stopRest() {
+    rest.running = false; rest.remain = 0; rest.endsAt = 0;
+    saveRest();
+    drawRest();
+  }
+  function tickRest(silent) {
+    if (!rest.running) return;
+    var left = Math.ceil((rest.endsAt - Date.now()) / 1000);
+    rest.remain = Math.max(0, left);
+    if (left <= 0) {
+      rest.running = false;
+      saveRest();
+      if (!silent) { beep(); toast('휴식 끝! 다음 세트 시작'); }
+    }
+    drawRest();
+  }
   function adjustRest(delta) {
     if (!rest.running) return;
-    rest.remain = Math.max(0, rest.remain + delta);
-    rest.total = Math.max(rest.total, rest.remain);
-    drawRest();
+    rest.endsAt += delta * 1000;
+    rest.total = Math.max(rest.total, Math.ceil((rest.endsAt - Date.now()) / 1000));
+    saveRest();
+    tickRest();
   }
   function drawRest() {
     var bar = document.getElementById('restbar');
@@ -112,16 +172,36 @@
       '</div>';
   }
 
-  setInterval(function () {
-    if (rest.running) {
-      rest.remain -= 1;
-      if (rest.remain <= 0) { rest.running = false; beep(); toast('휴식 끝! 다음 세트 시작'); }
-      drawRest();
-    }
+  function tick() {
+    tickRest();
     var el = document.querySelector('[data-tick="elapsed"]');
     var act = S.active();
     if (el && act) el.textContent = fmtClock((Date.now() - act.startedAt) / 1000);
-  }, 1000);
+  }
+  setInterval(tick, 1000);
+
+  // ── 화면 꺼짐 방지 (운동 중에만) ─────────────────────
+  var wakeLock = null;
+  function updateWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    var want = !!S.active();
+    if (want && !wakeLock && document.visibilityState === 'visible') {
+      navigator.wakeLock.request('screen').then(function (lock) {
+        wakeLock = lock;
+        lock.addEventListener('release', function () { wakeLock = null; });
+      }).catch(function () { /* 미지원·거부 시 무시 */ });
+    } else if (!want && wakeLock) {
+      wakeLock.release().catch(function () {});
+      wakeLock = null;
+    }
+  }
+
+  // 앱으로 돌아왔을 때 타이머를 즉시 맞춘다
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    tick();
+    updateWakeLock();
+  });
 
   // ── 공통 UI 조각 ─────────────────────────────────────
   function header(title, right) {
@@ -258,12 +338,12 @@
     var unit = S.settings.unit;
     var rows = it.sets.map(function (st, i) {
       var fields = it.type === 'time'
-        ? '<label class="mini"><input type="number" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
+        ? '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
             'data-bind="set-sec" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>'
-        : '<label class="mini"><input type="number" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
+        : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
             'data-bind="set-weight" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>' + unit + '</span></label>' +
           '<span class="x">×</span>' +
-          '<label class="mini"><input type="number" min="0" step="1" value="' + num(st.reps, 0) + '" ' +
+          '<label class="mini"><input type="number" inputmode="numeric" min="0" step="1" value="' + num(st.reps, 0) + '" ' +
             'data-bind="set-reps" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>회</span></label>';
       return '<div class="setrow">' +
         '<span class="setno">' + (i + 1) + '세트</span>' + fields +
@@ -279,7 +359,7 @@
       '</div>' +
       '<div class="row gap wrap">' +
         '<label class="field inline"><span>휴식(초)</span>' +
-          '<input type="number" min="0" step="10" value="' + it.restSec + '" data-bind="item-rest" data-rid="' + r.id + '" data-iid="' + it.id + '"></label>' +
+          '<input type="number" inputmode="numeric" min="0" step="10" value="' + it.restSec + '" data-bind="item-rest" data-rid="' + r.id + '" data-iid="' + it.id + '"></label>' +
         '<label class="field inline grow"><span>운동 메모</span>' +
           '<input type="text" value="' + esc(it.memo || '') + '" placeholder="예: 3번 핀, 등받이 4칸" data-bind="item-memo" data-rid="' + r.id + '" data-iid="' + it.id + '"></label>' +
       '</div>' +
@@ -341,12 +421,12 @@
         (it.memo ? '<p class="dim memo">📝 ' + esc(it.memo) + '</p>' : '') +
         '<div class="setlist">' + it.sets.map(function (st, i) {
           var fields = it.type === 'time'
-            ? '<label class="mini"><input type="number" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
+            ? '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
                 'data-bind="live-sec" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>'
-            : '<label class="mini"><input type="number" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
+            : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
                 'data-bind="live-weight" data-iid="' + it.id + '" data-si="' + i + '"><span>' + S.settings.unit + '</span></label>' +
               '<span class="x">×</span>' +
-              '<label class="mini"><input type="number" min="0" step="1" value="' + num(st.reps, 0) + '" ' +
+              '<label class="mini"><input type="number" inputmode="numeric" min="0" step="1" value="' + num(st.reps, 0) + '" ' +
                 'data-bind="live-reps" data-iid="' + it.id + '" data-si="' + i + '"><span>회</span></label>';
           return '<div class="setrow live' + (st.done ? ' checked' : '') + '">' +
             '<span class="setno">' + (i + 1) + '</span>' + fields +
@@ -357,7 +437,9 @@
         '<div class="row gap">' +
           '<button class="btn sm" data-act="live-add-set" data-iid="' + it.id + '">+ 세트</button>' +
           '<button class="btn sm" data-act="live-del-set" data-iid="' + it.id + '">− 세트</button>' +
-          '<span class="dim right">휴식 ' + it.restSec + '초</span>' +
+          '<label class="mini restedit right"><span>휴식</span>' +
+            '<input type="number" inputmode="numeric" min="0" step="10" value="' + it.restSec + '" ' +
+            'data-bind="live-rest" data-iid="' + it.id + '" aria-label="휴식 시간(초)"><span>초</span></label>' +
         '</div>' +
       '</section>';
     }).join('');
@@ -431,7 +513,7 @@
     html += '<main class="page">';
     html += '<div class="card">' +
       '<label class="field inline"><span>기본 휴식 시간(초)</span>' +
-      '<input type="number" min="0" step="10" value="' + st.defaultRest + '" data-bind="set-rest"></label>' +
+      '<input type="number" inputmode="numeric" min="0" step="10" value="' + st.defaultRest + '" data-bind="set-rest"></label>' +
       '<label class="field inline"><span>무게 단위</span>' +
       '<select data-bind="set-unit">' +
         '<option value="kg"' + (st.unit === 'kg' ? ' selected' : '') + '>kg</option>' +
@@ -502,8 +584,8 @@
         chips('부위', 'part', DB.PARTS) +
         chips('장비', 'equip', DB.EQUIPS) +
         '<div class="sheet-default">' +
-          '기본값 <input type="number" min="1" max="20" value="' + picker.sets + '" data-bind="pk-sets">세트 × ' +
-          '<input type="number" min="1" max="100" value="' + picker.reps + '" data-bind="pk-reps">회로 추가' +
+          '기본값 <input type="number" inputmode="numeric" min="1" max="20" value="' + picker.sets + '" data-bind="pk-sets">세트 × ' +
+          '<input type="number" inputmode="numeric" min="1" max="100" value="' + picker.reps + '" data-bind="pk-reps">회로 추가' +
         '</div>' +
         '<div class="sheet-list">' +
           (list.length ? list.map(function (e) {
@@ -561,6 +643,7 @@
     }
     app.innerHTML = body + nav() + '<div id="restbar" class="restbar"></div>';
     drawRest();
+    updateWakeLock();
   }
 
   // ── 이벤트 위임 ──────────────────────────────────────
@@ -788,6 +871,18 @@
       case 'live-weight': editLiveSet(function (st) { st.weight = num(t.value, 0); }); break;
       case 'live-reps': editLiveSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); break;
       case 'live-sec': editLiveSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); break;
+      case 'live-rest': {
+        var sec = Math.max(0, Math.round(num(t.value, 0)));
+        S.updateActive(function (s) {
+          var it = s.items.filter(function (i) { return i.id === iid; })[0];
+          if (it) it.restSec = sec;
+        });
+        // 오늘 운동뿐 아니라 원래 루틴에도 반영해 다음에도 같은 값이 쓰이게 한다
+        var cur = S.active();
+        if (cur && S.getRoutine(cur.routineId)) S.updateItem(cur.routineId, iid, { restSec: sec });
+        if (ev.type === 'change') toast('휴식 ' + sec + '초 · 루틴에도 저장됨');
+        break;
+      }
 
       case 'set-rest': S.settings.defaultRest = Math.max(0, Math.round(num(t.value, 90))); S.commit(); break;
       case 'set-unit':
@@ -823,5 +918,6 @@
   // 시작
   route = parseHash();
   if (!location.hash) location.hash = '#/routines';
+  restoreRest();
   render();
 })();
