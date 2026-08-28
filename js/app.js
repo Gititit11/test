@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-19';
+  var APP_VERSION = '2026.08.28-20';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -312,15 +312,22 @@
       var dur = same ? fmtSec(secs[0]) : secs.map(fmtSec).join('/');
       // 한 번에 쭉 하는 운동은 "1세트 ×" 를 붙이지 않는다
       var txt = it.sets.length === 1 ? dur : it.sets.length + '세트 × ' + dur;
-      // 유산소는 속도가 곧 강도라 요약에도 같이 적는다
-      var sp = it.sets.map(function (s) { return s.speed; });
-      if (sp.some(function (v) { return v != null; })) {
-        // 무게와 같은 규칙: 전부 같은 값일 때만 숫자, 아니면 "가변"
-        var sameSp = sp.every(function (v) { return v != null && v === sp[0]; });
-        txt += ' · ' + (sameSp ? sp[0] + 'km/h' : '속도 가변');
-        var gr = it.sets.map(function (s) { return s.grade; });
-        if (sameSp && gr.every(function (v) { return v === gr[0]; }) && gr[0]) txt += ' 경사 ' + gr[0] + '%';
+      // 유산소는 강도가 곧 그 운동의 내용이라 요약에도 같이 적는다.
+      // 무게와 같은 규칙: 전부 같은 값일 때만 숫자, 아니면 "가변"
+      function part(key, fmt) {
+        var vs = it.sets.map(function (s) { return s[key]; });
+        if (!vs.some(function (v) { return v != null; })) return '';
+        var same = vs.every(function (v) { return v != null && v === vs[0]; });
+        return ' · ' + (same ? fmt(vs[0]) : '가변');
       }
+      var sp = part('speed', function (v) { return v + 'km/h'; });
+      txt += sp;
+      if (sp && sp.indexOf('가변') === -1) {
+        var gr = it.sets.map(function (s) { return s.grade; });
+        if (gr[0] && gr.every(function (v) { return v === gr[0]; })) txt += ' 경사 ' + gr[0] + '%';
+      }
+      txt += part('watt', function (v) { return v + 'W'; });
+      txt += part('level', function (v) { return LEVEL_LABELS[v] || ''; });
       return txt;
     }
     var reps = it.sets.map(function (s) { return s.reps; });
@@ -423,20 +430,18 @@
     var unit = S.settings.unit;
     var cc = cardioCfg(it);
     var rows = it.sets.map(function (st, i) {
+      var ids = 'data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"';
+      if (cc) {
+        // 유산소는 입력할 게 많아 세트 행에 우겨넣지 않고 격자로 그린다
+        return '<div class="cardioset">' +
+          (it.sets.length > 1 ? '<div class="cs-head"><span class="setno">' + (i + 1) + '세트</span>' +
+            '<button class="icon danger" title="세트 삭제" data-act="del-set" ' + ids + '>✕</button></div>' : '') +
+          cardioFields(cc, st, 'set-', ids) +
+        '</div>';
+      }
       var fields = it.type === 'time'
-        ? (cc
-            ? '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + (st.speed == null ? '' : st.speed) + '" ' +
-                'placeholder="속도" data-bind="set-speed" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>km/h</span></label>' +
-              (cc.grade
-                ? '<label class="mini"><input type="number" inputmode="decimal" min="0" max="30" step="0.5" value="' + (st.grade == null ? '' : st.grade) + '" ' +
-                    'placeholder="경사" data-bind="set-grade" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>%</span></label>'
-                : '')
-            : '') +
-          (cc
-            ? '<label class="mini"><input type="number" inputmode="decimal" min="0" step="1" value="' + (Math.round(num(st.sec, 0) / 6) / 10) + '" ' +
-                'data-bind="set-min" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>분</span></label>'
-            : '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
-                'data-bind="set-sec" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>')
+        ? '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
+            'data-bind="set-sec" ' + ids + '><span>초</span></label>'
         : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
             'data-bind="set-weight" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>' + unit + '</span></label>' +
           '<span class="x">×</span>' +
@@ -444,7 +449,7 @@
             'data-bind="set-reps" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '"><span>회</span></label>';
       return '<div class="setrow">' +
         '<span class="setno">' + (i + 1) + '세트</span>' +
-        '<div class="setfields' + (cc ? ' cardio' : '') + '">' + fields + '</div>' +
+        '<div class="setfields">' + fields + '</div>' +
         '<button class="icon danger" title="세트 삭제" data-act="del-set" data-rid="' + r.id + '" data-iid="' + it.id + '" data-si="' + i + '">✕</button>' +
         '</div>';
     }).join('');
@@ -544,20 +549,21 @@
         (it.memo ? '<p class="dim memo">📝 ' + esc(it.memo) + '</p>' : '') +
         lastRecordLine(it) +
         '<div class="setlist">' + it.sets.map(function (st, i) {
+          var lids = 'data-iid="' + it.id + '" data-si="' + i + '"';
+          var chk = '<button class="check' + (st.done ? ' on' : '') + '" data-act="toggle-set" ' + lids + ' ' +
+            'aria-pressed="' + (st.done ? 'true' : 'false') + '" title="세트 완료 체크">' + (st.done ? '✓' : '') + '</button>';
+          if (cc) {
+            return '<div class="cardioset live' + (st.done ? ' checked' : '') + '">' +
+              '<div class="cs-head">' +
+                // 한 세트짜리는 "1세트" 라고 적을 이유가 없다
+                '<span class="setno">' + (it.sets.length > 1 ? (i + 1) + '세트' : '') + '</span>' + chk +
+              '</div>' +
+              cardioFields(cc, st, 'live-', lids) +
+            '</div>';
+          }
           var fields = it.type === 'time'
-            ? (cc
-                ? '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + (st.speed == null ? '' : st.speed) + '" ' +
-                    'placeholder="속도" data-bind="live-speed" data-iid="' + it.id + '" data-si="' + i + '"><span>km/h</span></label>' +
-                  (cc.grade
-                    ? '<label class="mini"><input type="number" inputmode="decimal" min="0" max="30" step="0.5" value="' + (st.grade == null ? '' : st.grade) + '" ' +
-                        'placeholder="경사" data-bind="live-grade" data-iid="' + it.id + '" data-si="' + i + '"><span>%</span></label>'
-                    : '')
-                : '') +
-              (cc
-                ? '<label class="mini"><input type="number" inputmode="decimal" min="0" step="1" value="' + (Math.round(num(st.sec, 0) / 6) / 10) + '" ' +
-                    'data-bind="live-min" data-iid="' + it.id + '" data-si="' + i + '"><span>분</span></label>'
-                : '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
-                    'data-bind="live-sec" data-iid="' + it.id + '" data-si="' + i + '"><span>초</span></label>')
+            ? '<label class="mini"><input type="number" inputmode="numeric" min="0" step="5" value="' + num(st.sec, 0) + '" ' +
+                'data-bind="live-sec" ' + lids + '><span>초</span></label>'
             : '<label class="mini"><input type="number" inputmode="decimal" min="0" step="0.5" value="' + num(st.weight, 0) + '" ' +
                 'data-bind="live-weight" data-iid="' + it.id + '" data-si="' + i + '"><span>' + S.settings.unit + '</span></label>' +
               '<span class="x">×</span>' +
@@ -565,7 +571,7 @@
                 'data-bind="live-reps" data-iid="' + it.id + '" data-si="' + i + '"><span>회</span></label>';
           return '<div class="setrow live' + (st.done ? ' checked' : '') + '">' +
             '<span class="setno">' + (i + 1) + '</span>' +
-            '<div class="setfields' + (cc ? ' cardio' : '') + '">' + fields + '</div>' +
+            '<div class="setfields">' + fields + '</div>' +
             '<button class="check' + (st.done ? ' on' : '') + '" data-act="toggle-set" data-iid="' + it.id + '" data-si="' + i + '" ' +
               'aria-pressed="' + (st.done ? 'true' : 'false') + '" title="세트 완료 체크">' + (st.done ? '✓' : '') + '</button>' +
             '</div>';
@@ -589,6 +595,41 @@
 
   // 유산소는 속도가 소모량을 지배하므로 속도 칸을 따로 준다.
   // 어떤 운동이 속도를 받는지는 칼로리 모듈이 알고 있다.
+  var LEVEL_LABELS = ['가볍게', '보통', '세게'];
+
+  /* 유산소 한 세트의 입력칸. 세트 행에 우겨넣으면 좁아서 못 읽으므로
+   * 라벨을 붙인 격자로 따로 그린다. 기구가 알려주는 값만 보여 준다.
+   *   트레드밀      시간 · 속도 · 경사
+   *   사이클/로잉   시간 · 와트 · 강도
+   *   그 밖        시간 · 강도                      */
+  function cardioFields(cc, st, pre, attrs) {
+    function field(label, inner) {
+      return '<label class="cs-f"><span class="cs-l">' + label + '</span>' + inner + '</label>';
+    }
+    function numIn(bind, val, unit, extra) {
+      return '<span class="cs-in"><input type="number" inputmode="decimal" min="0" ' + (extra || '') +
+        ' value="' + (val == null ? '' : val) + '" data-bind="' + pre + bind + '" ' + attrs +
+        '><em>' + unit + '</em></span>';
+    }
+    var html = field('시간', numIn('min', Math.round(num(st.sec, 0) / 6) / 10, '분', 'step="1"'));
+
+    if (cc.model === 'walkrun') {
+      html += field('속도', numIn('speed', st.speed, 'km/h', 'step="0.5" max="40"'));
+      html += field('경사', numIn('grade', st.grade, '%', 'step="0.5" max="30"'));
+    } else {
+      if (cc.model === 'watt') {
+        // 기계에 표시되는 이름 그대로 "와트". 없으면 아래 강도로 잡는다
+        html += field('와트', numIn('watt', st.watt, 'W', 'step="5" max="600"'));
+      }
+      var opts = '<option value=""' + (st.level == null ? ' selected' : '') + '>기본</option>' +
+        LEVEL_LABELS.map(function (t, i) {
+          return '<option value="' + i + '"' + (Number(st.level) === i ? ' selected' : '') + '>' + t + '</option>';
+        }).join('');
+      html += field('강도', '<span class="cs-in"><select data-bind="' + pre + 'level" ' + attrs + '>' + opts + '</select></span>');
+    }
+    return '<div class="cs-grid">' + html + '</div>';
+  }
+
   // 빈 칸은 null(기본 강도), 숫자는 범위 안으로 자른다
   function blankOrNum(v, lo, hi) {
     if (String(v).trim() === '') return null;
@@ -1473,6 +1514,8 @@
       case 'set-reps': editSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); refreshItemSummary(rid, iid); break;
       case 'set-sec': editSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); refreshItemSummary(rid, iid); break;
       // 속도·경사는 비워 두면 그 운동의 기본 강도로 계산한다
+      case 'set-watt': editSet(function (st) { st.watt = blankOrNum(t.value, 0, 600); }); refreshItemSummary(rid, iid); break;
+      case 'set-level': editSet(function (st) { st.level = t.value === '' ? null : Number(t.value); }); refreshItemSummary(rid, iid); break;
       case 'set-min': editSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0) * 60)); }); refreshItemSummary(rid, iid); break;
       case 'set-speed': editSet(function (st) { st.speed = blankOrNum(t.value, 0, 40); }); refreshItemSummary(rid, iid); break;
       case 'set-grade': editSet(function (st) { st.grade = blankOrNum(t.value, 0, 30); }); refreshItemSummary(rid, iid); break;
@@ -1488,6 +1531,8 @@
       case 'live-weight': editLiveSet(function (st) { st.weight = num(t.value, 0); }); break;
       case 'live-reps': editLiveSet(function (st) { st.reps = Math.max(0, Math.round(num(t.value, 0))); }); break;
       case 'live-sec': editLiveSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0))); }); break;
+      case 'live-watt': editLiveSet(function (st) { st.watt = blankOrNum(t.value, 0, 600); }); refreshKcal(); break;
+      case 'live-level': editLiveSet(function (st) { st.level = t.value === '' ? null : Number(t.value); }); refreshKcal(); break;
       case 'live-min': editLiveSet(function (st) { st.sec = Math.max(0, Math.round(num(t.value, 0) * 60)); }); refreshKcal(); break;
       case 'live-speed': editLiveSet(function (st) { st.speed = blankOrNum(t.value, 0, 40); }); refreshKcal(); break;
       case 'live-grade': editLiveSet(function (st) { st.grade = blankOrNum(t.value, 0, 30); }); refreshKcal(); break;

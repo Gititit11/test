@@ -92,36 +92,48 @@
   // 한 지점에서 잘라 쓰면 6.9 와 7.1 이 두 배 차이가 나므로 구간을 섞는다.
   var WALK_MAX = 6.4, RUN_MIN = 8.0;
 
-  // 속도를 받을 유산소 운동과 그 계산 방식
+  /* 유산소마다 기계가 알려주는 값이 다르다. 경사가 없는 기구에 경사 칸을
+   * 두거나, 속도가 무의미한 기구에 속도 칸을 두면 안 된다.
+   *   walkrun — 속도(km/h) + 경사(%)   : 트레드밀
+   *   watt    — 와트(W)                : 사이클·로잉 (표시가 없으면 강도로)
+   *   level   — 강도(가볍게/보통/세게)  : 속도·와트가 무의미한 기구 */
   var CARDIO = {
-    'x-treadmill-running': { model: 'walkrun', grade: true },
-    'x-incline-treadmill-walk': { model: 'walkrun', grade: true },
-    'x-stationary-bike': { model: 'bike' }
+    'x-treadmill-running':      { model: 'walkrun' },
+    'x-incline-treadmill-walk': { model: 'walkrun' },   // 예전 기록용
+    'x-stationary-bike':        { model: 'watt', levels: [4.0, 6.0, 8.5] },
+    'x-rowing-machine':         { model: 'watt', levels: [4.8, 7.0, 9.5] },
+    'x-elliptical':             { model: 'level', levels: [4.0, 5.0, 6.8] },
+    'x-stair-climber':          { model: 'level', levels: [6.0, 8.0, 10.0] },
+    'x-jump-rope':              { model: 'level', levels: [8.8, 11.0, 12.3] },
+    'x-battle-rope':            { model: 'level', levels: [6.0, 8.0, 10.0] }
   };
+  var LEVEL_DEFAULT = [3.5, 5.0, 7.0];      // 사용자가 직접 추가한 유산소
+
   function cardioOf(exerciseId, ex) {
     if (CARDIO[exerciseId]) return CARDIO[exerciseId];
-    // 사용자가 직접 추가한 시간형 유산소도 속도를 받는다
-    if (ex && ex.part === '유산소' && ex.type === 'time') return { model: 'walkrun', grade: true };
+    // 직접 추가한 유산소는 어떤 기구인지 알 수 없으니 강도만 받는다
+    if (ex && ex.part === '유산소' && ex.type === 'time') {
+      return { model: 'level', levels: LEVEL_DEFAULT };
+    }
     return null;
   }
 
-  // 실내 자전거: 속도 구간별 통용 MET (야외 자전거 기준값을 그대로 쓰지 않고 아래쪽으로)
-  function bikeMet(kmh) {
-    if (kmh < 16) return 4.8;
-    if (kmh < 19) return 6.0;
-    if (kmh < 22) return 7.2;
-    if (kmh < 25) return 8.8;
-    return 10.5;
+  /* 에르고미터(사이클·로잉)의 ACSM 식. 일한 양이 곧 소모량이라 기계가
+   * 표시하는 와트를 그대로 쓸 수 있다.
+   *   VO2 = 1.8 × 일률(kgm/분) / 체중 + 7,  1 W = 6.12 kgm/분
+   * 검증: 100W 70kg → 6.5 MET (통용값 6.8), 로잉 150W 70kg → 8.7 (통용 8.5) */
+  function wattMet(watt, bodyWeight) {
+    if (!watt || !bodyWeight) return null;
+    return (1.8 * 6.12 * watt / bodyWeight + 7) / 3.5;
   }
 
   /* 속도(km/h)와 경사(%)로 MET 을 낸다. 속도가 없으면 null 을 돌려
    * 호출한 쪽이 고정 MET 으로 돌아가게 한다. */
   function speedMet(cfg, kmh, gradePct) {
     kmh = num(kmh);
-    if (!cfg || kmh <= 0) return null;
-    if (cfg.model === 'bike') return bikeMet(kmh) * CARDIO_SHADE;
+    if (!cfg || cfg.model !== 'walkrun' || kmh <= 0) return null;
     var mpm = kmh * 1000 / 60;                       // m/분
-    var g = cfg.grade ? Math.max(0, num(gradePct)) / 100 : 0;
+    var g = Math.max(0, num(gradePct)) / 100;
     var walk = 0.1 * mpm + 1.8 * mpm * g + 3.5;
     var run  = 0.2 * mpm + 0.9 * mpm * g + 3.5;
     var vo2;
@@ -152,11 +164,19 @@
     return weight + bodyWeight * (frac || 0);
   }
 
-  function metOf(item, ex, set) {
+  function metOf(item, ex, set, bodyWeight) {
     var cfg = cardioOf(item.exerciseId, ex);
     if (cfg && set) {
-      var m = speedMet(cfg, set.speed, set.grade);
-      if (m) return m;                                // 속도를 적었으면 그 값으로
+      if (cfg.model === 'walkrun') {
+        var m = speedMet(cfg, set.speed, set.grade);
+        if (m) return m;                              // 속도를 적었으면 그 값으로
+      } else if (cfg.model === 'watt') {
+        var w = wattMet(num(set.watt), bodyWeight);
+        if (w) return w * CARDIO_SHADE;               // 와트가 있으면 가장 정확하다
+      }
+      // 와트가 없거나 강도만 받는 기구는 고른 단계로
+      var lv = cfg.levels && cfg.levels[Number(set.level)];
+      if (lv) return lv * CARDIO_SHADE;
     }
     return TIME_MET[item.exerciseId] ||
       (ex && ex.part === '유산소' ? 5.0 : TIME_MET_DEFAULT);
@@ -198,7 +218,7 @@
       it.sets.forEach(function (st) {
         if (st.done === false) return;
         if (it.type === 'time') {
-          var extra = Math.max(0, metOf(it, ex, st) - CONFIG.MET_REST);
+          var extra = Math.max(0, metOf(it, ex, st, bodyWeight) - CONFIG.MET_REST);
           kcal += metKcal(extra, bodyWeight, num(st.sec) / 60);
         } else {
           var reps = num(st.reps);
@@ -220,7 +240,7 @@
     var kcal = 0;
     item.sets.forEach(function (st) {
       if (st.done === false) return;
-      var extra = Math.max(0, metOf(item, ex, st) - CONFIG.MET_REST);
+      var extra = Math.max(0, metOf(item, ex, st, bodyWeight) - CONFIG.MET_REST);
       kcal += metKcal(extra, bodyWeight, num(st.sec) / 60);
     });
     return Math.round(kcal);
@@ -236,6 +256,7 @@
     CONFIG: CONFIG,
     cardioOf: cardioOf,
     speedMet: speedMet,
+    wattMet: wattMet,
     timeItem: timeItem,
     session: session,
     total: total,

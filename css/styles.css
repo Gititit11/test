@@ -228,10 +228,24 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
    세트 번호와 체크 버튼은 양 끝에 그대로 둔다. */
 .setfields { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; row-gap: 6px; }
 .setfields .mini > span { font-size: 11px; }
-/* 유산소 칸은 늘리지 않고 제 크기를 지킨다. 줄이 넘어가도 마지막 칸이
-   혼자 화면 폭을 다 먹지 않는다. */
-.setfields.cardio .mini { flex: 0 1 auto; }
-.setfields.cardio .mini input { width: 64px; }
+/* 유산소 한 세트 — 시간·속도·경사(또는 세기·강도)를 라벨 붙은 격자로.
+   세트 행에 우겨넣으면 좁아서 무슨 칸인지 못 읽는다. */
+.cardioset {
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.cardioset.live.checked { background: rgba(53, 201, 138, .10); border-color: #2b6a52; }
+.cardioset.live.checked input, .cardioset.live.checked select { color: var(--dim); }
+.cs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cs-head .setno { min-width: 0; }
+.cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.cs-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cs-l { font-size: 11px; color: var(--dim); font-weight: 600; }
+.cs-in { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.cs-in input, .cs-in select { flex: 1; min-width: 0; text-align: right; padding: 9px 8px; }
+.cs-in select { text-align: left; padding-right: 4px; }
+.cs-in em { font-style: normal; font-size: 11px; color: var(--dim); flex: none; }
 /* 숫자 스피너가 좁은 칸에서 글자를 가린다 */
 .mini input[type=number] { -moz-appearance: textfield; }
 .mini input[type=number]::-webkit-outer-spin-button,

@@ -130,8 +130,9 @@
     ['마운틴 클라이머', 'Mountain Climber', '코어', '맨몸', '코어,고관절굴곡근', 'mountainclimber', 'time'],
 
     // ── 유산소 ───────────────────────────────────────────
-    ['트레드밀 러닝', 'Treadmill Running', '유산소', '머신', '전신', 'treadmill 러닝머신 달리기', 'time'],
-    ['인클라인 워킹', 'Incline Treadmill Walk', '유산소', '머신', '하체', '경사걷기', 'time'],
+    // 경사를 세트마다 넣을 수 있게 되어 인클라인 워킹을 따로 둘 이유가 없어졌다.
+    // 걷기냐 달리기냐는 입력한 속도로 갈린다.
+    ['트레드밀', 'Treadmill Running', '유산소', '머신', '전신', 'treadmill 러닝머신 달리기 러닝 워킹 걷기 인클라인 경사걷기', 'time'],
     ['사이클', 'Stationary Bike', '유산소', '머신', '하체', 'bike 자전거 스피닝', 'time'],
     ['로잉 머신', 'Rowing Machine', '유산소', '머신', '전신', 'rowing 로잉', 'time'],
     ['일립티컬', 'Elliptical', '유산소', '머신', '전신', 'elliptical', 'time'],
@@ -157,7 +158,13 @@
     return en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   }
 
-  var BUILT_IN = RAW.map(function (r) {
+  /* 목록에서는 뺐지만 예전 기록이 가리키고 있어 조회는 계속 돼야 하는 운동.
+   * (인클라인 워킹은 트레드밀에 경사 칸이 생기면서 합쳐졌다) */
+  var LEGACY = [
+    ['인클라인 워킹', 'Incline Treadmill Walk', '유산소', '머신', '하체', '경사걷기', 'time']
+  ];
+
+  var BUILT_IN = RAW.concat(LEGACY).map(function (r) {
     var name = r[0], en = r[1];
     var muscles = r[4] ? r[4].split(',') : [];
     return {
@@ -169,6 +176,7 @@
       muscles: muscles,
       type: r[6] || 'reps',
       custom: false,
+      legacy: RAW.indexOf(r) === -1,      // 검색 결과에서는 감춘다
       _search: [name, en, r[3], r[2], muscles.join(' '), r[5] || '']
         .join(' ').toLowerCase().replace(/\s+/g, ' '),
       _cho: chosung(name)
@@ -196,7 +204,7 @@
   // 검색: 이름/영문/부위/장비/근육/초성 부분 일치. 공백은 AND 조건.
   function search(list, query, filters) {
     filters = filters || {};
-    var result = list;
+    var result = list.filter(function (e) { return !e.legacy; });
     if (filters.part) result = result.filter(function (e) { return e.part === filters.part; });
     if (filters.equip) result = result.filter(function (e) { return e.equip === filters.equip; });
 
