@@ -1552,6 +1552,33 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var REST_END_TEXT = '휴식 시간이 종료되었습니다. 운동을 시작해주세요.';
   var koVoice = null;
 
+  // 기기가 같은 목소리를 여러 개로 보고하는 경우가 많아 이름 기준으로 하나만 남기고,
+  // 시스템 명칭("Google 한국의") 대신 알아보기 쉬운 이름을 붙인다.
+  var FRIENDLY_NAMES = ['Ash', 'Ivy', 'Nova', 'Sage', 'Elle', 'Mia', 'Rae', 'Vera', 'Luna', 'Iris'];
+
+  function koVoiceList() {
+    var all = [];
+    try { all = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; }
+    catch (e) { return []; }
+    var seen = {};
+    return all
+      .filter(function (v) { return /^ko/i.test(v.lang || ''); })
+      .filter(function (v) {
+        var key = (v.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        if (seen[key]) return false;
+        seen[key] = 1;
+        return true;
+      })
+      .sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); })
+      .map(function (v, i) {
+        return {
+          voice: v,
+          label: FRIENDLY_NAMES[i] || ('Voice ' + (i + 1)),
+          system: v.name || ''
+        };
+      });
+  }
+
   function loadVoices() {
     var synth = window.speechSynthesis;
     if (!synth) return;
@@ -1561,6 +1588,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     // 여성 목소리를 우선 고른다 (안드로이드의 'Google 한국의', 윈도우 'Heami' 등)
     var female = /female|여성|여자|yuna|heami|sora|nara|seoyeon|jimin|google/i;
     koVoice = ko.filter(function (v) { return female.test(v.name || ''); })[0] || ko[0] || null;
+    void koVoiceList;
   }
   if (window.speechSynthesis) {
     loadVoices();
@@ -1611,6 +1639,49 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       .then(function (b) { cueBuffer = b; })
       .catch(function () { cueBuffer = null; });
   }
+  // 기기 음성이 마음에 들지 않을 때 원하는 목소리를 직접 녹음해 쓴다
+  var recorder = null, recording = false, recChunks = [];
+
+  function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia ||
+        typeof window.MediaRecorder === 'undefined') {
+      alert('이 브라우저는 녹음을 지원하지 않습니다. “음성 파일 넣기”를 이용해 주세요.');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      recChunks = [];
+      recorder = new window.MediaRecorder(stream);
+      recorder.ondataavailable = function (e) { if (e.data && e.data.size) recChunks.push(e.data); };
+      recorder.onstop = function () {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        var blob = new Blob(recChunks, { type: recorder.mimeType || 'audio/webm' });
+        if (blob.size > 1024 * 1024) { alert('녹음이 너무 깁니다. 짧게 다시 녹음해 주세요.'); return; }
+        var reader = new FileReader();
+        reader.onload = function () {
+          S.settings.cueAudio = reader.result;
+          S.settings.cueName = '내 녹음';
+          S.commit();
+          loadCue();
+          toast('녹음한 음성으로 안내합니다');
+          render();
+        };
+        reader.readAsDataURL(blob);
+      };
+      recorder.start();
+      recording = true;
+      toast('녹음 중 — 문장을 읽고 중지를 누르세요');
+      render();
+    }).catch(function () {
+      alert('마이크를 사용할 수 없습니다. 브라우저의 마이크 권한을 확인해 주세요.');
+    });
+  }
+
+  function stopRecording() {
+    recording = false;
+    try { if (recorder && recorder.state !== 'inactive') recorder.stop(); } catch (e) { /* 무시 */ }
+    render();
+  }
+
   function playCue() {
     if (!cueBuffer || !audioCtx) return false;
     try {
@@ -2192,13 +2263,11 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
   function voiceSection() {
     var st = S.settings;
-    var all = [];
-    try { all = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (e) { all = []; }
-    var ko = all.filter(function (v) { return /^ko/i.test(v.lang || ''); });
+    var ko = koVoiceList();
 
     var out = '';
     if (st.cueAudio) {
-      out += '<p class="dim">직접 넣은 음성 파일을 사용 중입니다 — ' + esc(st.cueName || '파일') +
+      out += '<p class="dim">내 음성을 사용 중입니다 — ' + esc(st.cueName || '파일') +
         ' (' + Math.round(st.cueAudio.length * 0.75 / 1024) + 'KB)</p>';
     } else if (!ko.length) {
       out += '<p class="dim">이 기기에 한국어 음성이 없어 기본 목소리로 읽습니다. ' +
@@ -2208,8 +2277,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       out += '<label class="field"><span>목소리 (' + ko.length + '개)</span><select data-bind="set-voice-uri">' +
         '<option value=""' + (st.voiceURI ? '' : ' selected') + '>자동 선택</option>' +
         ko.map(function (v) {
-          return '<option value="' + esc(v.voiceURI) + '"' +
-            (st.voiceURI === v.voiceURI ? ' selected' : '') + '>' + esc(v.name) + '</option>';
+          return '<option value="' + esc(v.voice.voiceURI) + '"' +
+            (st.voiceURI === v.voice.voiceURI ? ' selected' : '') +
+            ' title="' + esc(v.system) + '">' + esc(v.label) + '</option>';
         }).join('') + '</select></label>';
       out += '<label class="field"><span>말하기 속도 ' + Number(st.voiceRate).toFixed(2) + '배</span>' +
         '<input type="range" min="0.7" max="1.3" step="0.05" value="' + st.voiceRate + '" data-bind="set-voice-rate"></label>';
@@ -2219,11 +2289,15 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
     out += '<div class="row gap wrap" style="margin-top:10px">' +
       '<button class="btn" data-act="voice-test">들어보기</button>' +
+      '<button class="btn' + (recording ? ' danger' : '') + '" data-act="cue-record">' +
+        (recording ? '■ 녹음 중지' : '● 직접 녹음') + '</button>' +
       '<button class="btn" data-act="cue-pick">음성 파일 넣기</button>' +
-      (st.cueAudio ? '<button class="btn danger" data-act="cue-clear">파일 지우기</button>' : '') +
+      (st.cueAudio ? '<button class="btn danger" data-act="cue-clear">내 음성 지우기</button>' : '') +
       '</div>' +
-      '<p class="dim">원하는 목소리로 직접 녹음하거나 다른 TTS 서비스에서 만든 파일(mp3·m4a·wav)을 ' +
-      '넣으면 그 소리로 안내합니다. 기기 음성보다 확실히 자연스럽고, 어느 기기에서나 같은 소리가 납니다.</p>';
+      '<p class="dim">기기 음성이 마음에 들지 않으면 내 목소리로 직접 녹음하거나, ' +
+      '원하는 TTS로 만든 파일(mp3·m4a·wav)을 넣으세요. 넣은 소리가 기기 음성보다 우선 재생되고, ' +
+      '오프라인에서도 어느 기기에서나 같은 소리가 납니다.</p>' +
+      '<p class="dim">읽을 문장: “' + esc(REST_END_TEXT) + '”</p>';
     return out;
   }
 
@@ -2543,6 +2617,11 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         if (playCue()) break;
         if (!speak(REST_END_TEXT)) alert('이 브라우저는 음성 안내를 지원하지 않습니다.');
         else if (!currentVoice()) toast('한국어 음성이 없어 기본 목소리로 재생합니다');
+        break;
+      case 'cue-record':
+        unlockAudio();
+        if (recording) stopRecording();
+        else startRecording();
         break;
       case 'cue-pick': {
         var fi = document.createElement('input');
