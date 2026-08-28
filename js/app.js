@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-9';
+  var APP_VERSION = '2026.08.28-10';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -315,7 +315,7 @@
       html += '<ul class="list">' + routines.map(function (r) {
         var sets = r.items.reduce(function (a, it) { return a + it.sets.length; }, 0);
         return '<li class="card routine">' +
-          '<div class="routine-head" data-act="edit-routine" data-id="' + r.id + '">' +
+          '<div class="routine-head" data-act="start-routine" data-id="' + r.id + '">' +
             '<div><h3>' + esc(r.name) + '</h3>' +
             '<p class="dim">' + r.items.length + '개 운동 · 총 ' + sets + '세트' +
             (r.memo ? ' · ' + esc(r.memo) : '') + '</p></div>' +
@@ -880,7 +880,12 @@
 
       case 'start-routine': {
         var rt = S.getRoutine(id);
-        if (!rt || !rt.items.length) { alert('먼저 운동을 추가해 주세요.'); return; }
+        if (!rt) return;
+        if (!rt.items.length) {
+          toast('운동을 먼저 추가해 주세요');
+          go('routine/' + id);
+          return;
+        }
         if (S.active() && !confirm('진행 중인 운동이 있습니다. 새로 시작할까요? (진행 중인 기록은 사라집니다)')) return;
         S.startSession(id);
         stopRest();
