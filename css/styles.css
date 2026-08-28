@@ -218,20 +218,6 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .stats strong { font-size: 21px; font-variant-numeric: tabular-nums; }
 @media (min-width: 460px) { .stats { grid-template-columns: repeat(4, 1fr); } }
 
-/* 안내 목소리 목록 */
-.voicelist { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.voicerow {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--bg-2); border: 1px solid var(--line);
-  border-radius: 10px; padding: 6px 8px 6px 12px;
-}
-.voicerow.on { border-color: var(--brand); background: rgba(77, 124, 255, .12); }
-.voicepick {
-  flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--text);
-  font-family: inherit; cursor: pointer; padding: 10px 0;
-}
-.voicepick strong { font-size: 16px; }
-
 /* 근육 지도 */
 .bodymap { display: flex; flex-direction: column; gap: 10px; }
 .bm-figs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

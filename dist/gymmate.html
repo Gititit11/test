@@ -231,20 +231,6 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .stats strong { font-size: 21px; font-variant-numeric: tabular-nums; }
 @media (min-width: 460px) { .stats { grid-template-columns: repeat(4, 1fr); } }
 
-/* 안내 목소리 목록 */
-.voicelist { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.voicerow {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--bg-2); border: 1px solid var(--line);
-  border-radius: 10px; padding: 6px 8px 6px 12px;
-}
-.voicerow.on { border-color: var(--brand); background: rgba(77, 124, 255, .12); }
-.voicepick {
-  flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--text);
-  font-family: inherit; cursor: pointer; padding: 10px 0;
-}
-.voicepick strong { font-size: 16px; }
-
 /* 근육 지도 */
 .bodymap { display: flex; flex-direction: column; gap: 10px; }
 .bm-figs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -661,10 +647,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     sessions: [],       // 완료된 운동 기록
     customExercises: [],
     active: null,       // 진행 중인 세션
-    settings: {
-      defaultRest: 90, sound: true, voice: true, unit: 'kg', bodyWeight: 70,
-      voiceURI: '', voiceRate: 0.95, cueAudio: '', cueName: ''
-    }
+    settings: { defaultRest: 90, sound: true, unit: 'kg', bodyWeight: 70 }
   };
 
   var state = load();
@@ -1471,7 +1454,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-5';
+  var APP_VERSION = '2026.08.28-6';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -1561,226 +1544,8 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     } catch (e) { /* 무시 */ }
   }
 
-  // ── 휴식 종료 음성 안내 ──────────────────────────────
-  // 이어폰으로 음악을 듣는 중에도 안내가 들리도록 브라우저 음성합성(TTS)을 쓴다.
-  // 안드로이드에서는 TTS 가 일시적 오디오 포커스를 잡아 음악을 잠깐 줄이고
-  // 같은 출력(이어폰)으로 안내를 내보낸 뒤 원래 볼륨으로 돌아간다.
-  var REST_END_TEXT = '휴식 시간이 종료되었습니다. 운동을 시작해주세요.';
-  var koVoice = null;
-
-  // 기기가 같은 목소리를 여러 개로 보고하는 경우가 많아 이름 기준으로 하나만 남기고,
-  // 시스템 명칭("Google 한국의") 대신 알아보기 쉬운 이름을 붙인다.
-  var FRIENDLY_NAMES = ['Ash', 'Ivy', 'Nova', 'Sage', 'Elle', 'Mia', 'Rae', 'Vera', 'Luna', 'Iris'];
-
-  // 안드로이드 Google TTS 는 같은 이름("한국어 (대한민국)")으로 화자를 여러 개 제공한다.
-  // 이름으로 합치면 서로 다른 목소리가 사라지므로 voiceURI 로만 중복을 판단한다.
-  function voiceList(all) {
-    var seen = {};
-    return (all || [])
-      .filter(function (v) {
-        var key = v.voiceURI || ((v.name || '') + '|' + (v.lang || ''));
-        if (seen[key]) return false;
-        seen[key] = 1;
-        return true;
-      })
-      .sort(function (a, b) {
-        return (a.name || '').localeCompare(b.name || '') ||
-               (a.voiceURI || '').localeCompare(b.voiceURI || '');
-      })
-      .map(function (v) {
-        return { voice: v, uri: v.voiceURI || v.name, system: describe(v) };
-      });
-  }
-
-  // 같은 이름의 화자를 구분할 수 있게 voiceURI 에서 화자 식별자를 뽑는다
-  // 예: ko-kr-x-ism-local → "한국어 (대한민국) · ism"
-  function describe(v) {
-    var name = v.name || '';
-    var id = (v.voiceURI || '')
-      .replace(/^[a-z]{2}[-_][a-z]{2}[-_]x[-_]/i, '')
-      .replace(/[-_](local|network|compact|premium|enhanced)$/i, '');
-    if (id && id !== v.voiceURI && id.length <= 12) return name + ' · ' + id;
-    return name + (v.lang ? ' · ' + v.lang : '');
-  }
-
-  function withNames(list, offset) {
-    return list.map(function (v, i) {
-      var n = i + (offset || 0);
-      return {
-        voice: v.voice, uri: v.uri, system: v.system,
-        label: FRIENDLY_NAMES[n] || ('Voice ' + (n + 1))
-      };
-    });
-  }
-
-  function koVoiceList(includeAll) {
-    var all = [];
-    try { all = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; }
-    catch (e) { return []; }
-    // /^ko/ 는 코카니어(kok-IN)까지 통과시킨다. 한국어만 남긴다.
-    var isKo = function (v) { return /^ko([-_]|$)/i.test(v.lang || ''); };
-    // 한국어 목소리에 먼저 이름을 붙여, 다른 언어를 켜도 이름이 밀리지 않게 한다
-    var ko = withNames(voiceList(all.filter(isKo)), 0);
-    if (!includeAll) return ko;
-    var rest = withNames(voiceList(all.filter(function (v) { return !isKo(v); })), ko.length);
-    return ko.concat(rest);
-  }
-
-  function loadVoices() {
-    var synth = window.speechSynthesis;
-    if (!synth) return;
-    var all = [];
-    try { all = synth.getVoices() || []; } catch (e) { return; }
-    var ko = all.filter(function (v) { return /^ko/i.test(v.lang || ''); });
-    // 여성 목소리를 우선 고른다 (안드로이드의 'Google 한국의', 윈도우 'Heami' 등)
-    var female = /female|여성|여자|yuna|heami|sora|nara|seoyeon|jimin|google/i;
-    koVoice = ko.filter(function (v) { return female.test(v.name || ''); })[0] || ko[0] || null;
-    void koVoiceList;
-  }
-  if (window.speechSynthesis) {
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = function () {
-      loadVoices();
-      if (route.name === 'settings') render();
-    };
-  }
-
-  // 설정에서 고른 목소리가 있으면 그것을 쓴다
-  function currentVoice() {
-    if (!S.settings.voiceURI) return koVoice;
-    var all = [];
-    try { all = window.speechSynthesis.getVoices() || []; } catch (e) { return koVoice; }
-    return all.filter(function (v) {
-      return (v.voiceURI || v.name) === S.settings.voiceURI;
-    })[0] || koVoice;
-  }
-
-  function speakWith(uri, text) {
-    var synth = window.speechSynthesis;
-    if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined') return false;
-    var all = [];
-    try { all = synth.getVoices() || []; } catch (e) { all = []; }
-    var v = all.filter(function (x) { return (x.voiceURI || x.name) === uri; })[0];
-    try {
-      synth.cancel();
-      var u = new window.SpeechSynthesisUtterance(text);
-      u.lang = (v && v.lang) || 'ko-KR';
-      if (v) u.voice = v;
-      u.rate = Number(S.settings.voiceRate) || 0.95;
-      u.pitch = 1;
-      u.volume = 1;
-      synth.speak(u);
-      return true;
-    } catch (e) { return false; }
-  }
-
-  function speak(text) {
-    var synth = window.speechSynthesis;
-    if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined') return false;
-    try {
-      synth.cancel();
-      var u = new window.SpeechSynthesisUtterance(text);
-      u.lang = 'ko-KR';
-      var v = currentVoice();
-      if (v) u.voice = v;
-      u.rate = Number(S.settings.voiceRate) || 0.95;
-      u.pitch = 1;      // 음높이를 올리면 기계음처럼 들려서 기본값을 쓴다
-      u.volume = 1;
-      synth.speak(u);
-      return true;
-    } catch (e) { return false; }
-  }
-
-  // ── 직접 넣은 안내 음성 ───────────────────────────────
-  // <audio> 로 재생하면 안드로이드가 음악을 아예 멈출 수 있어
-  // 알림음과 같은 Web Audio 경로로 내보낸다 (음악은 잠깐 작아졌다 돌아온다)
-  var cueBuffer = null;
-  function loadCue() {
-    cueBuffer = null;
-    var data = S.settings.cueAudio;
-    if (!data) return;
-    unlockAudio();
-    if (!audioCtx) return;
-    fetch(data)
-      .then(function (r) { return r.arrayBuffer(); })
-      .then(function (buf) { return audioCtx.decodeAudioData(buf); })
-      .then(function (b) { cueBuffer = b; })
-      .catch(function () { cueBuffer = null; });
-  }
-  // 기기 음성이 마음에 들지 않을 때 원하는 목소리를 직접 녹음해 쓴다
-  var recorder = null, recording = false, recChunks = [];
-
-  function startRecording() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia ||
-        typeof window.MediaRecorder === 'undefined') {
-      alert('이 브라우저는 녹음을 지원하지 않습니다. “음성 파일 넣기”를 이용해 주세요.');
-      return;
-    }
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-      recChunks = [];
-      recorder = new window.MediaRecorder(stream);
-      recorder.ondataavailable = function (e) { if (e.data && e.data.size) recChunks.push(e.data); };
-      recorder.onstop = function () {
-        stream.getTracks().forEach(function (t) { t.stop(); });
-        var blob = new Blob(recChunks, { type: recorder.mimeType || 'audio/webm' });
-        if (blob.size > 1024 * 1024) { alert('녹음이 너무 깁니다. 짧게 다시 녹음해 주세요.'); return; }
-        var reader = new FileReader();
-        reader.onload = function () {
-          S.settings.cueAudio = reader.result;
-          S.settings.cueName = '내 녹음';
-          S.commit();
-          loadCue();
-          toast('녹음한 음성으로 안내합니다');
-          render();
-        };
-        reader.readAsDataURL(blob);
-      };
-      recorder.start();
-      recording = true;
-      toast('녹음 중 — 문장을 읽고 중지를 누르세요');
-      render();
-    }).catch(function () {
-      alert('마이크를 사용할 수 없습니다. 브라우저의 마이크 권한을 확인해 주세요.');
-    });
-  }
-
-  function stopRecording() {
-    recording = false;
-    try { if (recorder && recorder.state !== 'inactive') recorder.stop(); } catch (e) { /* 무시 */ }
-    render();
-  }
-
-  function playCue() {
-    if (!cueBuffer || !audioCtx) return false;
-    try {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      var src = audioCtx.createBufferSource();
-      src.buffer = cueBuffer;
-      src.connect(audioCtx.destination);
-      src.start();
-      return true;
-    } catch (e) { return false; }
-  }
-
-  // 모바일은 첫 사용자 조작 전에는 소리를 낼 수 없어 미리 깨워 둔다
-  function warmUpSpeech() {
-    var synth = window.speechSynthesis;
-    if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined') return;
-    try {
-      var u = new window.SpeechSynthesisUtterance(' ');
-      u.volume = 0;
-      u.lang = 'ko-KR';
-      synth.speak(u);
-    } catch (e) { /* 무시 */ }
-  }
-
   function announceRestEnd() {
     beep();
-    if (!S.settings.voice) return;
-    // 알림음과 겹치지 않게 잠깐 뒤에 안내한다
-    setTimeout(function () {
-      if (!playCue()) speak(REST_END_TEXT);
-    }, 600);
   }
 
   // 모바일 브라우저는 사용자 조작 이후에만 소리를 낼 수 있다
@@ -1790,10 +1555,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       if (audioCtx.state === 'suspended') audioCtx.resume();
     } catch (e) { /* 오디오 미지원 무시 */ }
   }
-  document.addEventListener('pointerdown', function () {
-    unlockAudio();
-    warmUpSpeech();
-  }, { once: true });
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
 
   function beep() {
     if (!S.settings.sound) return;
@@ -2289,12 +2051,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       '</select></label>' +
       '<label class="field inline"><span>휴식 종료 알림음</span>' +
       '<input type="checkbox" data-bind="set-sound"' + (st.sound ? ' checked' : '') + '></label>' +
-      '<label class="field inline"><span>휴식 종료 음성 안내</span>' +
-      '<input type="checkbox" data-bind="set-voice"' + (st.voice ? ' checked' : '') + '></label>' +
       '</div>';
-
-    html += '<div class="card">' +
-      '<h3>안내 목소리</h3>' + voiceSection() + '</div>';
 
     html += '<div class="card">' +
       '<h3>칼로리 추정</h3>' +
@@ -2330,53 +2087,6 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       '</div>';
     html += '</main>';
     return html;
-  }
-
-  var showAllVoices = false;
-
-  function voiceSection() {
-    var st = S.settings;
-    var ko = koVoiceList(showAllVoices);
-
-    var out = '';
-    if (st.cueAudio) {
-      out += '<p class="dim">내 음성을 사용 중입니다 — ' + esc(st.cueName || '파일') +
-        ' (' + Math.round(st.cueAudio.length * 0.75 / 1024) + 'KB)</p>';
-    } else if (!ko.length) {
-      out += '<p class="dim">이 기기에 한국어 음성이 없어 기본 목소리로 읽습니다. ' +
-        '안드로이드라면 <b>설정 → 접근성 → 텍스트 음성 변환</b>에서 “Google 음성 서비스”를 고르고 ' +
-        '한국어 음성 데이터를 내려받으면 훨씬 자연스러워집니다.</p>';
-    } else {
-      out += '<p class="dim">▶ 로 들어보고 마음에 드는 것을 고르세요.</p>' +
-        '<ul class="voicelist">' + ko.map(function (v) {
-          var on = st.voiceURI === v.uri ? ' on' : '';
-          return '<li class="voicerow' + on + '">' +
-            '<button class="voicepick" data-act="voice-pick" data-uri="' + esc(v.uri) + '" ' +
-              'title="' + esc(v.system) + '"><strong>' + esc(v.label) + '</strong></button>' +
-            '<button class="btn sm" data-act="voice-play" data-uri="' + esc(v.uri) + '" ' +
-              'aria-label="' + esc(v.label) + ' 들어보기">▶</button>' +
-          '</li>';
-        }).join('') + '</ul>' +
-        '<label class="field inline"><span>다른 언어 목소리도 보기</span>' +
-        '<input type="checkbox" data-bind="set-voice-all"' + (showAllVoices ? ' checked' : '') + '></label>';
-      out += '<label class="field"><span>말하기 속도 ' + Number(st.voiceRate).toFixed(2) + '배</span>' +
-        '<input type="range" min="0.7" max="1.3" step="0.05" value="' + st.voiceRate + '" data-bind="set-voice-rate"></label>';
-      out += '<p class="dim">기기에 따라 목소리 품질이 크게 다릅니다. 여러 개를 들어보고 고르세요. ' +
-        '안드로이드는 <b>설정 → 접근성 → 텍스트 음성 변환</b>에서 고품질 한국어 음성을 추가로 받을 수 있습니다.</p>';
-    }
-
-    out += '<div class="row gap wrap" style="margin-top:10px">' +
-      '<button class="btn" data-act="voice-test">들어보기</button>' +
-      '<button class="btn' + (recording ? ' danger' : '') + '" data-act="cue-record">' +
-        (recording ? '■ 녹음 중지' : '● 직접 녹음') + '</button>' +
-      '<button class="btn" data-act="cue-pick">음성 파일 넣기</button>' +
-      (st.cueAudio ? '<button class="btn danger" data-act="cue-clear">내 음성 지우기</button>' : '') +
-      '</div>' +
-      '<p class="dim">기기 음성이 마음에 들지 않으면 내 목소리로 직접 녹음하거나, ' +
-      '원하는 TTS로 만든 파일(mp3·m4a·wav)을 넣으세요. 넣은 소리가 기기 음성보다 우선 재생되고, ' +
-      '오프라인에서도 어느 기기에서나 같은 소리가 납니다.</p>' +
-      '<p class="dim">읽을 문장: “' + esc(REST_END_TEXT) + '”</p>';
-    return out;
   }
 
   // ── 운동 검색 모달 ───────────────────────────────────
@@ -2702,57 +2412,6 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         }
         break;
       }
-      case 'voice-pick':
-        S.settings.voiceURI = t.dataset.uri;
-        S.commit();
-        unlockAudio();
-        speak(REST_END_TEXT);
-        render();
-        break;
-      case 'voice-play':
-        unlockAudio();
-        speakWith(t.dataset.uri, REST_END_TEXT);
-        break;
-      case 'voice-test':
-        unlockAudio();
-        if (playCue()) break;
-        if (!speak(REST_END_TEXT)) alert('이 브라우저는 음성 안내를 지원하지 않습니다.');
-        else if (!currentVoice()) toast('한국어 음성이 없어 기본 목소리로 재생합니다');
-        break;
-      case 'cue-record':
-        unlockAudio();
-        if (recording) stopRecording();
-        else startRecording();
-        break;
-      case 'cue-pick': {
-        var fi = document.createElement('input');
-        fi.type = 'file';
-        fi.accept = 'audio/*';
-        fi.onchange = function () {
-          var f = fi.files[0];
-          if (!f) return;
-          if (f.size > 1024 * 1024) { alert('1MB 이하의 짧은 음성 파일만 넣을 수 있습니다.'); return; }
-          var reader = new FileReader();
-          reader.onload = function () {
-            S.settings.cueAudio = reader.result;
-            S.settings.cueName = f.name;
-            S.commit();
-            loadCue();
-            toast('안내 음성을 바꿨습니다');
-            render();
-          };
-          reader.readAsDataURL(f);
-        };
-        fi.click();
-        break;
-      }
-      case 'cue-clear':
-        S.settings.cueAudio = '';
-        S.settings.cueName = '';
-        S.commit();
-        cueBuffer = null;
-        render();
-        break;
       case 'del-custom':
         if (confirm('이 운동을 삭제할까요? 기존 루틴의 항목은 그대로 유지됩니다.')) {
           S.removeCustomExercise(id); render();
@@ -2863,21 +2522,6 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         if (ev.type === 'change') render();
         break;
       case 'set-sound': S.settings.sound = t.checked; S.commit(); break;
-      case 'set-voice': S.settings.voice = t.checked; S.commit(); break;
-      case 'set-voice-all':
-        showAllVoices = t.checked;
-        render();
-        break;
-      case 'set-voice-uri':
-        S.settings.voiceURI = t.value;
-        S.commit();
-        if (ev.type === 'change') { unlockAudio(); speak(REST_END_TEXT); }
-        break;
-      case 'set-voice-rate':
-        S.settings.voiceRate = Math.min(1.3, Math.max(0.7, num(t.value, 0.95)));
-        S.commit();
-        if (ev.type === 'change') { unlockAudio(); speak(REST_END_TEXT); render(); }
-        break;
       case 'set-weight-kg':
         S.settings.bodyWeight = Math.min(250, Math.max(20, num(t.value, 70)));
         S.commit();
@@ -2920,9 +2564,6 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   if (!location.hash) location.hash = '#/routines';
   restoreRest();
   render();
-  if (S.settings.cueAudio) {
-    document.addEventListener('pointerdown', loadCue, { once: true });
-  }
 })();
 
 </script>

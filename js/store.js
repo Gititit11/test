@@ -11,10 +11,7 @@
     sessions: [],       // 완료된 운동 기록
     customExercises: [],
     active: null,       // 진행 중인 세션
-    settings: {
-      defaultRest: 90, sound: true, voice: true, unit: 'kg', bodyWeight: 70,
-      voiceURI: '', voiceRate: 0.95, cueAudio: '', cueName: ''
-    }
+    settings: { defaultRest: 90, sound: true, unit: 'kg', bodyWeight: 70 }
   };
 
   var state = load();
