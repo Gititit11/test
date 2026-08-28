@@ -501,6 +501,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     ['로프 푸시다운', 'Rope Pushdown', '팔', '케이블', '삼두 외측두', 'rope'],
     ['라잉 트라이셉스 익스텐션', 'Skull Crusher', '팔', '바벨', '삼두 장두', 'skullcrusher 스컬크러셔'],
     ['오버헤드 덤벨 익스텐션', 'Overhead Dumbbell Extension', '팔', '덤벨', '삼두 장두', ''],
+    ['케이블 오버헤드 익스텐션', 'Cable Overhead Triceps Extension', '팔', '케이블', '삼두 장두', 'overhead 오버헤드 케오버'],
     ['트라이셉스 익스텐션 머신', 'Triceps Extension Machine', '팔', '머신', '삼두', ''],
     ['딥스 (삼두)', 'Triceps Dip', '팔', '맨몸', '삼두,대흉근', ''],
     ['덤벨 킥백', 'Dumbbell Kickback', '팔', '덤벨', '삼두', 'kickback'],
@@ -1016,6 +1017,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     'x-seated-cable-row': 0.45, 'x-bent-over-barbell-row': 0.40, 'x-one-arm-dumbbell-row': 0.40,
     'x-barbell-curl': 0.35, 'x-dumbbell-curl': 0.35, 'x-hammer-curl': 0.35,
     'x-triceps-pushdown': 0.30, 'x-rope-pushdown': 0.30, 'x-skull-crusher': 0.35,
+    'x-overhead-dumbbell-extension': 0.40, 'x-cable-overhead-triceps-extension': 0.40,
     'x-crunch': 0.20, 'x-sit-up': 0.35, 'x-leg-raise': 0.40, 'x-hanging-leg-raise': 0.45
   };
 
@@ -1468,7 +1470,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-8';
+  var APP_VERSION = '2026.08.28-9';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');

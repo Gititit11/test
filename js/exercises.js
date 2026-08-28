@@ -84,6 +84,7 @@
     ['로프 푸시다운', 'Rope Pushdown', '팔', '케이블', '삼두 외측두', 'rope'],
     ['라잉 트라이셉스 익스텐션', 'Skull Crusher', '팔', '바벨', '삼두 장두', 'skullcrusher 스컬크러셔'],
     ['오버헤드 덤벨 익스텐션', 'Overhead Dumbbell Extension', '팔', '덤벨', '삼두 장두', ''],
+    ['케이블 오버헤드 익스텐션', 'Cable Overhead Triceps Extension', '팔', '케이블', '삼두 장두', 'overhead 오버헤드 케오버'],
     ['트라이셉스 익스텐션 머신', 'Triceps Extension Machine', '팔', '머신', '삼두', ''],
     ['딥스 (삼두)', 'Triceps Dip', '팔', '맨몸', '삼두,대흉근', ''],
     ['덤벨 킥백', 'Dumbbell Kickback', '팔', '덤벨', '삼두', 'kickback'],

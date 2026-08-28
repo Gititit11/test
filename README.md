@@ -142,7 +142,7 @@ sw.js                       오프라인 캐시용 서비스워커
 css/styles.css              다크 테마 스타일 (모바일 우선)
 icons/                      앱 아이콘 (192·512·maskable PNG, 원본 SVG)
 audio/                      휴식 종료 안내 음성 (Ash·Ivy·Winter)
-js/exercises.js             내장 운동 DB 115종 + 검색(초성 포함)
+js/exercises.js             내장 운동 DB 116종 + 검색(초성 포함)
 js/calories.js              칼로리 추정 (계수·가동거리·체중 부하 표)
 js/bodymap.js               근육 부위 집계 + 히트맵 렌더
 js/bodyfigure.js            인체 도해 경로 (자동 생성 · 출처는 아래 고지 참고)

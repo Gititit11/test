@@ -49,6 +49,7 @@
     'x-seated-cable-row': 0.45, 'x-bent-over-barbell-row': 0.40, 'x-one-arm-dumbbell-row': 0.40,
     'x-barbell-curl': 0.35, 'x-dumbbell-curl': 0.35, 'x-hammer-curl': 0.35,
     'x-triceps-pushdown': 0.30, 'x-rope-pushdown': 0.30, 'x-skull-crusher': 0.35,
+    'x-overhead-dumbbell-extension': 0.40, 'x-cable-overhead-triceps-extension': 0.40,
     'x-crunch': 0.20, 'x-sit-up': 0.35, 'x-leg-raise': 0.40, 'x-hanging-leg-raise': 0.45
   };
 
