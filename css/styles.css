@@ -114,11 +114,12 @@ a { color: inherit; text-decoration: none; }
 .tags .badge { margin-bottom: 0; }
 
 /* 루틴 카드 */
-.routine-head { display: flex; align-items: center; justify-content: space-between; cursor: pointer; gap: 8px; }
+.routine { cursor: pointer; transition: border-color .15s ease, transform .06s ease; }
+.routine:active { transform: scale(.995); border-color: var(--brand); }
+.routine-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .routine-preview { margin-top: 10px; }
 .routine-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .routine-actions .btn { flex: 1; min-width: 0; padding: 10px 6px; font-size: 13px; white-space: nowrap; }
-.routine-actions .btn.primary { flex: 1.35; }
 
 .card.live {
   display: flex; align-items: center; gap: 12px;

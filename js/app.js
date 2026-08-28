@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-10';
+  var APP_VERSION = '2026.08.28-11';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -314,8 +314,9 @@
     } else {
       html += '<ul class="list">' + routines.map(function (r) {
         var sets = r.items.reduce(function (a, it) { return a + it.sets.length; }, 0);
-        return '<li class="card routine">' +
-          '<div class="routine-head" data-act="start-routine" data-id="' + r.id + '">' +
+        // 카드 전체가 시작 버튼이다. 안쪽 버튼은 각자의 동작이 우선한다.
+        return '<li class="card routine" data-act="start-routine" data-id="' + r.id + '">' +
+          '<div class="routine-head">' +
             '<div><h3>' + esc(r.name) + '</h3>' +
             '<p class="dim">' + r.items.length + '개 운동 · 총 ' + sets + '세트' +
             (r.memo ? ' · ' + esc(r.memo) : '') + '</p></div>' +
@@ -326,7 +327,6 @@
             (r.items.length > 4 ? badge('+' + (r.items.length - 4)) : '') +
           '</div>' +
           '<div class="routine-actions">' +
-            '<button class="btn primary" data-act="start-routine" data-id="' + r.id + '">운동 시작</button>' +
             '<button class="btn" data-act="edit-routine" data-id="' + r.id + '">편집</button>' +
             '<button class="btn" data-act="dup-routine" data-id="' + r.id + '">복제</button>' +
             '<button class="btn danger" data-act="del-routine" data-id="' + r.id + '">삭제</button>' +
