@@ -502,3 +502,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 }
 .lastrec .chev { margin-left: auto; }
 .lastrec:active { border-color: var(--brand); }
+
+/* 안내음 음량 */
+.field.vol { display: block; }
+.field.vol > span { display: block; margin-bottom: 6px; }
+.field.vol input[type="range"] { width: 100%; accent-color: var(--brand); }
+.dim.sm { font-size: 12px; margin: 6px 0 10px; }

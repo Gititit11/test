@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-28';
+  var APP_VERSION = '2026.08.28-29';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -112,6 +112,75 @@
   ];
   var voiceBuffers = {};
 
+  // 음악과 같이 틀면 안내음이 묻힌다. 동봉 mp3 는 RMS 가 -18.5dBFS 인데
+  // 스트리밍 음악은 대개 -12~-9dBFS 라 6~10dB 차이로 밀린다.
+  //
+  // 음량만 키우면 안 된다. 최고점이 이미 -4.3dBFS 라 조금만 올려도 파형이
+  // 잘려 찢어진다. 사람이 느끼는 크기는 최고점이 아니라 평균(RMS)이므로,
+  // 파일을 읽을 때 최고점을 눌러 평균을 끌어올린 버퍼를 미리 만들어 둔다
+  // (정규화 → tanh 포화 → 목표 최고점으로 재정규화). 그러면 재생할 때는
+  // 이득 하나만 곱하면 되고, 최대 음량에서도 최고점이 1.0 을 넘지 않는다.
+  //
+  // 처음에는 재생 그래프에 DynamicsCompressor 를 리미터로 넣어 봤는데,
+  // 부드러운 압축기라 천장을 못 잡아 100% 에서 +1.2dBFS 로 잘렸고,
+  // 맨 뒤로 옮기니 이번엔 50% 와 100% 가 1.2dB 밖에 차이 나지 않아
+  // 음량 조절이 사실상 죽었다. 그래서 버퍼에 굽는 방식으로 바꿨다.
+  //
+  // 웹 페이지는 다른 앱의 음악을 줄일(오디오 포커스) 수단이 없다.
+  // 우리 쪽을 키우는 것이 쓸 수 있는 전부다.
+  var SHAPE_K = 4;          // tanh 포화 강도. 올릴수록 커지지만 거칠어진다
+  var VOICE_PEAK = 0.66;    // 음량 100% 일 때 최고점. 150% 에서 0.99
+  var BEEP_GAIN = 0.35;
+  var cueGain = null;
+
+  // 안내음 전용 출력단. 매번 만들지 않고 하나를 계속 쓴다.
+  function cueOut() {
+    if (!audioCtx) return null;
+    if (!cueGain) {
+      cueGain = audioCtx.createGain();
+      cueGain.connect(audioCtx.destination);
+    }
+    cueGain.gain.value = cueVolume();
+    return cueGain;
+  }
+
+  // 설정의 0~150% 를 이득으로. 0 이면 소리를 내지 않는다.
+  function cueVolume() {
+    var v = num(S.settings.cueVolume, 100);
+    return Math.min(150, Math.max(0, v)) / 100;
+  }
+
+  function peakOf(buf) {
+    var peak = 0;
+    for (var c = 0; c < buf.numberOfChannels; c++) {
+      var d = buf.getChannelData(c);
+      for (var i = 0; i < d.length; i++) {
+        var a = d[i] < 0 ? -d[i] : d[i];
+        if (a > peak) peak = a;
+      }
+    }
+    return peak;
+  }
+
+  // 최고점을 눌러 평균을 끌어올린 버퍼를 새로 만든다.
+  // 파일마다 최고점이 달라도 결과가 같아지므로 목소리 사이 편차도 사라진다.
+  function loudify(buf) {
+    var peak = peakOf(buf);
+    if (!peak) return buf;
+    var pre = 1 / peak, th = Math.tanh(SHAPE_K), c, i, d;
+    for (c = 0; c < buf.numberOfChannels; c++) {
+      d = buf.getChannelData(c);
+      for (i = 0; i < d.length; i++) d[i] = Math.tanh(SHAPE_K * d[i] * pre) / th;
+    }
+    var after = peakOf(buf);
+    var post = after ? VOICE_PEAK / after : 1;
+    for (c = 0; c < buf.numberOfChannels; c++) {
+      d = buf.getChannelData(c);
+      for (i = 0; i < d.length; i++) d[i] *= post;
+    }
+    return buf;
+  }
+
   function loadVoice(id) {
     if (voiceBuffers[id]) return Promise.resolve(voiceBuffers[id]);
     var v = VOICES.filter(function (x) { return x.id === id; })[0];
@@ -121,23 +190,28 @@
     return fetch(v.src)
       .then(function (r) { return r.arrayBuffer(); })
       .then(function (b) { return audioCtx.decodeAudioData(b); })
-      .then(function (buf) { voiceBuffers[id] = buf; return buf; })
+      .then(function (buf) { voiceBuffers[id] = loudify(buf); return voiceBuffers[id]; })
       .catch(function () { return null; });
   }
 
   function playVoice(id) {
     return loadVoice(id).then(function (buf) {
       if (!buf || !audioCtx) return false;
+      var out = cueOut();
+      if (!out || !cueVolume()) return false;
       try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         var src = audioCtx.createBufferSource();
         src.buffer = buf;
-        src.connect(audioCtx.destination);
+        src.connect(out);
         src.start();
         return true;
       } catch (e) { return false; }
     });
   }
+
+  // 테스트에서 구운 버퍼와 계수를 확인하기 위한 창구
+  window.__gymmateAudio = { loadVoice: loadVoice, cueVolume: cueVolume, BEEP_GAIN: BEEP_GAIN };
 
   function announceRestEnd() {
     beep();
@@ -159,25 +233,30 @@
   }, { once: true });
 
   function beep() {
+    // 진동은 소리와 별개다. 음량을 0 으로 두거나 음악에 묻혀도 이건 남는다.
+    try {
+      if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+    } catch (e) { /* 진동 미지원 무시 */ }
     if (!S.settings.sound) return;
     try {
       audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
+      var out = cueOut();
+      if (!out || !cueVolume()) return;
       [0, 0.18, 0.36].forEach(function (t) {
         var o = audioCtx.createOscillator();
         var g = audioCtx.createGain();
-        o.connect(g); g.connect(audioCtx.destination);
-        o.frequency.value = 880;
+        o.connect(g); g.connect(out);
+        // 880Hz 단음은 음악 속에서 잘 묻힌다. 배음을 실어 존재감을 준다
+        o.type = 'square';
+        o.frequency.value = 990;
         g.gain.setValueAtTime(0.0001, audioCtx.currentTime + t);
-        g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + t + 0.01);
+        g.gain.exponentialRampToValueAtTime(BEEP_GAIN, audioCtx.currentTime + t + 0.01);
         g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + t + 0.14);
         o.start(audioCtx.currentTime + t);
         o.stop(audioCtx.currentTime + t + 0.15);
       });
     } catch (e) { /* 오디오 미지원 무시 */ }
-    try {
-      if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
-    } catch (e) { /* 진동 미지원 무시 */ }
   }
 
   function startRest(sec, label) {
@@ -1085,6 +1164,12 @@
 
     html += '<div class="card">' +
       '<h3>안내 목소리</h3>' +
+      '<label class="field vol"><span>안내음 음량 <b data-bind="vol-val">' + num(st.cueVolume, 100) + '%</b></span>' +
+        '<input type="range" min="0" max="150" step="10" value="' + num(st.cueVolume, 100) + '" data-bind="set-cue-volume">' +
+      '</label>' +
+      '<p class="dim sm">알림음과 안내 목소리에 함께 적용됩니다. 음악과 같이 들으면 묻히기 쉬워 100% 이상으로 올릴 수 있습니다. ' +
+        '음악 소리 자체를 줄이는 것은 브라우저가 할 수 없습니다.</p>' +
+      '<button class="btn sm block" data-act="cue-test">지금 소리 들어보기</button>' +
       '<ul class="voicelist">' +
         '<li class="voicerow' + (st.voice ? '' : ' on') + '">' +
           '<button class="voicepick" data-act="voice-pick" data-v="">' +
@@ -1519,6 +1604,11 @@
         if (S.settings.voice) { unlockAudio(); playVoice(S.settings.voice); }
         render();
         break;
+      case 'cue-test':
+        unlockAudio();
+        beep();
+        if (S.settings.voice) setTimeout(function () { playVoice(S.settings.voice); }, 600);
+        break;
       case 'voice-play':
         unlockAudio();
         playVoice(t.dataset.v);
@@ -1654,6 +1744,13 @@
         if (ev.type === 'change') render();
         break;
       case 'set-sound': S.settings.sound = t.checked; S.commit(); break;
+      case 'set-cue-volume':
+        // 끄는 동안 화면을 다시 그리면 손잡이를 놓치므로 숫자만 갈아 끼운다
+        S.settings.cueVolume = Math.min(150, Math.max(0, num(t.value, 100)));
+        S.commit();
+        var lab = document.querySelector('[data-bind="vol-val"]');
+        if (lab) lab.textContent = S.settings.cueVolume + '%';
+        break;
       case 'set-weight-kg':
         S.settings.bodyWeight = Math.min(250, Math.max(20, num(t.value, 70)));
         S.commit();
