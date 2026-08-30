@@ -918,7 +918,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     settings.bodyWeight = Math.min(250, Math.max(20, n(settings.bodyWeight, 70)));
     settings.unit = settings.unit === 'lb' ? 'lb' : 'kg';
     settings.sound = settings.sound !== false;
-    settings.cueVolume = Math.min(150, Math.max(0, n(settings.cueVolume, 100)));
+    settings.cueVolume = Math.min(100, Math.max(0, n(settings.cueVolume, 100)));
 
     var out = clone(DEFAULT);
     out.routines = routines;
@@ -1991,7 +1991,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.28-29';
+  var APP_VERSION = '2026.08.29-30';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -2098,25 +2098,31 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   ];
   var voiceBuffers = {};
 
-  // 음악과 같이 틀면 안내음이 묻힌다. 동봉 mp3 는 RMS 가 -18.5dBFS 인데
-  // 스트리밍 음악은 대개 -12~-9dBFS 라 6~10dB 차이로 밀린다.
+  // 음악과 같이 틀면 안내음이 묻힌다. 동봉 mp3 는 RMS -18.5dBFS 인데
+  // 스트리밍 음악은 대개 -12~-9dBFS 라 6~10dB 밀린다.
   //
-  // 음량만 키우면 안 된다. 최고점이 이미 -4.3dBFS 라 조금만 올려도 파형이
-  // 잘려 찢어진다. 사람이 느끼는 크기는 최고점이 아니라 평균(RMS)이므로,
-  // 파일을 읽을 때 최고점을 눌러 평균을 끌어올린 버퍼를 미리 만들어 둔다
-  // (정규화 → tanh 포화 → 목표 최고점으로 재정규화). 그러면 재생할 때는
-  // 이득 하나만 곱하면 되고, 최대 음량에서도 최고점이 1.0 을 넘지 않는다.
+  // 처음에는 tanh 로 파형을 눌러 평균을 8dB 올렸다. 커지긴 했지만 파형 자체를
+  // 찌그러뜨리는 방식이라 배음이 생겨 "치지직" 하는 파열음으로 들렸다.
+  // 크기를 얻는 대신 음질을 판 셈이라 접었다.
   //
-  // 처음에는 재생 그래프에 DynamicsCompressor 를 리미터로 넣어 봤는데,
-  // 부드러운 압축기라 천장을 못 잡아 100% 에서 +1.2dBFS 로 잘렸고,
-  // 맨 뒤로 옮기니 이번엔 50% 와 100% 가 1.2dB 밖에 차이 나지 않아
-  // 음량 조절이 사실상 죽었다. 그래서 버퍼에 굽는 방식으로 바꿨다.
+  // 대신 파형을 일그러뜨리지 않는 것만 쓴다.
+  //   1) 150Hz 하이패스 2단 — 말에는 거의 없고 음악에는 많은 저역을 덜어낸다.
+  //      최고점이 낮아지므로 그만큼 전체를 더 키울 수 있다
+  //   2) 2kHz 하이쉘프 +6dB — 말이 알아들리는 대역이자 귀가 가장 예민한 구간.
+  //      전체를 키우는 것보다 여기를 키우는 쪽이 음악을 훨씬 잘 뚫는다
+  //   3) 마지막에 최고점을 목표치로 맞추는 단순 곱셈
+  //
+  // 압축기와 리미터도 대 봤지만 이 파일들은 최고점이 뾰족하지 않아 오히려
+  // 평균이 내려갔다(-13.8 → -15.0dBFS). 깎을 봉우리가 없으면 리미터는
+  // 얻을 것이 없다. 그래서 쓰지 않는다.
   //
   // 웹 페이지는 다른 앱의 음악을 줄일(오디오 포커스) 수단이 없다.
-  // 우리 쪽을 키우는 것이 쓸 수 있는 전부다.
-  var SHAPE_K = 4;          // tanh 포화 강도. 올릴수록 커지지만 거칠어진다
-  var VOICE_PEAK = 0.66;    // 음량 100% 일 때 최고점. 150% 에서 0.99
-  var BEEP_GAIN = 0.35;
+  // 우리 쪽을 다듬는 것이 쓸 수 있는 전부다.
+  var HP_HZ = 150;          // 하이패스 (2단 = 24dB/oct)
+  var SHELF_HZ = 2000;      // 명료도 쉘프 시작
+  var SHELF_DB = 6;
+  var VOICE_PEAK = 0.97;    // 음량 100% 일 때 최고점. 더 키울 곳이 없는 값이다
+  var BEEP_GAIN = 0.5;
   var cueGain = null;
 
   // 안내음 전용 출력단. 매번 만들지 않고 하나를 계속 쓴다.
@@ -2130,10 +2136,10 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     return cueGain;
   }
 
-  // 설정의 0~150% 를 이득으로. 0 이면 소리를 내지 않는다.
+  // 설정의 0~100% 를 이득으로. 0 이면 소리를 내지 않는다.
   function cueVolume() {
     var v = num(S.settings.cueVolume, 100);
-    return Math.min(150, Math.max(0, v)) / 100;
+    return Math.min(100, Math.max(0, v)) / 100;
   }
 
   function peakOf(buf) {
@@ -2148,23 +2154,39 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     return peak;
   }
 
-  // 최고점을 눌러 평균을 끌어올린 버퍼를 새로 만든다.
-  // 파일마다 최고점이 달라도 결과가 같아지므로 목소리 사이 편차도 사라진다.
-  function loudify(buf) {
+  function normalize(buf, target) {
     var peak = peakOf(buf);
     if (!peak) return buf;
-    var pre = 1 / peak, th = Math.tanh(SHAPE_K), c, i, d;
-    for (c = 0; c < buf.numberOfChannels; c++) {
-      d = buf.getChannelData(c);
-      for (i = 0; i < d.length; i++) d[i] = Math.tanh(SHAPE_K * d[i] * pre) / th;
-    }
-    var after = peakOf(buf);
-    var post = after ? VOICE_PEAK / after : 1;
-    for (c = 0; c < buf.numberOfChannels; c++) {
-      d = buf.getChannelData(c);
-      for (i = 0; i < d.length; i++) d[i] *= post;
+    var g = target / peak;
+    for (var c = 0; c < buf.numberOfChannels; c++) {
+      var d = buf.getChannelData(c);
+      for (var i = 0; i < d.length; i++) d[i] *= g;
     }
     return buf;
+  }
+
+  // 저역을 덜어내고 명료도 대역을 올린 뒤 최고점을 맞춘다.
+  // OfflineAudioContext 가 없으면 최고점만 맞춰 그대로 쓴다.
+  function polish(raw) {
+    var Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    return audioCtx.decodeAudioData(raw.slice(0)).then(function (probe) {
+      if (!Off) return normalize(probe, VOICE_PEAK);
+      var off = new Off(probe.numberOfChannels, probe.length, probe.sampleRate);
+      var src = off.createBufferSource();
+      src.buffer = probe;
+      var node = src;
+      [HP_HZ, HP_HZ].forEach(function (hz) {
+        var f = off.createBiquadFilter();
+        f.type = 'highpass'; f.frequency.value = hz; f.Q.value = 0.707;
+        node.connect(f); node = f;
+      });
+      var sh = off.createBiquadFilter();
+      sh.type = 'highshelf'; sh.frequency.value = SHELF_HZ; sh.gain.value = SHELF_DB;
+      node.connect(sh);
+      sh.connect(off.destination);
+      src.start();
+      return off.startRendering().then(function (out) { return normalize(out, VOICE_PEAK); });
+    });
   }
 
   function loadVoice(id) {
@@ -2175,8 +2197,8 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     if (!audioCtx) return Promise.resolve(null);
     return fetch(v.src)
       .then(function (r) { return r.arrayBuffer(); })
-      .then(function (b) { return audioCtx.decodeAudioData(b); })
-      .then(function (buf) { voiceBuffers[id] = loudify(buf); return voiceBuffers[id]; })
+      .then(function (raw) { return polish(raw); })
+      .then(function (buf) { voiceBuffers[id] = buf; return buf; })
       .catch(function () { return null; });
   }
 
@@ -2233,8 +2255,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         var o = audioCtx.createOscillator();
         var g = audioCtx.createGain();
         o.connect(g); g.connect(out);
-        // 880Hz 단음은 음악 속에서 잘 묻힌다. 배음을 실어 존재감을 준다
-        o.type = 'square';
+        // 순수 사인파는 음악에 묻히고 사각파는 그 자체가 거칠다.
+        // 삼각파는 배음이 있으면서 빠르게 줄어 귀에 부담이 없다.
+        o.type = 'triangle';
         o.frequency.value = 990;
         g.gain.setValueAtTime(0.0001, audioCtx.currentTime + t);
         g.gain.exponentialRampToValueAtTime(BEEP_GAIN, audioCtx.currentTime + t + 0.01);
@@ -2793,6 +2816,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   // ── 화면: 기록 ───────────────────────────────────────
   var bmSel = null;   // 근육 지도에서 선택한 부위
 
+  // 예전 버전은 최대가 150 이었다. 저장된 값이 그보다 크면 100 으로 본다.
+  function volPct(st) { return Math.min(100, Math.max(0, num(st.cueVolume, 100))); }
+
   function bodyMapCard(sessions) {
     var BM = window.BodyMap;
     if (!BM) return '';
@@ -3150,11 +3176,11 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
     html += '<div class="card">' +
       '<h3>안내 목소리</h3>' +
-      '<label class="field vol"><span>안내음 음량 <b data-bind="vol-val">' + num(st.cueVolume, 100) + '%</b></span>' +
-        '<input type="range" min="0" max="150" step="10" value="' + num(st.cueVolume, 100) + '" data-bind="set-cue-volume">' +
+      '<label class="field vol"><span>안내음 음량 <b data-bind="vol-val">' + volPct(st) + '%</b></span>' +
+        '<input type="range" min="0" max="100" step="5" value="' + volPct(st) + '" data-bind="set-cue-volume">' +
       '</label>' +
-      '<p class="dim sm">알림음과 안내 목소리에 함께 적용됩니다. 음악과 같이 들으면 묻히기 쉬워 100% 이상으로 올릴 수 있습니다. ' +
-        '음악 소리 자체를 줄이는 것은 브라우저가 할 수 없습니다.</p>' +
+      '<p class="dim sm">알림음과 안내 목소리에 함께 적용됩니다. 100% 가 낼 수 있는 가장 큰 소리입니다. ' +
+        '음악 소리 자체를 줄이는 것은 브라우저가 할 수 없어, 그래도 묻히면 음악 쪽을 줄여 주세요.</p>' +
       '<button class="btn sm block" data-act="cue-test">지금 소리 들어보기</button>' +
       '<ul class="voicelist">' +
         '<li class="voicerow' + (st.voice ? '' : ' on') + '">' +
@@ -3732,7 +3758,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       case 'set-sound': S.settings.sound = t.checked; S.commit(); break;
       case 'set-cue-volume':
         // 끄는 동안 화면을 다시 그리면 손잡이를 놓치므로 숫자만 갈아 끼운다
-        S.settings.cueVolume = Math.min(150, Math.max(0, num(t.value, 100)));
+        S.settings.cueVolume = Math.min(100, Math.max(0, num(t.value, 100)));
         S.commit();
         var lab = document.querySelector('[data-bind="vol-val"]');
         if (lab) lab.textContent = S.settings.cueVolume + '%';

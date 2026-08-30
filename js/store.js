@@ -143,7 +143,7 @@
     settings.bodyWeight = Math.min(250, Math.max(20, n(settings.bodyWeight, 70)));
     settings.unit = settings.unit === 'lb' ? 'lb' : 'kg';
     settings.sound = settings.sound !== false;
-    settings.cueVolume = Math.min(150, Math.max(0, n(settings.cueVolume, 100)));
+    settings.cueVolume = Math.min(100, Math.max(0, n(settings.cueVolume, 100)));
 
     var out = clone(DEFAULT);
     out.routines = routines;
