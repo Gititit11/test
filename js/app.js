@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.30-31';
+  var APP_VERSION = '2026.08.30-32';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -891,7 +891,7 @@
       '<div class="row between"><h3>최근 7일 부위별 운동량</h3>' +
       '<span class="dim">' + data.sessions + '회 운동</span></div>' +
       '<p class="dim">주동근 1세트, 보조근 0.4세트로 세고, 부위마다 정해진 주당 볼륨 ' +
-        '기준(MV·MEV·MAV·MRV)과 견줍니다. 부위를 눌러 자세히 보세요.</p>' +
+        '기준(MV·MEV·MAV·MRV)과 비교합니다. 부위를 눌러 자세히 보세요.</p>' +
       '<div class="bm-figs">' +
         '<figure class="bm-fig">' + BM.figure('front', data, sel) + '<figcaption>앞</figcaption></figure>' +
         '<figure class="bm-fig">' + BM.figure('back', data, sel) + '<figcaption>뒤</figcaption></figure>' +
@@ -1176,14 +1176,14 @@
     var html = header('설정');
     html += '<main class="page">';
     html += '<div class="card">' +
-      '<label class="field inline"><span>기본 휴식 시간(초)</span>' +
-      '<input type="number" inputmode="numeric" min="0" step="10" value="' + st.defaultRest + '" data-bind="set-rest"></label>' +
-      '<button class="btn sm block" data-act="reset-rest">모든 루틴을 기본 휴식 시간으로</button>' +
       '<label class="field inline"><span>무게 단위</span>' +
       '<select data-bind="set-unit">' +
         '<option value="kg"' + (st.unit === 'kg' ? ' selected' : '') + '>kg</option>' +
         '<option value="lb"' + (st.unit === 'lb' ? ' selected' : '') + '>lb</option>' +
       '</select></label>' +
+      '<label class="field inline"><span>기본 휴식 시간(초)</span>' +
+      '<input type="number" inputmode="numeric" min="0" step="10" value="' + st.defaultRest + '" data-bind="set-rest"></label>' +
+      '<button class="btn sm block" data-act="reset-rest">모든 루틴을 기본 휴식 시간으로</button>' +
       '<label class="field inline"><span>휴식 종료 알림음</span>' +
       '<input type="checkbox" data-bind="set-sound"' + (st.sound ? ' checked' : '') + '></label>' +
       '</div>';
@@ -1193,8 +1193,6 @@
       '<label class="field vol"><span>안내음 음량 <b data-bind="vol-val">' + volPct(st) + '%</b></span>' +
         '<input type="range" min="0" max="100" step="5" value="' + volPct(st) + '" data-bind="set-cue-volume">' +
       '</label>' +
-      '<p class="dim sm">알림음과 안내 목소리에 함께 적용됩니다. 100% 가 낼 수 있는 가장 큰 소리입니다. ' +
-        '음악 소리 자체를 줄이는 것은 브라우저가 할 수 없어, 그래도 묻히면 음악 쪽을 줄여 주세요.</p>' +
       '<button class="btn sm block" data-act="cue-test">지금 소리 들어보기</button>' +
       '<ul class="voicelist">' +
         '<li class="voicerow' + (st.voice ? '' : ' on') + '">' +
@@ -1228,7 +1226,7 @@
 
     html += '<div class="card">' +
       '<h3>데이터 백업</h3>' +
-      '<div class="row gap wrap" style="margin-top:10px">' +
+      '<div class="row gap wrap">' +
         '<button class="btn" data-act="export">백업 내보내기</button>' +
         '<button class="btn" data-act="import">파일로 가져오기</button>' +
         '<button class="btn" data-act="import-text">붙여넣기로 가져오기</button>' +
