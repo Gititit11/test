@@ -57,7 +57,7 @@
       return isFinite(x) ? Math.min(hi, Math.max(lo, x)) : null;
     }
 
-    function cleanSet(raw, type) {
+    function cleanSet(raw, type, doneDefault) {
       if (!raw || typeof raw !== 'object') return null;
       var st = {};
       if (type === 'time') {
@@ -70,16 +70,19 @@
         st.reps = Math.max(0, Math.round(n(raw.reps, 0)));
         st.weight = Math.max(0, n(raw.weight, 0));
       }
+      // 완료된 기록에 들어 있는 세트는 이미 체크된 세트다. done 이 없거나
+      // boolean 이 아니면 true 로 확정해, 읽는 쪽마다 다르게 세지 않게 한다.
       if (typeof raw.done === 'boolean') st.done = raw.done;
+      else if (doneDefault) st.done = true;
       if (raw.doneAt != null) st.doneAt = n(raw.doneAt, null);
       return st;
     }
 
-    function cleanItem(raw) {
+    function cleanItem(raw, doneDefault) {
       if (!raw || typeof raw !== 'object') { dropped++; return null; }
       var type = raw.type === 'time' ? 'time' : 'reps';
       var sets = (Array.isArray(raw.sets) ? raw.sets : [])
-        .map(function (x) { return cleanSet(x, type); })
+        .map(function (x) { return cleanSet(x, type, doneDefault); })
         .filter(Boolean);
       if (!sets.length) sets = [type === 'time' ? { sec: 60 } : { reps: 10, weight: 0 }];
       return {
@@ -101,13 +104,18 @@
         memo: str(raw.memo, ''),
         createdAt: n(raw.createdAt, Date.now()),
         updatedAt: n(raw.updatedAt, Date.now()),
-        items: (Array.isArray(raw.items) ? raw.items : []).map(cleanItem).filter(Boolean)
+        items: (Array.isArray(raw.items) ? raw.items : [])
+          .map(function (x) { return cleanItem(x, false); }).filter(Boolean)
       };
     }
 
     function cleanSession(raw) {
       if (!raw || typeof raw !== 'object') { dropped++; return null; }
-      var items = (Array.isArray(raw.items) ? raw.items : []).map(cleanItem).filter(Boolean);
+      // 진행 중인 운동(active)은 체크 여부가 그대로 살아 있어야 하므로
+      // 끝난 기록(finishedAt 이 있는 것)에만 done 기본값을 준다.
+      var isDone = raw.finishedAt != null;
+      var items = (Array.isArray(raw.items) ? raw.items : [])
+        .map(function (x) { return cleanItem(x, isDone); }).filter(Boolean);
       if (!items.length) { dropped++; return null; }      // 내용 없는 기록은 버린다
       return {
         id: str(raw.id, uid('ss')),
@@ -547,7 +555,9 @@
   Store.countSets = function (session, onlyDone) {
     var total = 0, done = 0;
     session.items.forEach(function (it) {
-      it.sets.forEach(function (s) { total++; if (s.done) done++; });
+      // 볼륨·총 횟수와 같은 기준으로 센다. done 이 명시적으로 false 일 때만
+      // 안 한 세트다 (예전 백업에는 done 이 아예 없을 수 있다).
+      it.sets.forEach(function (s) { total++; if (s.done !== false) done++; });
     });
     return onlyDone ? done : { total: total, done: done };
   };
