@@ -43,6 +43,7 @@
     'x-dumbbell-bench-press': 0.38, 'x-chest-press-machine': 0.35, 'x-pec-deck-fly': 0.40,
     'x-push-up': 0.30, 'x-chest-dip': 0.35,
     'x-overhead-press': 0.50, 'x-dumbbell-shoulder-press': 0.50, 'x-shoulder-press-machine': 0.45,
+    'x-smith-machine-shoulder-press': 0.45,
     'x-dumbbell-lateral-raise': 0.45, 'x-cable-lateral-raise': 0.45, 'x-front-raise': 0.45,
     'x-barbell-shrug': 0.12, 'x-dumbbell-shrug': 0.12,
     'x-lat-pulldown': 0.50, 'x-pull-up': 0.55, 'x-chin-up': 0.55,

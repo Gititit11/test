@@ -604,6 +604,8 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     ['덤벨 숄더 프레스', 'Dumbbell Shoulder Press', '어깨', '덤벨', '전면삼각,측면삼각', '숄프'],
     ['아놀드 프레스', 'Arnold Press', '어깨', '덤벨', '전면삼각,측면삼각', 'arnold'],
     ['숄더 프레스 머신', 'Shoulder Press Machine', '어깨', '머신', '전면삼각,측면삼각', ''],
+    ['스미스머신 숄더 프레스', 'Smith Machine Shoulder Press', '어깨', '스미스', '전면삼각,측면삼각,삼두',
+      'smith 스미스머신덤벨프레스 스미스덤벨프레스 스미스프레스 스미스숄더프레스 숄프'],
     ['사이드 레터럴 레이즈', 'Dumbbell Lateral Raise', '어깨', '덤벨', '측면삼각', 'lateralraise 사레레'],
     ['케이블 레터럴 레이즈', 'Cable Lateral Raise', '어깨', '케이블', '측면삼각', ''],
     ['레터럴 레이즈 머신', 'Lateral Raise Machine', '어깨', '머신', '측면삼각', ''],
@@ -1398,6 +1400,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     'x-dumbbell-bench-press': 0.38, 'x-chest-press-machine': 0.35, 'x-pec-deck-fly': 0.40,
     'x-push-up': 0.30, 'x-chest-dip': 0.35,
     'x-overhead-press': 0.50, 'x-dumbbell-shoulder-press': 0.50, 'x-shoulder-press-machine': 0.45,
+    'x-smith-machine-shoulder-press': 0.45,
     'x-dumbbell-lateral-raise': 0.45, 'x-cable-lateral-raise': 0.45, 'x-front-raise': 0.45,
     'x-barbell-shrug': 0.12, 'x-dumbbell-shrug': 0.12,
     'x-lat-pulldown': 0.50, 'x-pull-up': 0.55, 'x-chin-up': 0.55,
@@ -2012,7 +2015,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.30-32';
+  var APP_VERSION = '2026.08.30-33';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -3240,7 +3243,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         '<button class="btn danger" data-act="reset">전체 초기화</button>' +
       '</div></div>';
     html += '<div class="card row between">' +
-      '<span class="dim">버전 ' + APP_VERSION + ' · 내장 운동 ' + DB.builtIn.length + '종</span>' +
+      // 합쳐져서 검색에서 감춘 운동(인클라인 워킹)까지 세고 있었다
+      '<span class="dim">버전 ' + APP_VERSION + ' · 내장 운동 ' +
+        DB.builtIn.filter(function (e) { return !e.legacy; }).length + '종</span>' +
       '<button class="btn sm" data-act="check-update">업데이트 확인</button>' +
       '</div>';
     html += '</main>';

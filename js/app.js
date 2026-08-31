@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.30-32';
+  var APP_VERSION = '2026.08.30-33';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -1233,7 +1233,9 @@
         '<button class="btn danger" data-act="reset">전체 초기화</button>' +
       '</div></div>';
     html += '<div class="card row between">' +
-      '<span class="dim">버전 ' + APP_VERSION + ' · 내장 운동 ' + DB.builtIn.length + '종</span>' +
+      // 합쳐져서 검색에서 감춘 운동(인클라인 워킹)까지 세고 있었다
+      '<span class="dim">버전 ' + APP_VERSION + ' · 내장 운동 ' +
+        DB.builtIn.filter(function (e) { return !e.legacy; }).length + '종</span>' +
       '<button class="btn sm" data-act="check-update">업데이트 확인</button>' +
       '</div>';
     html += '</main>';

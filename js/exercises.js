@@ -61,6 +61,8 @@
     ['덤벨 숄더 프레스', 'Dumbbell Shoulder Press', '어깨', '덤벨', '전면삼각,측면삼각', '숄프'],
     ['아놀드 프레스', 'Arnold Press', '어깨', '덤벨', '전면삼각,측면삼각', 'arnold'],
     ['숄더 프레스 머신', 'Shoulder Press Machine', '어깨', '머신', '전면삼각,측면삼각', ''],
+    ['스미스머신 숄더 프레스', 'Smith Machine Shoulder Press', '어깨', '스미스', '전면삼각,측면삼각,삼두',
+      'smith 스미스머신덤벨프레스 스미스덤벨프레스 스미스프레스 스미스숄더프레스 숄프'],
     ['사이드 레터럴 레이즈', 'Dumbbell Lateral Raise', '어깨', '덤벨', '측면삼각', 'lateralraise 사레레'],
     ['케이블 레터럴 레이즈', 'Cable Lateral Raise', '어깨', '케이블', '측면삼각', ''],
     ['레터럴 레이즈 머신', 'Lateral Raise Machine', '어깨', '머신', '측면삼각', ''],
