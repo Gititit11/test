@@ -77,7 +77,8 @@
     return '' +
       '<div class="glass' + (over ? ' full' : '') + '">' +
         '<div class="water" style="height:' + pct + '%">' +
-          '<div class="wave"></div><div class="wave two"></div>' +
+          // 0% 일 때 물결까지 그리면 바닥에 물이 조금 남은 것처럼 보인다
+          (pct > 0 ? '<div class="wave"></div><div class="wave two"></div>' : '') +
         '</div>' +
         '<div class="glass-face">' +
           '<div class="glass-pct">' + pct + '<span>%</span></div>' +
