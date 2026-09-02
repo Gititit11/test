@@ -233,6 +233,7 @@
   function fire() {
     var now = Date.now();
     var away = document.hidden || !document.hasFocus();
+    var at = pendingAt(now);         // 원래 울렸어야 할 시각 (소비하기 전에 붙잡는다)
 
     /* 화면을 안 보고 있는데 알림 권한도 없으면 알릴 방법이 아예 없다.
        그런데도 "알렸다" 고 표시해 버리면 그 알림은 조용히 사라지고 다음 알림까지
@@ -247,7 +248,10 @@
       // 앱을 보고 있는데 시스템 알림까지 띄우면 성가시다. 화면 안에서만 알린다.
       beep();
       if (Store.settings().vibrate && navigator.vibrate) navigator.vibrate([80, 50, 80]);
-      if (onNudge) onNudge(body());
+      // 앱이 잠들어 있던 사이에 지나간 알림이라면 언제 것인지 밝힌다.
+      // 그냥 "물 마셔" 만 뜨면 "왜 지금 뜨지?" 하고 앱을 의심하게 된다.
+      var late = at && (now - at > 120000);
+      if (onNudge) onNudge((late ? label(at) + ' 알림 · ' : '') + body());
     }
     sync();
   }
@@ -381,9 +385,22 @@
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // 아이패드
   }
 
-  /* 앱을 완전히 닫은 동안에도 부를 수 있는 수단이 있는가.
-     안드로이드 크롬의 주기 동기화가 유일한데, 그마저 시각을 보장하지 않는다. */
-  function background() {
+  /* 앱을 화면에서 내려놓은 동안에도 정한 시각에 부를 수 있는가.
+   *
+   * 답은 어느 기기에서도 "아니오" 다. 브라우저는 화면에서 내려간 페이지의
+   * 타이머를 늦추다가 이내 통째로 잠재운다(freeze). 잠든 페이지는 아무것도
+   * 하지 못하므로 시각이 되어도 부를 수 없고, 앱으로 돌아오는 순간에야 깨어나
+   * 밀린 알림을 알린다 — 실제로 그렇게 동작한다.
+   *
+   * 안드로이드에는 주기 동기화(periodicSync)가 있지만 브라우저가 정하는
+   * 간격이 몇 시간 단위라 "물 마실 시간" 알림으로 쓸 수 없다. 등록은 해 두되
+   * (가끔이라도 깨어나면 그만큼 이득이다) 화면에는 된다고 적지 않는다.
+   * 화면이 실제보다 후하게 약속하면 "알림이 안 온다" 는 신고로 돌아온다.
+   */
+  function background() { return false; }
+
+  /* 주기 동기화를 쓸 수 있는 기기인가 (덤으로 얻는 기회일 뿐, 약속이 아니다) */
+  function occasionalWake() {
     try {
       return !isIOS() && 'periodicSync' in ServiceWorkerRegistration.prototype;
     } catch (e) { return false; }
@@ -398,6 +415,7 @@
       ios: isIOS(),
       sw: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
       background: background(),
+      occasionalWake: occasionalWake(),
       secure: window.isSecureContext !== false,
       lastFired: r.lastFired || 0,
       nextAt: r.on ? nextAt(Date.now()) : 0
@@ -472,7 +490,8 @@
     drainPending: drainPending, registerPeriodic: registerPeriodic,
     unlockAudio: unlockAudio, beep: beep,
     label: label, untilText: untilText,
-    diagnose: diagnose, standalone: standalone, isIOS: isIOS, background: background,
+    diagnose: diagnose, standalone: standalone, isIOS: isIOS,
+    background: background, occasionalWake: occasionalWake,
     plannedTimes: plannedTimes, ics: ics
   };
 })(window);
