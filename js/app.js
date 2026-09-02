@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.30-33';
+  var APP_VERSION = '2026.08.30-34';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -1814,9 +1814,34 @@
     }
   });
 
+  /* 인트로 정리. 띄울지 말지는 index.html 의 인라인 스크립트가 첫 페인트 전에
+   * 이미 정했다. 여기서는 다 돌면 치우고, 그 전에 누르면 바로 치운다.
+   * 앱은 이 덮개 아래에서 이미 그려져 있으므로 인트로가 대기 시간을 만들지 않는다. */
+  var INTRO_MS = 1200;
+  function setupIntro() {
+    var el = document.getElementById('intro');
+    if (!el || el.hidden) return;
+    el.style.setProperty('--intro-d', INTRO_MS + 'ms');
+    var done = false;
+    function close() {
+      if (done) return;
+      done = true;
+      el.classList.add('done');
+      el.hidden = true;
+    }
+    // 급할 때 붙잡히지 않도록 아무 데나 누르면 걷힌다
+    el.addEventListener('pointerdown', close);
+    setTimeout(close, INTRO_MS);
+    // 탭이 가려진 채로 흘러가면 타이머가 밀릴 수 있어 돌아올 때 한 번 더 본다
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) close();
+    });
+  }
+
   // 시작
   route = parseHash();
   if (!location.hash) location.hash = '#/routines';
   restoreRest();
   render();
+  setupIntro();
 })();

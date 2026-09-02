@@ -533,9 +533,99 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .field.vol input[type="range"] { width: 100%; accent-color: var(--brand); }
 .dim.sm { font-size: 12px; margin: 6px 0 10px; }
 
+/* ── 인트로 ─────────────────────────────────────────────
+   앱을 완전히 껐다 켰을 때만 뜬다. 앱은 이 덮개 아래에서 이미 다 떠 있으므로
+   인트로가 실제 대기 시간을 만들지 않는다. 아무 데나 누르면 즉시 걷힌다.
+   원판은 실제로 끼우는 순서대로 안쪽 큰 것 → 바깥쪽 작은 것. */
+.intro {
+  position: fixed; inset: 0; z-index: 300;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px;
+  animation: intro-veil var(--intro-d, 1200ms) linear both;
+}
+.intro[hidden] { display: none; }
+.intro.done { display: none; }
+@keyframes intro-veil { 0%, 88% { opacity: 1; } 100% { opacity: 0; } }
+
+.intro-mark { width: 58%; max-width: 190px; overflow: visible; }
+.intro-bar { fill: #5c6579; }
+.intro-plate.in  { fill: var(--brand); }
+.intro-plate.out { fill: #3a5fd4; }
+
+.intro-bar-g {
+  transform-box: fill-box; transform-origin: center;
+  animation: intro-lift calc(var(--intro-d, 1200ms) * .3)
+             cubic-bezier(.34, 1.3, .5, 1) calc(var(--intro-d, 1200ms) * .5) both;
+}
+@keyframes intro-lift {
+  0%   { transform: translateY(0); }
+  55%  { transform: translateY(-7px); }
+  100% { transform: translateY(-4px); }
+}
+
+.intro-bar { animation: intro-bar-in calc(var(--intro-d, 1200ms) * .16) ease-out both; }
+@keyframes intro-bar-in {
+  from { opacity: 0; transform: scaleX(.86); }
+  to   { opacity: 1; transform: none; }
+}
+
+.intro-plate { animation: intro-slot-l calc(var(--intro-d, 1200ms) * .26) cubic-bezier(.3, 1.5, .5, 1) both; }
+.intro-plate.r { animation-name: intro-slot-r; }
+.intro-plate.in  { animation-delay: calc(var(--intro-d, 1200ms) * .12); }
+.intro-plate.out { animation-delay: calc(var(--intro-d, 1200ms) * .28); }
+@keyframes intro-slot-l { from { opacity: 0; transform: translateX(-46px); } to { opacity: 1; transform: none; } }
+@keyframes intro-slot-r { from { opacity: 0; transform: translateX(46px); }  to { opacity: 1; transform: none; } }
+
+.intro-word {
+  font-size: 21px; font-weight: 700; letter-spacing: -.01em; color: var(--text);
+  animation: intro-rise calc(var(--intro-d, 1200ms) * .26)
+             cubic-bezier(.2, .7, .3, 1) calc(var(--intro-d, 1200ms) * .62) both;
+}
+@keyframes intro-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .intro { display: none; }
+}
+
 </style>
 </head>
 <body>
+  <!-- 앱을 완전히 껐다 켰을 때만 보이는 인트로.
+       markup 을 여기 두는 이유는 첫 페인트에 바로 나오게 하기 위해서다.
+       app.js 를 기다리면 빈 화면이 한 번 스친다. -->
+  <div id="intro" class="intro" hidden aria-hidden="true">
+    <svg class="intro-mark" viewBox="0 0 200 104">
+      <g class="intro-bar-g">
+        <rect class="intro-bar" x="22" y="47" width="156" height="10" rx="5"/>
+        <rect class="intro-plate in  l" x="52"  y="24" width="15" height="56" rx="6"/>
+        <rect class="intro-plate out l" x="36"  y="33" width="12" height="38" rx="5"/>
+        <rect class="intro-plate in  r" x="133" y="24" width="15" height="56" rx="6"/>
+        <rect class="intro-plate out r" x="152" y="33" width="12" height="38" rx="5"/>
+      </g>
+    </svg>
+    <div class="intro-word">GymMate</div>
+  </div>
+  <script>
+    /* 인트로를 띄울지 첫 페인트 전에 정한다.
+       sessionStorage 는 앱(탭)을 완전히 닫으면 지워지고, 새로고침이나
+       안드로이드가 메모리에서 잠시 내렸다 복구할 때는 남는다. 그래서
+       "휴식 중에 유튜브 보고 돌아옴" 과 "앱을 껐다가 다시 켬" 이 갈린다. */
+    (function () {
+      var el = document.getElementById('intro');
+      try {
+        var seen = sessionStorage.getItem('gm.intro');
+        sessionStorage.setItem('gm.intro', '1');
+        if (seen) return;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
+        var raw = localStorage.getItem('gymmate.v1');
+        if (raw && /"active"\s*:\s*\{/.test(raw)) return;
+        el.hidden = false;
+      } catch (e) { /* 저장소가 막혀 있으면 그냥 건너뛴다 */ }
+    })();
+  </script>
+
   <div id="app"></div>
   <div id="modal" class="modal"></div>
   <div id="toast" class="toast-root"></div>
@@ -2015,7 +2105,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.08.30-33';
+  var APP_VERSION = '2026.08.30-34';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -3824,11 +3914,36 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     }
   });
 
+  /* 인트로 정리. 띄울지 말지는 index.html 의 인라인 스크립트가 첫 페인트 전에
+   * 이미 정했다. 여기서는 다 돌면 치우고, 그 전에 누르면 바로 치운다.
+   * 앱은 이 덮개 아래에서 이미 그려져 있으므로 인트로가 대기 시간을 만들지 않는다. */
+  var INTRO_MS = 1200;
+  function setupIntro() {
+    var el = document.getElementById('intro');
+    if (!el || el.hidden) return;
+    el.style.setProperty('--intro-d', INTRO_MS + 'ms');
+    var done = false;
+    function close() {
+      if (done) return;
+      done = true;
+      el.classList.add('done');
+      el.hidden = true;
+    }
+    // 급할 때 붙잡히지 않도록 아무 데나 누르면 걷힌다
+    el.addEventListener('pointerdown', close);
+    setTimeout(close, INTRO_MS);
+    // 탭이 가려진 채로 흘러가면 타이머가 밀릴 수 있어 돌아올 때 한 번 더 본다
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) close();
+    });
+  }
+
   // 시작
   route = parseHash();
   if (!location.hash) location.hash = '#/routines';
   restoreRest();
   render();
+  setupIntro();
 })();
 
 </script>
