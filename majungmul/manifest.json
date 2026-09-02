@@ -1,0 +1,26 @@
+{
+  "id": "/majungmul/",
+  "name": "마중물 · 물 마시기 기록",
+  "short_name": "마중물",
+  "description": "마신 물의 양과 횟수를 기록하고, 정해진 시간에 물 마시라고 알려 주는 앱",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#0b1016",
+  "theme_color": "#0b1016",
+  "lang": "ko",
+  "dir": "ltr",
+  "categories": ["health", "lifestyle"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "한 잔 기록", "url": "./#/home" },
+    { "name": "알림 설정", "url": "./#/remind" }
+  ]
+}
