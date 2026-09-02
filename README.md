@@ -120,6 +120,13 @@ node tools/build-single.js      # → dist/gymmate.html (CSS·JS 가 모두 들�
 - **버전 확인을 여기에 얹었습니다.** 인트로가 도는 동안 서비스워커가 새 버전을 확인합니다.
   어차피 기다리는 1.2초라 사용자가 따로 기다릴 일이 없습니다. 화면에는 아무것도 알리지 않습니다
 - markup 을 `index.html` 에 직접 두었습니다. `app.js` 를 기다리면 빈 화면이 한 번 스칩니다
+- **앱 아이콘과 같은 아령입니다.** 아이콘은 인트로와 똑같은 좌표·색으로 `tools/build-icons.js`
+  가 만듭니다. 인트로 모양을 고치면 그 스크립트의 `PLATES` 도 같이 고치고 다시 돌리세요
+
+```
+node tools/build-icons.js            # 아이콘 4종 + 원본 SVG 2종을 다시 만든다
+node tools/build-icons.js --preview  # icons/ 를 건드리지 않고 미리보기만
+```
 - 타이밍: 봉 0–192ms · 안쪽 원판 144–456ms · 바깥 원판 336–648ms · 봉 들림 600–960ms ·
   워드마크 744–1056ms · 덮개 걷힘 1056–1200ms
 
@@ -280,6 +287,7 @@ licenses/                   원저작물 라이선스 전문·고지
 js/store.js                 localStorage 저장소 · 루틴/세션/기록 CRUD
 js/app.js                   라우팅 · 화면 렌더링 · 휴식 타이머 · Wake Lock
 tools/build-single.js       CSS·JS 를 끼워 넣어 단일 파일로 만드는 스크립트
+tools/build-icons.js        앱 아이콘 생성 (인트로와 같은 아령 좌표를 씀)
 dist/gymmate.html           그 결과물 (파일 하나짜리 앱)
 .github/workflows/pages.yml GitHub Pages 자동 배포
 ```
