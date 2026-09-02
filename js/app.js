@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-38';
+  var APP_VERSION = '2026.09.02-39';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -1208,10 +1208,19 @@
         }).join('') +
       '</ul></div>';
 
+    var reduceOn = false;
+    try { reduceOn = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
     html += '<div class="card">' +
       '<h3>실행 인트로</h3>' +
       '<p class="dim sm">앱을 완전히 껐다 켤 때만 나옵니다.</p>' +
       '<button class="btn sm block" data-act="intro-test">인트로 다시 보기</button>' +
+      // 안 보인다는 신고가 있어 기기 설정을 그대로 보여 준다.
+      // 이게 켜져 있으면 앱을 켤 때 인트로가 뜨지 않는 것이 정상이다.
+      '<p class="dim sm">이 기기의 <b>동작 줄이기</b>: ' +
+        (reduceOn
+          ? '<b>켜짐</b> — 켤 때는 인트로가 나오지 않습니다 (설정 → 손쉬운 사용 → 동작). ' +
+            '다시 보기는 움직임 없이 보여 줍니다.'
+          : '꺼짐') + '</p>' +
       '</div>';
 
     html += '<div class="card">' +

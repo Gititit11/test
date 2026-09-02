@@ -544,11 +544,15 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
    앱을 완전히 껐다 켰을 때만 뜬다. 앱은 이 덮개 아래에서 이미 다 떠 있으므로
    인트로가 실제 대기 시간을 만들지 않는다.
 
-   두 가지를 못박아 둔다.
-   1) pointer-events: none — 덮개가 남더라도 터치를 가로채지 않는다.
-      장식 하나 때문에 앱을 못 쓰는 일이 없어야 한다
-   2) 시간은 CSS 에 직접 적는다. var/calc 로 받으면 그 값이 안 오는 순간
-      애니메이션이 통째로 멈춰 검은 화면이 남는다
+   설계 원칙: 아무것도 안 보이는 상태가 절대 나오면 안 된다.
+   - 기본 상태를 "다 보이는 아령" 으로 둔다. 애니메이션은 그 위에 얹는다.
+     전에는 반대로 두고(opacity:0 에서 시작) 애니메이션이 채워 넣게 했는데,
+     그러면 애니메이션이 안 도는 순간 검은 화면만 남는다. 실제로 아이폰에서
+     그렇게 됐다. 지금은 최악의 경우에도 정지된 아령이 보인다
+   - 애니메이션은 모션 줄이기를 켜지 않은 기기에서만 얹는다
+   - 덮개는 pointer-events: none. 남더라도 터치를 가로채지 않는다
+   - 시간은 CSS 에 직접 적는다. var/calc 로 받으면 그 값이 안 오는 순간
+     애니메이션이 멈춘다
    원판은 실제로 끼우는 순서대로 안쪽 큰 것 → 바깥쪽 작은 것. */
 .intro {
   position: fixed; inset: 0; z-index: 300;
@@ -556,51 +560,51 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 16px;
   pointer-events: none;
-  animation: intro-veil 1200ms linear forwards;
 }
 .intro[hidden] { display: none; }
-@keyframes intro-veil {
-  0%, 88% { opacity: 1; }
-  100%    { opacity: 0; visibility: hidden; }
-}
 
 .intro-mark { width: 58%; max-width: 190px; overflow: visible; }
 .intro-bar { fill: #5c6579; }
 .intro-plate.in  { fill: var(--brand); }
 .intro-plate.out { fill: #3a5fd4; }
-
-.intro-bar-g {
-  transform-box: fill-box; transform-origin: center;
-  animation: intro-lift 360ms cubic-bezier(.34, 1.3, .5, 1) 600ms both;
-}
-@keyframes intro-lift {
-  0%   { transform: translateY(0); }
-  55%  { transform: translateY(-7px); }
-  100% { transform: translateY(-4px); }
-}
-
-.intro-bar { animation: intro-bar-in 192ms ease-out both; }
-@keyframes intro-bar-in {
-  from { opacity: 0; transform: scaleX(.86); }
-  to   { opacity: 1; transform: none; }
-}
-
-.intro-plate { animation: intro-slot-l 312ms cubic-bezier(.3, 1.5, .5, 1) both; }
-.intro-plate.r { animation-name: intro-slot-r; }
-.intro-plate.in  { animation-delay: 144ms; }
-.intro-plate.out { animation-delay: 336ms; }
-@keyframes intro-slot-l { from { opacity: 0; transform: translateX(-46px); } to { opacity: 1; transform: none; } }
-@keyframes intro-slot-r { from { opacity: 0; transform: translateX(46px); }  to { opacity: 1; transform: none; } }
-
 .intro-word {
   font-size: 21px; font-weight: 700; letter-spacing: -.01em; color: var(--text);
-  animation: intro-rise 312ms cubic-bezier(.2, .7, .3, 1) 744ms both;
 }
-@keyframes intro-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
-/* 모션을 끈 기기에서는 아예 뜨지 않는다 */
-@media (prefers-reduced-motion: reduce) {
-  .intro { display: none; }
+/* 여기서부터가 움직임. 기기가 모션을 허용할 때만 얹는다. */
+@media (prefers-reduced-motion: no-preference) {
+  .intro { animation: intro-veil 1200ms linear forwards; }
+  @keyframes intro-veil {
+    0%   { opacity: 1; visibility: visible; }
+    88%  { opacity: 1; visibility: visible; }
+    100% { opacity: 0; visibility: hidden; }
+  }
+
+  .intro-bar-g {
+    transform-box: fill-box; transform-origin: center;
+    animation: intro-lift 360ms cubic-bezier(.34, 1.3, .5, 1) 600ms both;
+  }
+  @keyframes intro-lift {
+    0%   { transform: translateY(0); }
+    55%  { transform: translateY(-7px); }
+    100% { transform: translateY(-4px); }
+  }
+
+  .intro-bar { animation: intro-bar-in 192ms ease-out both; }
+  @keyframes intro-bar-in {
+    from { opacity: 0; transform: scaleX(.86); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .intro-plate { animation: intro-slot-l 312ms cubic-bezier(.3, 1.5, .5, 1) both; }
+  .intro-plate.r { animation-name: intro-slot-r; }
+  .intro-plate.in  { animation-delay: 144ms; }
+  .intro-plate.out { animation-delay: 336ms; }
+  @keyframes intro-slot-l { from { opacity: 0; transform: translateX(-46px); } to { opacity: 1; transform: none; } }
+  @keyframes intro-slot-r { from { opacity: 0; transform: translateX(46px); }  to { opacity: 1; transform: none; } }
+
+  .intro-word { animation: intro-rise 312ms cubic-bezier(.2, .7, .3, 1) 744ms both; }
+  @keyframes intro-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 }
 
 </style>
@@ -2177,7 +2181,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-38';
+  var APP_VERSION = '2026.09.02-39';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -3380,10 +3384,19 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         }).join('') +
       '</ul></div>';
 
+    var reduceOn = false;
+    try { reduceOn = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
     html += '<div class="card">' +
       '<h3>실행 인트로</h3>' +
       '<p class="dim sm">앱을 완전히 껐다 켤 때만 나옵니다.</p>' +
       '<button class="btn sm block" data-act="intro-test">인트로 다시 보기</button>' +
+      // 안 보인다는 신고가 있어 기기 설정을 그대로 보여 준다.
+      // 이게 켜져 있으면 앱을 켤 때 인트로가 뜨지 않는 것이 정상이다.
+      '<p class="dim sm">이 기기의 <b>동작 줄이기</b>: ' +
+        (reduceOn
+          ? '<b>켜짐</b> — 켤 때는 인트로가 나오지 않습니다 (설정 → 손쉬운 사용 → 동작). ' +
+            '다시 보기는 움직임 없이 보여 줍니다.'
+          : '꺼짐') + '</p>' +
       '</div>';
 
     html += '<div class="card">' +
