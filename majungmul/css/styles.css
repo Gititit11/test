@@ -333,18 +333,82 @@ button { font: inherit; color: inherit; }
 }
 .toast-btn { border: 0; background: transparent; color: var(--brand-2); font-weight: 700; cursor: pointer; padding: 0; }
 
-/* 인트로 */
+/* 인트로 — 물방울이 똑 떨어져 파문이 이는 장면 */
 .intro {
   position: fixed; inset: 0; z-index: 90;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-  background: var(--bg); pointer-events: none;
-  animation: introOut .35s ease-in 0.9s both;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: var(--bg);
+  pointer-events: none;          /* 어떤 경우에도 앱을 막지 않는다 */
 }
-.intro-mark { width: 96px; height: 120px; }
-.intro-drop { fill: var(--brand); animation: drop .9s cubic-bezier(.4,0,.3,1) both; }
-.intro-pool { fill: var(--deep); transform-origin: 50% 100%; animation: pool .5s ease-out .55s both; }
-.intro-word { font-size: 22px; font-weight: 800; letter-spacing: 0.02em; animation: fadeUp .5s ease-out .35s both; }
-@keyframes drop { 0% { transform: translateY(-38px) scaleY(.7); opacity: 0; } 60% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } }
-@keyframes pool { from { transform: scaleX(.2); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
-@keyframes fadeUp { from { transform: translateY(8px); opacity: 0; } }
+.intro-mark { width: 120px; height: 140px; overflow: visible; }
+.intro-word {
+  font-size: 22px; font-weight: 800; letter-spacing: 0.04em; color: var(--text);
+}
+
+/* 정지 상태(동작 줄이기)에서는 물방울과 수면만 보여 준다.
+   파문과 튀는 물방울은 움직임이 있어야 뜻이 통하는 그림이라 감춘다. */
+.intro:not(.anim) .mj-ring,
+.intro:not(.anim) .mj-bit { display: none; }
+
+.mj-drop { fill: var(--brand); }
+.mj-pool { fill: var(--deep); opacity: .55; }
+.mj-ring { fill: none; stroke: var(--brand-2); stroke-width: 2; opacity: 0; }
+.mj-bit  { fill: var(--brand-2); opacity: 0; }
+
+/* SVG 도형을 제자리에서 늘이고 줄이려면 자기 상자를 기준으로 삼아야 한다 */
+.mj-fall, .mj-drop, .mj-ring, .mj-bit, .mj-pool { transform-box: fill-box; transform-origin: 50% 50%; }
+.mj-drop { transform-origin: 50% 100%; }   /* 부딪히는 순간 아래를 축으로 눌린다 */
+
+.intro.anim .mj-fall { animation: mjFall .46s cubic-bezier(.45, 0, .9, .4) both; }
+.intro.anim .mj-drop { animation: mjSquash .16s ease-out .44s both; }
+.intro.anim .mj-pool { animation: mjPool .5s ease-out .44s both; }
+.intro.anim .mj-ring.r1 { animation: mjRing .75s cubic-bezier(.2, .6, .3, 1) .46s both; }
+.intro.anim .mj-ring.r2 { animation: mjRing2 .75s cubic-bezier(.2, .6, .3, 1) .60s both; }
+.intro.anim .mj-bit.l { animation: mjBitL .55s cubic-bezier(.3, .1, .6, 1) .45s both; }
+.intro.anim .mj-bit.r { animation: mjBitR .5s  cubic-bezier(.3, .1, .6, 1) .47s both; }
+.intro.anim .intro-word { animation: mjWord .45s ease-out .58s both; }
+.intro.anim { animation: introOut .3s ease-in 1.15s both; }
+.intro:not(.anim) { animation: introOut .25s ease-in .6s both; }
+
+/* 위에서 떨어지며 점점 빨라지고, 빨라질수록 길쭉해진다 */
+@keyframes mjFall {
+  0%   { transform: translateY(-96px) scaleY(.9); opacity: 0; }
+  15%  { opacity: 1; }
+  70%  { transform: translateY(-2px) scaleY(1.14); }
+  100% { transform: translateY(16px) scaleY(1); opacity: 1; }
+}
+/* 수면에 닿는 순간 납작하게 눌리며 사라진다 */
+@keyframes mjSquash {
+  0%   { transform: scale(1, 1); opacity: 1; }
+  60%  { transform: scale(1.5, .28); opacity: .7; }
+  100% { transform: scale(1.9, .1); opacity: 0; }
+}
+/* 수면이 한 번 출렁 */
+@keyframes mjPool {
+  0%   { transform: scaleX(1); opacity: .55; }
+  25%  { transform: scaleX(1.1); opacity: .8; }
+  100% { transform: scaleX(1); opacity: .55; }
+}
+@keyframes mjRing {
+  0%   { transform: scale(.35); opacity: .95; stroke-width: 3; }
+  100% { transform: scale(3.6); opacity: 0; stroke-width: 1; }
+}
+@keyframes mjRing2 {
+  0%   { transform: scale(.35); opacity: .6; stroke-width: 2.4; }
+  100% { transform: scale(2.5); opacity: 0; stroke-width: 1; }
+}
+/* 부딪힌 자리에서 물방울 두 개가 튀어 올랐다 떨어진다 */
+@keyframes mjBitL {
+  0%   { transform: translate(0, 0) scale(.4); opacity: 0; }
+  20%  { opacity: 1; }
+  55%  { transform: translate(-15px, -26px) scale(1); opacity: 1; }
+  100% { transform: translate(-24px, 2px) scale(.5); opacity: 0; }
+}
+@keyframes mjBitR {
+  0%   { transform: translate(0, 0) scale(.4); opacity: 0; }
+  20%  { opacity: 1; }
+  55%  { transform: translate(13px, -19px) scale(1); opacity: 1; }
+  100% { transform: translate(20px, 2px) scale(.5); opacity: 0; }
+}
+@keyframes mjWord { from { transform: translateY(9px); opacity: 0; } }
 @keyframes introOut { to { opacity: 0; visibility: hidden; } }

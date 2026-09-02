@@ -18,7 +18,8 @@
       cup: 200,            // "몇 잔" 으로 보여줄 때의 한 잔 기준
       dayStart: 4,         // 하루의 시작 시각. 새벽 3시에 마신 물은 전날 것으로 친다
       sound: true,
-      vibrate: true
+      vibrate: true,
+      intro: 'auto'        // 실행 인트로: auto = 기기의 동작 줄이기를 따름 / on / off
     },
     remind: {
       on: false,
@@ -50,6 +51,7 @@
       var s = clone(DEFAULT);
       if (Array.isArray(p.logs)) s.logs = p.logs.filter(isLog).map(cleanLog);
       s.settings = Object.assign(s.settings, p.settings || {});
+      if (['auto', 'on', 'off'].indexOf(s.settings.intro) < 0) s.settings.intro = 'auto';
       s.remind = Object.assign(s.remind, p.remind || {});
       return s;
     } catch (e) {

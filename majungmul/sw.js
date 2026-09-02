@@ -7,7 +7,7 @@
  * 알림 계획(언제 부를지)은 페이지가 Cache Storage 에 넣어 둔다.
  * 서비스워커는 localStorage 를 볼 수 없어서 이렇게 나눠 갖는다.
  */
-var CACHE = 'majungmul-v2';
+var CACHE = 'majungmul-v3';
 var STATE = 'majungmul-state';
 var SCHED = './__sched';
 var PEND = './__pending';

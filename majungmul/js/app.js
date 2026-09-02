@@ -193,6 +193,53 @@
       '</div>';
   }
 
+  /* 실행 인트로 설정. 아이폰에서 "안 보인다" 는 대개 기기의 동작 줄이기가
+     켜져 있어서인데, 화면에 드러나지 않으면 알 길이 없다. 지금 상태를 그대로 적는다. */
+  function introCard() {
+    var mode = Store.settings().intro || 'auto';
+    var reduce = false;
+    try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { }
+    var willAnim = mode === 'on' || (mode === 'auto' && !reduce);
+    var opt = [['auto', '기기 설정'], ['on', '항상 보기'], ['off', '사용 안 함']].map(function (o) {
+      return '<button class="' + (mode === o[0] ? 'on' : '') + '" data-act="set-intro" data-v="' + o[0] + '">' +
+        o[1] + '</button>';
+    }).join('');
+    return '<div class="card">' +
+      '<h3>실행 인트로</h3>' +
+      '<div class="seg">' + opt + '</div>' +
+      '<button class="btn ghost block" data-act="intro-test">인트로 다시 보기</button>' +
+      '<p class="dim">앱을 완전히 껐다 켤 때 물방울이 떨어지는 장면이 잠깐 보여요. ' +
+        '기기의 <b>동작 줄이기</b>가 ' + (reduce ? '<b>켜져</b> 있어서' : '꺼져 있어서') +
+        ' 지금 설정으로는 ' + (willAnim ? '움직이는 인트로가 보여요.' :
+          (mode === 'off' ? '인트로가 뜨지 않아요.' : '움직임 없이 그림만 보여요.')) +
+        (mode === 'auto' && reduce ? ' 움직임을 보고 싶으면 <b>항상 보기</b>를 고르세요.' : '') +
+      '</p>' +
+    '</div>';
+  }
+
+  /* 인트로를 다시 보여 준다. 실제 실행 때와 같은 마크업·CSS 를 쓰므로,
+     이게 되는데 앱 켤 때 안 나온다면 문제는 애니메이션이 아니라 조건 쪽이다. */
+  function playIntro() {
+    var html = window.__introHTML;
+    if (!html) { toast('인트로를 불러올 수 없어요'); return; }
+    var old = document.getElementById('intro');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var box = document.createElement('div');
+    box.innerHTML = html;
+    var el = box.firstChild;
+    el.hidden = false;
+    var reduce = false;
+    try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { }
+    // 눌러서 보겠다는 뜻이므로 "사용 안 함" 이어도 보여 준다.
+    // 움직임은 기기가 허용하거나 사용자가 "항상 보기" 를 고른 경우
+    if (!reduce || Store.settings().intro === 'on') el.className += ' anim';
+    document.body.appendChild(el);
+    function drop() { if (el && el.parentNode) el.parentNode.removeChild(el); el = null; }
+    setTimeout(drop, 1600);
+    setTimeout(drop, 3500);
+    document.addEventListener('pointerdown', drop, { once: true });
+  }
+
   function stat(label, value, sub) {
     return '<div class="stat"><div class="stat-v">' + esc(value) + '</div>' +
       '<div class="stat-l">' + esc(label) + '</div><div class="stat-s">' + esc(sub) + '</div></div>';
@@ -332,6 +379,7 @@
           '</div>' +
           '<input type="file" accept="application/json,.json" id="importFile" hidden>' +
         '</div>' +
+        introCard() +
         '<div class="card about">' +
           '<h3>마중물</h3>' +
           '<p class="dim">펌프에서 물이 나오게 하려고 먼저 붓는 한 바가지의 물이 마중물이에요. ' +
@@ -572,6 +620,8 @@
       if (!confirm('지금까지의 물 기록을 모두 지울까요? 되돌릴 수 없어요.')) return;
       Store.reset(); Remind.sync(); render(); toast('전부 지웠어요');
     },
+    'set-intro': function (b) { Store.setSettings({ intro: b.dataset.v }); render(); },
+    'intro-test': function () { playIntro(); },
     'modal-close': function () { closeModal(); }
   };
 

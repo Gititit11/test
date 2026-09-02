@@ -19,10 +19,22 @@
   <!-- 앱을 완전히 껐다 켰을 때만 보이는 인트로.
        markup 을 여기 두는 이유는 첫 페인트에 바로 나오게 하기 위해서다.
        app.js 를 기다리면 빈 화면이 한 번 스친다. -->
+  <!-- 앱을 껐다 켰을 때만 보이는 인트로 — 물방울이 떨어져 파문이 이는 장면.
+       markup 을 여기 두는 이유는 첫 페인트에 바로 나오게 하기 위해서다.
+       app.js 를 기다리면 빈 화면이 한 번 스친다. -->
   <div id="intro" class="intro" hidden aria-hidden="true">
-    <svg class="intro-mark" viewBox="0 0 80 100">
-      <path class="intro-drop" d="M40 6 C 40 6, 64 38, 64 56 a 24 24 0 0 1 -48 0 C 16 38, 40 6, 40 6 Z"/>
-      <ellipse class="intro-pool" cx="40" cy="92" rx="30" ry="5"/>
+    <svg class="intro-mark" viewBox="0 0 120 140">
+      <!-- 떨어지는 물방울 -->
+      <g class="mj-fall">
+        <path class="mj-drop" d="M60 34 C60 34, 78 57, 78 70 a18 18 0 0 1 -36 0 C42 57, 60 34, 60 34 Z"/>
+      </g>
+      <!-- 수면과 파문 -->
+      <ellipse class="mj-pool" cx="60" cy="104" rx="34" ry="4.5"/>
+      <ellipse class="mj-ring r1" cx="60" cy="104" rx="11" ry="3.6"/>
+      <ellipse class="mj-ring r2" cx="60" cy="104" rx="11" ry="3.6"/>
+      <!-- 튀어 오르는 물방울 -->
+      <circle class="mj-bit l" cx="60" cy="102" r="3"/>
+      <circle class="mj-bit r" cx="60" cy="102" r="2.2"/>
     </svg>
     <div class="intro-word">마중물</div>
   </div>
@@ -35,12 +47,12 @@
      *   - 걷는 타이머를 여기(가장 먼저 실행되는 곳)에 두고
      *   - 덮개는 터치를 아예 받지 않으며(pointer-events:none)
      *   - 혹시 몰라 3초 뒤 통째로 DOM 에서 지우는 그물을 하나 더 둔다
-     *
-     * 띄울지 말지는 sessionStorage 로 가른다. 앱(탭)을 완전히 닫으면
-     * 지워지고, 새로고침이나 잠깐 다른 앱에 다녀올 때는 남는다. */
+     */
     (function () {
       var el = document.getElementById('intro');
       if (!el) return;
+      // 설정에서 다시 볼 수 있도록 원본을 남겨 둔다 (아래에서 통째로 지우므로)
+      window.__introHTML = el.outerHTML;
 
       function hide() {
         if (!el) return;
@@ -49,21 +61,48 @@
         el = null;
       }
 
-      var show = false;
+      var show = false, anim = false;
       try {
+        /* 껐다 켠 것인지(콜드 스타트) 두 가지로 본다.
+           1) sessionStorage — 탭을 완전히 닫으면 지워진다. 안드로이드에서 정확하다
+           2) 마지막으로 살아 있던 시각 — 아이폰 홈 화면 앱은 껐다 켜도
+              sessionStorage 가 남는 경우가 있어 1)만으로는 영영 안 뜬다.
+              문서가 새로 뜬 시점에 마지막 흔적이 5분보다 오래됐으면 껐다 켠 것으로 본다 */
         var seen = sessionStorage.getItem('mj.intro');
         sessionStorage.setItem('mj.intro', '1');
-        show = !seen && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var last = +(localStorage.getItem('mj.alive') || 0);
+        var cold = !seen || !last || (Date.now() - last > 300000);
+
+        /* 설정: auto = 기기의 동작 줄이기를 따름 / on = 항상 / off = 사용 안 함.
+           app.js 가 아직 안 떴으므로 저장된 값을 직접 읽는다. */
+        var raw = localStorage.getItem('majungmul.v1');
+        var m = raw && raw.match(/"intro"\s*:\s*"(auto|on|off)"/);
+        var mode = m ? m[1] : 'auto';
+        var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /* 뜨느냐(show)와 움직이냐(anim)는 별개다. 동작 줄이기를 켠 기기라도
+           정지된 물방울 한 장은 움직임이 아니므로 보여 준다. 아무것도 안 뜨는
+           것은 사용자가 "사용 안 함" 을 고른 경우뿐이다. */
+        anim = (mode === 'on') || (mode === 'auto' && !reduce);
+        show = cold && mode !== 'off';
       } catch (e) { show = false; }   // 저장소가 막혀 있으면 띄우지 않는다
+
+      /* 살아 있다는 흔적. 다음에 문서가 뜰 때 이 값으로 껐다 켠 것인지 가른다 */
+      function beat() { try { localStorage.setItem('mj.alive', String(Date.now())); } catch (e) {} }
+      beat();
+      setInterval(beat, 20000);
+      window.addEventListener('pagehide', beat);
+      document.addEventListener('visibilitychange', function () { if (document.hidden) beat(); });
 
       if (!show) { hide(); return; }
 
       el.hidden = false;
+      if (anim) el.className += ' anim';
       var start = Date.now(), timer = null;
       function arm() {
         if (!el) return;
         if (timer) clearTimeout(timer);
-        var left = 1300 - (Date.now() - start);
+        var left = (anim ? 1500 : 900) - (Date.now() - start);
         timer = setTimeout(hide, left > 0 ? left : 0);
       }
       arm();
@@ -73,8 +112,8 @@
       // 급할 때 붙잡히지 않도록 화면 아무 데나 누르면 걷힌다
       document.addEventListener('pointerdown', hide, { once: true });
       document.addEventListener('touchstart', hide, { once: true });
-      // 마지막 그물. 위가 전부 실패해도 3초 뒤에는 반드시 사라진다
-      setTimeout(hide, 3000);
+      // 마지막 그물. 위가 전부 실패해도 3.5초 뒤에는 반드시 사라진다
+      setTimeout(hide, 3500);
     })();
   </script>
 
