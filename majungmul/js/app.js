@@ -282,7 +282,8 @@
       '<div class="page">' +
         '<div class="card">' +
           row('물 마실 시간 알림', toggle('remind-on', r.on)) +
-          '<p class="dim">정한 시간이 되면 "물 마셔" 하고 불러 줄게요.</p>' +
+          '<p class="dim">앱이 켜져 있거나 백그라운드에 남아 있을 때 정확한 시각에 불러 줘요. ' +
+            '<b>앱을 완전히 닫으면 부르지 못해요</b> — 아래 진단을 봐 주세요.</p>' +
         '</div>' +
         permNote +
         (perm === 'default' || perm === 'denied'
@@ -322,11 +323,64 @@
                 : '<div class="next-big dim">예정 없음</div>') +
             '<button class="btn ghost block" data-act="test">지금 한 번 보내 보기</button>' +
           '</div>' +
-          note('info', '앱을 완전히 닫으면 브라우저가 알림을 대신 울려 주지 못할 수 있어요. ' +
-            '홈 화면에 설치해 두고 백그라운드에 남겨 두면 가장 잘 동작해요. ' +
-            '아이폰은 홈 화면에 설치(공유 → 홈 화면에 추가)해야 알림을 받을 수 있어요.')
+          diagCard()
         : '') +
       '</div>';
+  }
+
+  /* "알림이 안 와요" 의 원인은 대개 화면에 드러나지 않는 곳에 있다.
+     이 기기에서 무엇이 되고 무엇이 안 되는지를 숨기지 않고 그대로 적는다. */
+  function diagCard() {
+    var d = Remind.diagnose();
+    var rows = [];
+
+    rows.push(check(
+      d.permission === 'granted',
+      '알림 권한',
+      d.permission === 'granted' ? '허용됨'
+        : d.permission === 'denied' ? '차단됨 — 기기의 설정에서 이 앱의 알림을 켜 주세요'
+        : d.permission === 'unsupported' ? '이 브라우저는 웹 알림을 지원하지 않아요'
+        : '아직 허용하지 않았어요'));
+
+    if (d.ios) {
+      rows.push(check(d.installed, '홈 화면에 설치',
+        d.installed ? '설치됨' : '안 됨 — 아이폰은 공유 → 홈 화면에 추가를 해야 알림을 받을 수 있어요'));
+    }
+
+    rows.push(check(true, '앱이 켜져 있을 때', '정확한 시각에 알려 줘요'));
+    rows.push(check(d.background, '앱을 완전히 닫았을 때',
+      d.background ? '가끔 깨어나 알려 줄 수 있어요 (시각은 몇 분 어긋날 수 있어요)'
+                   : '알려 주지 못해요 — 아래 캘린더 등록을 써 주세요'));
+
+    if (d.lastFired) rows.push(check(null, '마지막 알림', Remind.label(d.lastFired) + ' 에 보냄'));
+
+    return '<div class="card diag">' +
+      '<h3>알림이 안 오나요?</h3>' +
+      '<ul class="list checks">' + rows.join('') + '</ul>' +
+      '<p class="dim">웹앱은 브라우저에 "이 시각에 깨워 줘" 를 예약해 둘 수 없어요. ' +
+        '그래서 <b>앱을 완전히 종료하면</b> 아무도 대신 불러 주지 못해요. ' +
+        '앱을 닫아도 정확히 받고 싶다면 아래 방법이 확실해요.</p>' +
+      '<button class="btn block" data-act="ics">휴대폰 캘린더에 알림 등록</button>' +
+      '<p class="dim">지금 설정한 시각(' + calTimes() + ')을 매일 울리는 일정으로 만들어 내려받아요. ' +
+        '받은 파일을 열면 캘린더에 추가되고, 그 뒤로는 앱을 꺼 두어도 휴대폰이 알려 줘요. ' +
+        '지우려면 캘린더에서 "물 마실 시간" 을 찾아 삭제하면 돼요.</p>' +
+    '</div>';
+  }
+
+  function check(ok, label, detail) {
+    var mark = ok === null ? '<span class="ck info">·</span>'
+      : ok ? '<span class="ck ok">✓</span>' : '<span class="ck no">✕</span>';
+    return '<li class="ckrow">' + mark + '<div><b>' + esc(label) + '</b>' +
+      '<div class="dim">' + esc(detail) + '</div></div></li>';
+  }
+
+  function calTimes() {
+    var t = Remind.plannedTimes();
+    if (!t.length) return '없음';
+    var txt = t.slice(0, 4).map(function (m) {
+      return (m / 60 | 0) + ':' + (m % 60 < 10 ? '0' : '') + (m % 60);
+    }).join(', ');
+    return t.length > 4 ? txt + ' … 하루 ' + t.length + '번' : txt;
   }
 
   function note(kind, text) { return '<div class="note ' + kind + '">' + esc(text) + '</div>'; }
@@ -611,7 +665,7 @@
       var blob = new Blob([Store.exportJSON()], { type: 'application/json' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = '마중물-백업-' + Store.todayKey() + '.json';
+      a.download = 'majungmul-backup-' + Store.todayKey() + '.json';
       document.body.appendChild(a); a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     },
@@ -619,6 +673,17 @@
     reset: function () {
       if (!confirm('지금까지의 물 기록을 모두 지울까요? 되돌릴 수 없어요.')) return;
       Store.reset(); Remind.sync(); render(); toast('전부 지웠어요');
+    },
+    ics: function () {
+      var times = Remind.plannedTimes();
+      if (!times.length) { toast('먼저 알림 시각을 정해 주세요'); return; }
+      var blob = new Blob([Remind.ics()], { type: 'text/calendar;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'majungmul-water-reminder.ics';   // 한글 파일명은 기기에 따라 무시된다
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast('받은 파일을 열면 캘린더에 추가돼요');
     },
     'set-intro': function (b) { Store.setSettings({ intro: b.dataset.v }); render(); },
     'intro-test': function () { playIntro(); },

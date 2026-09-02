@@ -144,12 +144,16 @@
       badge: './icons/badge.png',
       lang: 'ko',
       vibrate: Store.settings().vibrate ? [120, 60, 120] : undefined,
-      data: { url: './', preset: Store.settings().cup },
-      actions: [
+      data: { url: './', preset: Store.settings().cup }
+    };
+    // 알림 버튼은 안드로이드만 지원한다. 아이폰(maxActions 0)에는 아예 넣지 않는다 —
+    // 지원하지 않는 옵션 하나 때문에 알림이 통째로 막히는 일을 만들지 않는다.
+    if (typeof Notification !== 'undefined' && Notification.maxActions > 0) {
+      opts.actions = [
         { action: 'drink', title: '한 잔 마셨어' },
         { action: 'snooze', title: '조금 뒤에' }
-      ]
-    };
+      ];
+    }
     // 안드로이드 크롬은 서비스워커를 거친 알림만 허용한다(버튼도 이쪽만 된다).
     return swReg().then(function (reg) { return reg.showNotification('마중물 💧', opts); })
       .catch(function () {
@@ -315,12 +319,114 @@
     return h + '시간' + (m ? ' ' + m + '분' : '') + ' 뒤';
   }
 
+  /* ---------- 이 기기에서 알림이 되는가 ---------- */
+
+  function standalone() {
+    try {
+      return (matchMedia('(display-mode: standalone)').matches ||
+              matchMedia('(display-mode: fullscreen)').matches ||
+              navigator.standalone === true);
+    } catch (e) { return false; }
+  }
+
+  function isIOS() {
+    var ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // 아이패드
+  }
+
+  /* 앱을 완전히 닫은 동안에도 부를 수 있는 수단이 있는가.
+     안드로이드 크롬의 주기 동기화가 유일한데, 그마저 시각을 보장하지 않는다. */
+  function background() {
+    try {
+      return !isIOS() && 'periodicSync' in ServiceWorkerRegistration.prototype;
+    } catch (e) { return false; }
+  }
+
+  function diagnose() {
+    var r = Store.remind();
+    return {
+      on: !!r.on,
+      permission: permission(),           // granted / denied / default / unsupported
+      installed: standalone(),
+      ios: isIOS(),
+      sw: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
+      background: background(),
+      secure: window.isSecureContext !== false,
+      lastFired: r.lastFired || 0,
+      nextAt: r.on ? nextAt(Date.now()) : 0
+    };
+  }
+
+  /* ---------- 캘린더로 내보내기 ---------- */
+
+  /* 알림을 부를 시각들(분 단위)을 뽑는다.
+     간격 모드는 "마시면 다시 셈" 때문에 실제로는 유동적이지만,
+     캘린더는 고정된 시각만 다룰 수 있으므로 시간대를 균등하게 나눈 격자를 쓴다. */
+  function plannedTimes() {
+    var r = Store.remind(), out = [];
+    if (r.mode === 'times') {
+      out = (r.times || []).map(hm);
+    } else {
+      var f = hm(r.from), t = hm(r.to);
+      if (t <= f) t += 1440;
+      var step = Math.max(10, r.everyMin || 90);
+      for (var m = f + step; m <= t; m += step) out.push(m % 1440);
+    }
+    return out.sort(function (a, b) { return a - b; });
+  }
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /* 휴대폰 캘린더에 넣을 수 있는 파일을 만든다.
+     시각은 시간대를 붙이지 않는 "떠 있는 시각" 으로 적는다. 그래야 기기의
+     현지 시각 그대로 울리고, 여행을 가도 그 지역 시각에 맞춰 울린다. */
+  function ics() {
+    var r = Store.remind();
+    var times = plannedTimes();
+    var days = (r.days || []).slice().sort();
+    var DAY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+    var byday = (days.length && days.length < 7)
+      ? ';BYDAY=' + days.map(function (d) { return DAY[d]; }).join(',') : '';
+    var now = new Date();
+    var ymd = now.getFullYear() + pad2(now.getMonth() + 1) + pad2(now.getDate());
+    var stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+
+    var L = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//majungmul//water//KO',
+      'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      'X-WR-CALNAME:마중물 물 알림'
+    ];
+    times.forEach(function (m, i) {
+      var hhmm = pad2(Math.floor(m / 60)) + pad2(m % 60) + '00';
+      L.push('BEGIN:VEVENT');
+      L.push('UID:majungmul-' + hhmm + '-' + i + '@majungmul');
+      L.push('DTSTAMP:' + stamp);
+      L.push('DTSTART:' + ymd + 'T' + hhmm);
+      L.push('DURATION:PT5M');
+      L.push('RRULE:FREQ=DAILY' + byday);
+      L.push('SUMMARY:💧 물 마실 시간');
+      L.push('DESCRIPTION:마중물 — 한 잔 마시고 기록해요');
+      L.push('TRANSP:TRANSPARENT');
+      L.push('BEGIN:VALARM');
+      L.push('TRIGGER:PT0S');
+      L.push('ACTION:DISPLAY');
+      L.push('DESCRIPTION:💧 물 마실 시간');
+      L.push('END:VALARM');
+      L.push('END:VEVENT');
+    });
+    L.push('END:VCALENDAR');
+    return L.join('\r\n') + '\r\n';
+  }
+
   global.Remind = {
     start: start, tick: tick, sync: sync, fire: fire, test: test, snooze: snooze,
     nextAt: nextAt, due: due, inWindow: inWindow, hm: hm,
     permission: permission, request: request, ready: ready,
     drainPending: drainPending, registerPeriodic: registerPeriodic,
     unlockAudio: unlockAudio, beep: beep,
-    label: label, untilText: untilText
+    label: label, untilText: untilText,
+    diagnose: diagnose, standalone: standalone, isIOS: isIOS, background: background,
+    plannedTimes: plannedTimes, ics: ics
   };
 })(window);
