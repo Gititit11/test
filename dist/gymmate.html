@@ -26,6 +26,7 @@
   --danger: #ff5f6d;
   --radius: 14px;
   --tab-h: 62px;
+  --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
@@ -51,10 +52,13 @@ a { color: inherit; text-decoration: none; }
 
 /* 레이아웃 */
 #app { max-width: 640px; margin: 0 auto; min-height: 100vh; }
+/* viewport-fit=cover + black-translucent 이라 웹 화면이 상태바·노치 아래까지
+   올라온다. 상단 여백을 안 주면 제목과 버튼이 노치에 가려지고, 그 자리는
+   iOS 가 터치를 가져가 버려서 눌리지도 않는다. */
 .topbar {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 8px;
-  padding: 14px 16px;
+  padding: calc(14px + var(--safe-t)) 16px 14px;
   background: rgba(15, 17, 21, 0.92);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
@@ -276,7 +280,10 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .mini input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* 운동 진행 */
-.progress-card { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 58px; z-index: 10; }
+.progress-card {
+  display: flex; flex-direction: column; gap: 8px;
+  position: sticky; top: calc(58px + var(--safe-t)); z-index: 10;
+}
 .bar { height: 8px; background: var(--bg-2); border-radius: 99px; overflow: hidden; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--ok)); transition: width .25s ease; }
 .exercise { display: flex; flex-direction: column; gap: 10px; }
@@ -414,7 +421,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .sheet {
   position: absolute; left: 0; right: 0; bottom: 0;
   max-width: 640px; margin: 0 auto;
-  max-height: 92vh;
+  max-height: calc(100vh - var(--safe-t) - 24px);
   display: flex; flex-direction: column;
   background: var(--bg);
   border-radius: 18px 18px 0 0;
@@ -632,6 +639,8 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     (function () {
       var el = document.getElementById('intro');
       if (!el) return;
+      // 설정에서 다시 볼 수 있도록 원본을 남겨 둔다 (아래에서 통째로 지우므로)
+      window.__introHTML = el.outerHTML;
 
       function hide() {
         if (!el) return;
@@ -642,13 +651,27 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
       var show = false;
       try {
+        /* 콜드 스타트인지 두 가지로 본다.
+           1) sessionStorage — 앱(탭)을 완전히 닫으면 지워진다. 안드로이드에서 정확하다
+           2) 마지막으로 살아 있던 시각 — 아이폰 홈 화면 앱은 앱을 껐다 켜도
+              sessionStorage 가 남는 경우가 있어 1)만으로는 영영 안 뜬다.
+              문서가 새로 뜬 시점에 마지막 흔적이 5분보다 오래됐으면 껐다 켠 것으로 본다 */
         var seen = sessionStorage.getItem('gm.intro');
         sessionStorage.setItem('gm.intro', '1');
-        show = !seen && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var last = +(localStorage.getItem('gm.alive') || 0);
+        var coldByTime = !last || (Date.now() - last > 300000);
+        show = (!seen || coldByTime) && !matchMedia('(prefers-reduced-motion: reduce)').matches;
         // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
         var raw = localStorage.getItem('gymmate.v1');
         if (raw && /"active"\s*:\s*\{/.test(raw)) show = false;
       } catch (e) { show = false; }   // 저장소가 막혀 있으면 띄우지 않는다
+
+      /* 살아 있다는 흔적을 남긴다. 다음에 문서가 뜰 때 이 값으로 판단한다 */
+      function beat() { try { localStorage.setItem('gm.alive', String(Date.now())); } catch (e) {} }
+      beat();
+      setInterval(beat, 20000);
+      window.addEventListener('pagehide', beat);
+      document.addEventListener('visibilitychange', function () { if (document.hidden) beat(); });
 
       if (!show) { hide(); return; }
 
@@ -2154,7 +2177,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-37';
+  var APP_VERSION = '2026.09.02-38';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -3358,6 +3381,12 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       '</ul></div>';
 
     html += '<div class="card">' +
+      '<h3>실행 인트로</h3>' +
+      '<p class="dim sm">앱을 완전히 껐다 켤 때만 나옵니다.</p>' +
+      '<button class="btn sm block" data-act="intro-test">인트로 다시 보기</button>' +
+      '</div>';
+
+    html += '<div class="card">' +
       '<h3>칼로리 추정</h3>' +
       '<label class="field inline"><span>체중(kg)</span>' +
       '<input type="number" inputmode="decimal" min="20" max="250" step="0.5" value="' + st.bodyWeight + '" data-bind="set-weight-kg"></label>' +
@@ -3779,6 +3808,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         if (S.settings.voice) { unlockAudio(); playVoice(S.settings.voice); }
         render();
         break;
+      case 'intro-test':
+        playIntro();
+        break;
       case 'cue-test':
         unlockAudio();
         beep();
@@ -3962,6 +3994,24 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       e.returnValue = '';
     }
   });
+
+  /* 인트로를 다시 보여 준다. 실제 실행 때와 같은 마크업·CSS 를 쓰므로
+   * 이게 되는데 앱 켤 때 안 나온다면 문제는 애니메이션이 아니라 조건 쪽이다. */
+  function playIntro() {
+    var html = window.__introHTML;
+    if (!html) { toast('인트로를 불러올 수 없습니다'); return; }
+    var old = document.getElementById('intro');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var box = document.createElement('div');
+    box.innerHTML = html;
+    var el = box.firstChild;
+    el.hidden = false;
+    document.body.appendChild(el);
+    function drop() { if (el && el.parentNode) el.parentNode.removeChild(el); el = null; }
+    setTimeout(drop, 1200);
+    setTimeout(drop, 3000);
+    document.addEventListener('pointerdown', drop, { once: true });
+  }
 
   // 시작
   route = parseHash();

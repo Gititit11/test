@@ -49,6 +49,8 @@
     (function () {
       var el = document.getElementById('intro');
       if (!el) return;
+      // 설정에서 다시 볼 수 있도록 원본을 남겨 둔다 (아래에서 통째로 지우므로)
+      window.__introHTML = el.outerHTML;
 
       function hide() {
         if (!el) return;
@@ -59,13 +61,27 @@
 
       var show = false;
       try {
+        /* 콜드 스타트인지 두 가지로 본다.
+           1) sessionStorage — 앱(탭)을 완전히 닫으면 지워진다. 안드로이드에서 정확하다
+           2) 마지막으로 살아 있던 시각 — 아이폰 홈 화면 앱은 앱을 껐다 켜도
+              sessionStorage 가 남는 경우가 있어 1)만으로는 영영 안 뜬다.
+              문서가 새로 뜬 시점에 마지막 흔적이 5분보다 오래됐으면 껐다 켠 것으로 본다 */
         var seen = sessionStorage.getItem('gm.intro');
         sessionStorage.setItem('gm.intro', '1');
-        show = !seen && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var last = +(localStorage.getItem('gm.alive') || 0);
+        var coldByTime = !last || (Date.now() - last > 300000);
+        show = (!seen || coldByTime) && !matchMedia('(prefers-reduced-motion: reduce)').matches;
         // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
         var raw = localStorage.getItem('gymmate.v1');
         if (raw && /"active"\s*:\s*\{/.test(raw)) show = false;
       } catch (e) { show = false; }   // 저장소가 막혀 있으면 띄우지 않는다
+
+      /* 살아 있다는 흔적을 남긴다. 다음에 문서가 뜰 때 이 값으로 판단한다 */
+      function beat() { try { localStorage.setItem('gm.alive', String(Date.now())); } catch (e) {} }
+      beat();
+      setInterval(beat, 20000);
+      window.addEventListener('pagehide', beat);
+      document.addEventListener('visibilitychange', function () { if (document.hidden) beat(); });
 
       if (!show) { hide(); return; }
 

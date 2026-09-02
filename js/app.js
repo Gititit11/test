@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-37';
+  var APP_VERSION = '2026.09.02-38';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -1209,6 +1209,12 @@
       '</ul></div>';
 
     html += '<div class="card">' +
+      '<h3>실행 인트로</h3>' +
+      '<p class="dim sm">앱을 완전히 껐다 켤 때만 나옵니다.</p>' +
+      '<button class="btn sm block" data-act="intro-test">인트로 다시 보기</button>' +
+      '</div>';
+
+    html += '<div class="card">' +
       '<h3>칼로리 추정</h3>' +
       '<label class="field inline"><span>체중(kg)</span>' +
       '<input type="number" inputmode="decimal" min="20" max="250" step="0.5" value="' + st.bodyWeight + '" data-bind="set-weight-kg"></label>' +
@@ -1630,6 +1636,9 @@
         if (S.settings.voice) { unlockAudio(); playVoice(S.settings.voice); }
         render();
         break;
+      case 'intro-test':
+        playIntro();
+        break;
       case 'cue-test':
         unlockAudio();
         beep();
@@ -1813,6 +1822,24 @@
       e.returnValue = '';
     }
   });
+
+  /* 인트로를 다시 보여 준다. 실제 실행 때와 같은 마크업·CSS 를 쓰므로
+   * 이게 되는데 앱 켤 때 안 나온다면 문제는 애니메이션이 아니라 조건 쪽이다. */
+  function playIntro() {
+    var html = window.__introHTML;
+    if (!html) { toast('인트로를 불러올 수 없습니다'); return; }
+    var old = document.getElementById('intro');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var box = document.createElement('div');
+    box.innerHTML = html;
+    var el = box.firstChild;
+    el.hidden = false;
+    document.body.appendChild(el);
+    function drop() { if (el && el.parentNode) el.parentNode.removeChild(el); el = null; }
+    setTimeout(drop, 1200);
+    setTimeout(drop, 3000);
+    document.addEventListener('pointerdown', drop, { once: true });
+  }
 
   // 시작
   route = parseHash();
