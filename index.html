@@ -59,7 +59,7 @@
         el = null;
       }
 
-      var show = false;
+      var show = false, anim = false;
       try {
         /* 콜드 스타트인지 두 가지로 본다.
            1) sessionStorage — 앱(탭)을 완전히 닫으면 지워진다. 안드로이드에서 정확하다
@@ -70,9 +70,21 @@
         sessionStorage.setItem('gm.intro', '1');
         var last = +(localStorage.getItem('gm.alive') || 0);
         var coldByTime = !last || (Date.now() - last > 300000);
-        show = (!seen || coldByTime) && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-        // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
+        var cold = !seen || coldByTime;
+
         var raw = localStorage.getItem('gymmate.v1');
+        /* 설정: auto = 기기의 동작 줄이기를 따름 / on = 항상 / off = 사용 안 함.
+           app.js 가 아직 안 떴으므로 저장된 값을 직접 읽는다. */
+        var m = raw && raw.match(/"intro"\s*:\s*"(auto|on|off)"/);
+        var mode = m ? m[1] : 'auto';
+        var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /* 뜨느냐(show)와 움직이냐(anim)는 별개다. 동작 줄이기를 켠 기기라도
+           정지된 아령 한 장은 움직임이 아니므로 보여 준다. 아무것도 안 뜨는
+           것은 사용자가 "사용 안 함" 을 고른 경우뿐이다. */
+        anim = (mode === 'on') || (mode === 'auto' && !reduce);
+        show = cold && mode !== 'off';
+        // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
         if (raw && /"active"\s*:\s*\{/.test(raw)) show = false;
       } catch (e) { show = false; }   // 저장소가 막혀 있으면 띄우지 않는다
 
@@ -86,6 +98,7 @@
       if (!show) { hide(); return; }
 
       el.hidden = false;
+      if (anim) el.className += ' anim';
       var start = Date.now(), timer = null;
       function arm() {
         if (!el) return;

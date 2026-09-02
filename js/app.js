@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-39';
+  var APP_VERSION = '2026.09.02-40';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -1210,17 +1210,28 @@
 
     var reduceOn = false;
     try { reduceOn = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    var mode = st.intro || 'auto';
+    var willAnim = mode === 'on' || (mode === 'auto' && !reduceOn);
     html += '<div class="card">' +
       '<h3>실행 인트로</h3>' +
-      '<p class="dim sm">앱을 완전히 껐다 켤 때만 나옵니다.</p>' +
+      '<label class="field inline"><span>앱을 켤 때</span>' +
+      '<select data-bind="set-intro">' +
+        '<option value="auto"' + (mode === 'auto' ? ' selected' : '') + '>기기 설정 따름</option>' +
+        '<option value="on"' + (mode === 'on' ? ' selected' : '') + '>항상 보기</option>' +
+        '<option value="off"' + (mode === 'off' ? ' selected' : '') + '>사용 안 함</option>' +
+      '</select></label>' +
       '<button class="btn sm block" data-act="intro-test">인트로 다시 보기</button>' +
-      // 안 보인다는 신고가 있어 기기 설정을 그대로 보여 준다.
-      // 이게 켜져 있으면 앱을 켤 때 인트로가 뜨지 않는 것이 정상이다.
-      '<p class="dim sm">이 기기의 <b>동작 줄이기</b>: ' +
-        (reduceOn
-          ? '<b>켜짐</b> — 켤 때는 인트로가 나오지 않습니다 (설정 → 손쉬운 사용 → 동작). ' +
-            '다시 보기는 움직임 없이 보여 줍니다.'
-          : '꺼짐') + '</p>' +
+      /* 아이폰에서 "정지 이미지만 보인다" 는 신고가 있었다. 대개 기기의
+       * 동작 줄이기가 켜져 있어서인데, 화면에 드러나지 않으면 알 길이 없다.
+       * 지금 상태와 그 뜻을 그대로 적는다. */
+      '<p class="dim">기기의 <b>동작 줄이기</b>가 ' + (reduceOn ? '<b>켜져</b> 있습니다' : '꺼져 있습니다') +
+        ' → 앱을 켤 때 ' +
+        (mode === 'off' ? '<b>인트로가 나오지 않습니다</b>'
+          : willAnim ? '<b>움직이는 인트로</b>가 나옵니다'
+          : '<b>정지된 아령</b>만 잠깐 보입니다') + '.' +
+        (!willAnim && mode === 'auto'
+          ? ' 움직이는 쪽을 원하시면 위를 <b>항상 보기</b>로 바꾸세요.'
+          : '') + '</p>' +
       '</div>';
 
     html += '<div class="card">' +
@@ -1788,6 +1799,10 @@
         if (ev.type === 'change') render();
         break;
       case 'set-sound': S.settings.sound = t.checked; S.commit(); break;
+      case 'set-intro':
+        S.settings.intro = t.value; S.commit();
+        if (ev.type === 'change') render();   // 아래 안내 문구를 새 값에 맞춘다
+        break;
       case 'set-cue-volume':
         // 끄는 동안 화면을 다시 그리면 손잡이를 놓치므로 숫자만 갈아 끼운다
         S.settings.cueVolume = Math.min(100, Math.max(0, num(t.value, 100)));
@@ -1843,6 +1858,14 @@
     box.innerHTML = html;
     var el = box.firstChild;
     el.hidden = false;
+    // 실행 때와 같은 모습을 보여 준다. 설정이 auto 인데 기기가 동작 줄이기면
+    // 여기서도 정지 상태로 보인다 — 그게 실제로 보게 될 화면이다
+    var reduce = false;
+    try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    // 눌러서 보겠다는 뜻이므로 "사용 안 함" 이어도 보여 준다.
+    // 움직임은 기기가 허용하거나 사용자가 "항상 보기" 를 고른 경우
+    var mode = S.settings.intro || 'auto';
+    if (!reduce || mode === 'on') el.className += ' anim';
     document.body.appendChild(el);
     function drop() { if (el && el.parentNode) el.parentNode.removeChild(el); el = null; }
     setTimeout(drop, 1200);
