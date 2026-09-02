@@ -9,7 +9,7 @@
 ## 실행 방법
 
 ```bash
-# 저장소 루트에서
+# 저장소 루트에서 (짐메이트는 http://localhost:8080/gymmate/ 로 열립니다)
 npx http-server -p 8080 .
 # → http://localhost:8080/majungmul/
 ```
