@@ -194,9 +194,17 @@
 
   function fire() {
     var now = Date.now();
+    var away = document.hidden || !document.hasFocus();
+
+    /* 화면을 안 보고 있는데 알림 권한도 없으면 알릴 방법이 아예 없다.
+       그런데도 "알렸다" 고 표시해 버리면 그 알림은 조용히 사라지고 다음 알림까지
+       또 한 참을 기다리게 된다. 그러지 말고 그대로 남겨 둔다 — 앱으로 돌아오는
+       순간 화면 안에서 알려 준다. */
+    if (away && !ready()) return;
+
     Store.setRemind({ lastFired: now, snoozeUntil: 0 });
-    if (document.hidden || !document.hasFocus()) {
-      if (ready()) show();
+    if (away) {
+      show();
     } else {
       // 앱을 보고 있는데 시스템 알림까지 띄우면 성가시다. 화면 안에서만 알린다.
       beep();

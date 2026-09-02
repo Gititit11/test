@@ -288,6 +288,7 @@
         permNote +
         (perm === 'default' || perm === 'denied'
           ? '<button class="btn block" data-act="ask-perm">알림 허용하기</button>' : '') +
+        (r.on && !Remind.diagnose().background ? calCard() : '') +
         (r.on ? '' +
           '<div class="card">' +
             '<h3>어떻게 부를까</h3>' +
@@ -328,6 +329,20 @@
       '</div>';
   }
 
+  /* 이 기기는 앱을 닫으면 부를 방법이 아예 없다(아이폰이 그렇다).
+     그 사실과 해결책을 알림을 켠 바로 아래에 놓는다. 화면 맨 밑에 적어 두면
+     "알림을 켰는데 안 온다" 는 사람에게 영영 닿지 않는다. */
+  function calCard() {
+    return '<div class="card cal">' +
+      '<h3>⏰ 앱을 닫아도 울리게 하기</h3>' +
+      '<p class="dim">이 휴대폰은 <b>마중물을 완전히 닫으면 부르지 못해요.</b> ' +
+        '브라우저가 앱을 잠재우기 때문이라 앱 쪽에서 어쩔 수가 없어요. ' +
+        '대신 <b>휴대폰 캘린더</b>에 넣어 두면 앱을 꺼 두어도 정확한 시각에 울려요.</p>' +
+      '<button class="btn block" data-act="ics">캘린더에 알림 등록 (' + calTimes() + ')</button>' +
+      '<p class="dim">받은 파일을 열면 캘린더에 추가돼요. 설정을 바꾸면 다시 받아 주세요.</p>' +
+    '</div>';
+  }
+
   /* "알림이 안 와요" 의 원인은 대개 화면에 드러나지 않는 곳에 있다.
      이 기기에서 무엇이 되고 무엇이 안 되는지를 숨기지 않고 그대로 적는다. */
   function diagCard() {
@@ -359,11 +374,12 @@
       '<ul class="list checks">' + rows.join('') + '</ul>' +
       '<p class="dim">웹앱은 브라우저에 "이 시각에 깨워 줘" 를 예약해 둘 수 없어요. ' +
         '그래서 <b>앱을 완전히 종료하면</b> 아무도 대신 불러 주지 못해요. ' +
-        '앱을 닫아도 정확히 받고 싶다면 아래 방법이 확실해요.</p>' +
-      '<button class="btn block" data-act="ics">휴대폰 캘린더에 알림 등록</button>' +
-      '<p class="dim">지금 설정한 시각(' + calTimes() + ')을 매일 울리는 일정으로 만들어 내려받아요. ' +
-        '받은 파일을 열면 캘린더에 추가되고, 그 뒤로는 앱을 꺼 두어도 휴대폰이 알려 줘요. ' +
-        '지우려면 캘린더에서 "물 마실 시간" 을 찾아 삭제하면 돼요.</p>' +
+        '홈 화면에 설치해 두고 앱을 종료하지 않으면 제시간에 울려요.</p>' +
+      (Remind.diagnose().background
+        ? '<button class="btn ghost block" data-act="ics">휴대폰 캘린더에 알림 등록</button>' +
+          '<p class="dim">앱을 꺼 두어도 확실하게 받고 싶으면 캘린더에 넣어 두세요. ' +
+            '지우려면 캘린더에서 "물 마실 시간" 을 찾아 삭제하면 돼요.</p>'
+        : '<p class="dim">캘린더 등록은 위에 있어요. 지우려면 캘린더에서 "물 마실 시간" 을 찾아 삭제하면 돼요.</p>') +
     '</div>';
   }
 

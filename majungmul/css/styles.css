@@ -246,6 +246,14 @@ button { font: inherit; color: inherit; }
 
 .next-card .next-big { font-size: 22px; font-weight: 800; margin-bottom: 12px; }
 
+/* 앱을 닫아도 울리게 하는 안내 — 눈에 띄어야 한다 */
+.card.cal {
+  border-color: rgba(56,182,255,0.4);
+  background: linear-gradient(180deg, rgba(56,182,255,0.10), rgba(56,182,255,0.03));
+}
+.card.cal .dim { line-height: 1.65; }
+.card.cal .btn.block { margin-top: 12px; }
+
 /* 알림 진단 */
 .diag .checks { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
 .ckrow { display: flex; gap: 10px; align-items: flex-start; }
