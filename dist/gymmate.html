@@ -535,18 +535,27 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
 /* ── 인트로 ─────────────────────────────────────────────
    앱을 완전히 껐다 켰을 때만 뜬다. 앱은 이 덮개 아래에서 이미 다 떠 있으므로
-   인트로가 실제 대기 시간을 만들지 않는다. 아무 데나 누르면 즉시 걷힌다.
+   인트로가 실제 대기 시간을 만들지 않는다.
+
+   두 가지를 못박아 둔다.
+   1) pointer-events: none — 덮개가 남더라도 터치를 가로채지 않는다.
+      장식 하나 때문에 앱을 못 쓰는 일이 없어야 한다
+   2) 시간은 CSS 에 직접 적는다. var/calc 로 받으면 그 값이 안 오는 순간
+      애니메이션이 통째로 멈춰 검은 화면이 남는다
    원판은 실제로 끼우는 순서대로 안쪽 큰 것 → 바깥쪽 작은 것. */
 .intro {
   position: fixed; inset: 0; z-index: 300;
   background: var(--bg);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 16px;
-  animation: intro-veil var(--intro-d, 1200ms) linear both;
+  pointer-events: none;
+  animation: intro-veil 1200ms linear forwards;
 }
 .intro[hidden] { display: none; }
-.intro.done { display: none; }
-@keyframes intro-veil { 0%, 88% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes intro-veil {
+  0%, 88% { opacity: 1; }
+  100%    { opacity: 0; visibility: hidden; }
+}
 
 .intro-mark { width: 58%; max-width: 190px; overflow: visible; }
 .intro-bar { fill: #5c6579; }
@@ -555,8 +564,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
 .intro-bar-g {
   transform-box: fill-box; transform-origin: center;
-  animation: intro-lift calc(var(--intro-d, 1200ms) * .3)
-             cubic-bezier(.34, 1.3, .5, 1) calc(var(--intro-d, 1200ms) * .5) both;
+  animation: intro-lift 360ms cubic-bezier(.34, 1.3, .5, 1) 600ms both;
 }
 @keyframes intro-lift {
   0%   { transform: translateY(0); }
@@ -564,26 +572,26 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   100% { transform: translateY(-4px); }
 }
 
-.intro-bar { animation: intro-bar-in calc(var(--intro-d, 1200ms) * .16) ease-out both; }
+.intro-bar { animation: intro-bar-in 192ms ease-out both; }
 @keyframes intro-bar-in {
   from { opacity: 0; transform: scaleX(.86); }
   to   { opacity: 1; transform: none; }
 }
 
-.intro-plate { animation: intro-slot-l calc(var(--intro-d, 1200ms) * .26) cubic-bezier(.3, 1.5, .5, 1) both; }
+.intro-plate { animation: intro-slot-l 312ms cubic-bezier(.3, 1.5, .5, 1) both; }
 .intro-plate.r { animation-name: intro-slot-r; }
-.intro-plate.in  { animation-delay: calc(var(--intro-d, 1200ms) * .12); }
-.intro-plate.out { animation-delay: calc(var(--intro-d, 1200ms) * .28); }
+.intro-plate.in  { animation-delay: 144ms; }
+.intro-plate.out { animation-delay: 336ms; }
 @keyframes intro-slot-l { from { opacity: 0; transform: translateX(-46px); } to { opacity: 1; transform: none; } }
 @keyframes intro-slot-r { from { opacity: 0; transform: translateX(46px); }  to { opacity: 1; transform: none; } }
 
 .intro-word {
   font-size: 21px; font-weight: 700; letter-spacing: -.01em; color: var(--text);
-  animation: intro-rise calc(var(--intro-d, 1200ms) * .26)
-             cubic-bezier(.2, .7, .3, 1) calc(var(--intro-d, 1200ms) * .62) both;
+  animation: intro-rise 312ms cubic-bezier(.2, .7, .3, 1) 744ms both;
 }
 @keyframes intro-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
+/* 모션을 끈 기기에서는 아예 뜨지 않는다 */
 @media (prefers-reduced-motion: reduce) {
   .intro { display: none; }
 }
@@ -607,22 +615,63 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     <div class="intro-word">GymMate</div>
   </div>
   <script>
-    /* 인트로를 띄울지 첫 페인트 전에 정한다.
-       sessionStorage 는 앱(탭)을 완전히 닫으면 지워지고, 새로고침이나
-       안드로이드가 메모리에서 잠시 내렸다 복구할 때는 남는다. 그래서
-       "휴식 중에 유튜브 보고 돌아옴" 과 "앱을 껐다가 다시 켬" 이 갈린다. */
+    /* 인트로는 이 스크립트가 혼자 책임진다 — 띄우는 것도, 걷는 것도.
+     *
+     * 처음에는 걷는 일을 app.js 에 맡겼는데, 그러면 app.js 가 어디서든
+     * 죽는 순간 화면을 덮은 채로 남아 앱을 아예 못 쓰게 된다. 실제로
+     * 아이폰에서 검은 화면만 뜨는 사고가 났다. 인트로는 장식이므로
+     * 어떤 경우에도 앱을 막아서는 안 된다. 그래서
+     *   - 걷는 타이머를 여기(가장 먼저 실행되는 곳)에 두고
+     *   - 덮개는 터치를 아예 받지 않으며(pointer-events:none)
+     *   - 혹시 몰라 3초 뒤 통째로 DOM 에서 지우는 그물을 하나 더 둔다
+     *
+     * 띄울지 말지는 sessionStorage 로 가른다. 앱(탭)을 완전히 닫으면
+     * 지워지고, 새로고침이나 안드로이드가 메모리에서 잠시 내렸다 복구할
+     * 때는 남는다. 그래서 "휴식 중에 유튜브 보고 돌아옴" 과
+     * "앱을 껐다가 다시 켬" 이 갈린다. */
     (function () {
       var el = document.getElementById('intro');
+      if (!el) return;
+
+      function hide() {
+        if (!el) return;
+        el.hidden = true;
+        if (el.parentNode) el.parentNode.removeChild(el);
+        el = null;
+      }
+
+      var show = false;
       try {
         var seen = sessionStorage.getItem('gm.intro');
         sessionStorage.setItem('gm.intro', '1');
-        if (seen) return;
-        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        show = !seen && !matchMedia('(prefers-reduced-motion: reduce)').matches;
         // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
         var raw = localStorage.getItem('gymmate.v1');
-        if (raw && /"active"\s*:\s*\{/.test(raw)) return;
-        el.hidden = false;
-      } catch (e) { /* 저장소가 막혀 있으면 그냥 건너뛴다 */ }
+        if (raw && /"active"\s*:\s*\{/.test(raw)) show = false;
+      } catch (e) { show = false; }   // 저장소가 막혀 있으면 띄우지 않는다
+
+      if (!show) { hide(); return; }
+
+      el.hidden = false;
+      var start = Date.now(), timer = null;
+      function arm() {
+        if (!el) return;
+        if (timer) clearTimeout(timer);
+        var left = 1200 - (Date.now() - start);
+        timer = setTimeout(hide, left > 0 ? left : 0);
+      }
+      arm();
+      // 가려진 채 시간이 흐르면 타이머가 밀린다. 돌아왔을 때 남은 만큼 다시 건다.
+      // 무조건 닫으면 안 된다 — 아이폰 홈 화면 앱은 실행 직후 이 이벤트가 한 번 온다
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) arm();
+      });
+      // 급할 때 붙잡히지 않도록 화면 아무 데나 누르면 걷힌다.
+      // 덮개 자신은 터치를 받지 않으므로 문서에 건다
+      document.addEventListener('pointerdown', hide, { once: true });
+      document.addEventListener('touchstart', hide, { once: true });
+      // 마지막 그물. 위가 전부 실패해도 3초 뒤에는 반드시 사라진다
+      setTimeout(hide, 3000);
     })();
   </script>
 
@@ -2105,7 +2154,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-36';
+  var APP_VERSION = '2026.09.02-37';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -3914,52 +3963,11 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     }
   });
 
-  /* 인트로 정리. 띄울지 말지는 index.html 의 인라인 스크립트가 첫 페인트 전에
-   * 이미 정했다. 여기서는 다 돌면 치우고, 그 전에 누르면 바로 치운다.
-   * 앱은 이 덮개 아래에서 이미 그려져 있으므로 인트로가 대기 시간을 만들지 않는다. */
-  var INTRO_MS = 1200;
-  function setupIntro() {
-    var el = document.getElementById('intro');
-    if (!el || el.hidden) return;
-    el.style.setProperty('--intro-d', INTRO_MS + 'ms');
-
-    var start = Date.now(), done = false, timer = null;
-    function close() {
-      if (done) return;
-      done = true;
-      if (timer) clearTimeout(timer);
-      el.classList.add('done');
-      el.hidden = true;
-    }
-    function arm() {
-      if (done) return;
-      if (timer) clearTimeout(timer);
-      var left = INTRO_MS - (Date.now() - start);
-      if (left <= 0) close();
-      else timer = setTimeout(close, left);
-    }
-
-    // 급할 때 붙잡히지 않도록 아무 데나 누르면 바로 걷힌다
-    el.addEventListener('pointerdown', close);
-    arm();
-
-    /* 화면이 가려진 채로 시간이 흐르면 타이머가 밀린다. 돌아왔을 때 남은
-     * 시간을 다시 재서 건다.
-     *
-     * 예전에는 여기서 무조건 닫았는데 그게 아이폰에서 인트로가 안 보이던
-     * 원인이었다. 홈 화면 앱은 실행 직후 visibilitychange 가 한 번 오는데,
-     * 그걸 "돌아왔다" 로 읽고 시작하자마자 꺼 버렸다. 지난 시간을 봐야 한다. */
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) arm();
-    });
-  }
-
   // 시작
   route = parseHash();
   if (!location.hash) location.hash = '#/routines';
   restoreRest();
   render();
-  setupIntro();
 })();
 
 </script>

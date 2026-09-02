@@ -32,22 +32,63 @@
     <div class="intro-word">GymMate</div>
   </div>
   <script>
-    /* 인트로를 띄울지 첫 페인트 전에 정한다.
-       sessionStorage 는 앱(탭)을 완전히 닫으면 지워지고, 새로고침이나
-       안드로이드가 메모리에서 잠시 내렸다 복구할 때는 남는다. 그래서
-       "휴식 중에 유튜브 보고 돌아옴" 과 "앱을 껐다가 다시 켬" 이 갈린다. */
+    /* 인트로는 이 스크립트가 혼자 책임진다 — 띄우는 것도, 걷는 것도.
+     *
+     * 처음에는 걷는 일을 app.js 에 맡겼는데, 그러면 app.js 가 어디서든
+     * 죽는 순간 화면을 덮은 채로 남아 앱을 아예 못 쓰게 된다. 실제로
+     * 아이폰에서 검은 화면만 뜨는 사고가 났다. 인트로는 장식이므로
+     * 어떤 경우에도 앱을 막아서는 안 된다. 그래서
+     *   - 걷는 타이머를 여기(가장 먼저 실행되는 곳)에 두고
+     *   - 덮개는 터치를 아예 받지 않으며(pointer-events:none)
+     *   - 혹시 몰라 3초 뒤 통째로 DOM 에서 지우는 그물을 하나 더 둔다
+     *
+     * 띄울지 말지는 sessionStorage 로 가른다. 앱(탭)을 완전히 닫으면
+     * 지워지고, 새로고침이나 안드로이드가 메모리에서 잠시 내렸다 복구할
+     * 때는 남는다. 그래서 "휴식 중에 유튜브 보고 돌아옴" 과
+     * "앱을 껐다가 다시 켬" 이 갈린다. */
     (function () {
       var el = document.getElementById('intro');
+      if (!el) return;
+
+      function hide() {
+        if (!el) return;
+        el.hidden = true;
+        if (el.parentNode) el.parentNode.removeChild(el);
+        el = null;
+      }
+
+      var show = false;
       try {
         var seen = sessionStorage.getItem('gm.intro');
         sessionStorage.setItem('gm.intro', '1');
-        if (seen) return;
-        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        show = !seen && !matchMedia('(prefers-reduced-motion: reduce)').matches;
         // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
         var raw = localStorage.getItem('gymmate.v1');
-        if (raw && /"active"\s*:\s*\{/.test(raw)) return;
-        el.hidden = false;
-      } catch (e) { /* 저장소가 막혀 있으면 그냥 건너뛴다 */ }
+        if (raw && /"active"\s*:\s*\{/.test(raw)) show = false;
+      } catch (e) { show = false; }   // 저장소가 막혀 있으면 띄우지 않는다
+
+      if (!show) { hide(); return; }
+
+      el.hidden = false;
+      var start = Date.now(), timer = null;
+      function arm() {
+        if (!el) return;
+        if (timer) clearTimeout(timer);
+        var left = 1200 - (Date.now() - start);
+        timer = setTimeout(hide, left > 0 ? left : 0);
+      }
+      arm();
+      // 가려진 채 시간이 흐르면 타이머가 밀린다. 돌아왔을 때 남은 만큼 다시 건다.
+      // 무조건 닫으면 안 된다 — 아이폰 홈 화면 앱은 실행 직후 이 이벤트가 한 번 온다
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) arm();
+      });
+      // 급할 때 붙잡히지 않도록 화면 아무 데나 누르면 걷힌다.
+      // 덮개 자신은 터치를 받지 않으므로 문서에 건다
+      document.addEventListener('pointerdown', hide, { once: true });
+      document.addEventListener('touchstart', hide, { once: true });
+      // 마지막 그물. 위가 전부 실패해도 3초 뒤에는 반드시 사라진다
+      setTimeout(hide, 3000);
     })();
   </script>
 

@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-36';
+  var APP_VERSION = '2026.09.02-37';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -1814,50 +1814,9 @@
     }
   });
 
-  /* 인트로 정리. 띄울지 말지는 index.html 의 인라인 스크립트가 첫 페인트 전에
-   * 이미 정했다. 여기서는 다 돌면 치우고, 그 전에 누르면 바로 치운다.
-   * 앱은 이 덮개 아래에서 이미 그려져 있으므로 인트로가 대기 시간을 만들지 않는다. */
-  var INTRO_MS = 1200;
-  function setupIntro() {
-    var el = document.getElementById('intro');
-    if (!el || el.hidden) return;
-    el.style.setProperty('--intro-d', INTRO_MS + 'ms');
-
-    var start = Date.now(), done = false, timer = null;
-    function close() {
-      if (done) return;
-      done = true;
-      if (timer) clearTimeout(timer);
-      el.classList.add('done');
-      el.hidden = true;
-    }
-    function arm() {
-      if (done) return;
-      if (timer) clearTimeout(timer);
-      var left = INTRO_MS - (Date.now() - start);
-      if (left <= 0) close();
-      else timer = setTimeout(close, left);
-    }
-
-    // 급할 때 붙잡히지 않도록 아무 데나 누르면 바로 걷힌다
-    el.addEventListener('pointerdown', close);
-    arm();
-
-    /* 화면이 가려진 채로 시간이 흐르면 타이머가 밀린다. 돌아왔을 때 남은
-     * 시간을 다시 재서 건다.
-     *
-     * 예전에는 여기서 무조건 닫았는데 그게 아이폰에서 인트로가 안 보이던
-     * 원인이었다. 홈 화면 앱은 실행 직후 visibilitychange 가 한 번 오는데,
-     * 그걸 "돌아왔다" 로 읽고 시작하자마자 꺼 버렸다. 지난 시간을 봐야 한다. */
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) arm();
-    });
-  }
-
   // 시작
   route = parseHash();
   if (!location.hash) location.hash = '#/routines';
   restoreRest();
   render();
-  setupIntro();
 })();

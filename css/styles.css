@@ -522,18 +522,27 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
 /* ── 인트로 ─────────────────────────────────────────────
    앱을 완전히 껐다 켰을 때만 뜬다. 앱은 이 덮개 아래에서 이미 다 떠 있으므로
-   인트로가 실제 대기 시간을 만들지 않는다. 아무 데나 누르면 즉시 걷힌다.
+   인트로가 실제 대기 시간을 만들지 않는다.
+
+   두 가지를 못박아 둔다.
+   1) pointer-events: none — 덮개가 남더라도 터치를 가로채지 않는다.
+      장식 하나 때문에 앱을 못 쓰는 일이 없어야 한다
+   2) 시간은 CSS 에 직접 적는다. var/calc 로 받으면 그 값이 안 오는 순간
+      애니메이션이 통째로 멈춰 검은 화면이 남는다
    원판은 실제로 끼우는 순서대로 안쪽 큰 것 → 바깥쪽 작은 것. */
 .intro {
   position: fixed; inset: 0; z-index: 300;
   background: var(--bg);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 16px;
-  animation: intro-veil var(--intro-d, 1200ms) linear both;
+  pointer-events: none;
+  animation: intro-veil 1200ms linear forwards;
 }
 .intro[hidden] { display: none; }
-.intro.done { display: none; }
-@keyframes intro-veil { 0%, 88% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes intro-veil {
+  0%, 88% { opacity: 1; }
+  100%    { opacity: 0; visibility: hidden; }
+}
 
 .intro-mark { width: 58%; max-width: 190px; overflow: visible; }
 .intro-bar { fill: #5c6579; }
@@ -542,8 +551,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
 .intro-bar-g {
   transform-box: fill-box; transform-origin: center;
-  animation: intro-lift calc(var(--intro-d, 1200ms) * .3)
-             cubic-bezier(.34, 1.3, .5, 1) calc(var(--intro-d, 1200ms) * .5) both;
+  animation: intro-lift 360ms cubic-bezier(.34, 1.3, .5, 1) 600ms both;
 }
 @keyframes intro-lift {
   0%   { transform: translateY(0); }
@@ -551,26 +559,26 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   100% { transform: translateY(-4px); }
 }
 
-.intro-bar { animation: intro-bar-in calc(var(--intro-d, 1200ms) * .16) ease-out both; }
+.intro-bar { animation: intro-bar-in 192ms ease-out both; }
 @keyframes intro-bar-in {
   from { opacity: 0; transform: scaleX(.86); }
   to   { opacity: 1; transform: none; }
 }
 
-.intro-plate { animation: intro-slot-l calc(var(--intro-d, 1200ms) * .26) cubic-bezier(.3, 1.5, .5, 1) both; }
+.intro-plate { animation: intro-slot-l 312ms cubic-bezier(.3, 1.5, .5, 1) both; }
 .intro-plate.r { animation-name: intro-slot-r; }
-.intro-plate.in  { animation-delay: calc(var(--intro-d, 1200ms) * .12); }
-.intro-plate.out { animation-delay: calc(var(--intro-d, 1200ms) * .28); }
+.intro-plate.in  { animation-delay: 144ms; }
+.intro-plate.out { animation-delay: 336ms; }
 @keyframes intro-slot-l { from { opacity: 0; transform: translateX(-46px); } to { opacity: 1; transform: none; } }
 @keyframes intro-slot-r { from { opacity: 0; transform: translateX(46px); }  to { opacity: 1; transform: none; } }
 
 .intro-word {
   font-size: 21px; font-weight: 700; letter-spacing: -.01em; color: var(--text);
-  animation: intro-rise calc(var(--intro-d, 1200ms) * .26)
-             cubic-bezier(.2, .7, .3, 1) calc(var(--intro-d, 1200ms) * .62) both;
+  animation: intro-rise 312ms cubic-bezier(.2, .7, .3, 1) 744ms both;
 }
 @keyframes intro-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
+/* 모션을 끈 기기에서는 아예 뜨지 않는다 */
 @media (prefers-reduced-motion: reduce) {
   .intro { display: none; }
 }
