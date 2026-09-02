@@ -2105,7 +2105,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-35';
+  var APP_VERSION = '2026.09.02-36';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -3922,19 +3922,35 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     var el = document.getElementById('intro');
     if (!el || el.hidden) return;
     el.style.setProperty('--intro-d', INTRO_MS + 'ms');
-    var done = false;
+
+    var start = Date.now(), done = false, timer = null;
     function close() {
       if (done) return;
       done = true;
+      if (timer) clearTimeout(timer);
       el.classList.add('done');
       el.hidden = true;
     }
-    // 급할 때 붙잡히지 않도록 아무 데나 누르면 걷힌다
+    function arm() {
+      if (done) return;
+      if (timer) clearTimeout(timer);
+      var left = INTRO_MS - (Date.now() - start);
+      if (left <= 0) close();
+      else timer = setTimeout(close, left);
+    }
+
+    // 급할 때 붙잡히지 않도록 아무 데나 누르면 바로 걷힌다
     el.addEventListener('pointerdown', close);
-    setTimeout(close, INTRO_MS);
-    // 탭이 가려진 채로 흘러가면 타이머가 밀릴 수 있어 돌아올 때 한 번 더 본다
+    arm();
+
+    /* 화면이 가려진 채로 시간이 흐르면 타이머가 밀린다. 돌아왔을 때 남은
+     * 시간을 다시 재서 건다.
+     *
+     * 예전에는 여기서 무조건 닫았는데 그게 아이폰에서 인트로가 안 보이던
+     * 원인이었다. 홈 화면 앱은 실행 직후 visibilitychange 가 한 번 오는데,
+     * 그걸 "돌아왔다" 로 읽고 시작하자마자 꺼 버렸다. 지난 시간을 봐야 한다. */
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) close();
+      if (!document.hidden) arm();
     });
   }
 
