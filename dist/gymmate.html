@@ -26,6 +26,7 @@
   --danger: #ff5f6d;
   --radius: 14px;
   --tab-h: 62px;
+  --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
@@ -51,10 +52,13 @@ a { color: inherit; text-decoration: none; }
 
 /* 레이아웃 */
 #app { max-width: 640px; margin: 0 auto; min-height: 100vh; }
+/* viewport-fit=cover + black-translucent 이라 웹 화면이 상태바·노치 아래까지
+   올라온다. 상단 여백을 안 주면 제목과 버튼이 노치에 가려지고, 그 자리는
+   iOS 가 터치를 가져가 버려서 눌리지도 않는다. */
 .topbar {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 8px;
-  padding: 14px 16px;
+  padding: calc(14px + var(--safe-t)) 16px 14px;
   background: rgba(15, 17, 21, 0.92);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
@@ -276,7 +280,10 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .mini input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* 운동 진행 */
-.progress-card { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 58px; z-index: 10; }
+.progress-card {
+  display: flex; flex-direction: column; gap: 8px;
+  position: sticky; top: calc(58px + var(--safe-t)); z-index: 10;
+}
 .bar { height: 8px; background: var(--bg-2); border-radius: 99px; overflow: hidden; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--ok)); transition: width .25s ease; }
 .exercise { display: flex; flex-direction: column; gap: 10px; }
@@ -414,7 +421,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .sheet {
   position: absolute; left: 0; right: 0; bottom: 0;
   max-width: 640px; margin: 0 auto;
-  max-height: 92vh;
+  max-height: calc(100vh - var(--safe-t) - 24px);
   display: flex; flex-direction: column;
   background: var(--bg);
   border-radius: 18px 18px 0 0;
@@ -537,11 +544,17 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
    앱을 완전히 껐다 켰을 때만 뜬다. 앱은 이 덮개 아래에서 이미 다 떠 있으므로
    인트로가 실제 대기 시간을 만들지 않는다.
 
-   두 가지를 못박아 둔다.
-   1) pointer-events: none — 덮개가 남더라도 터치를 가로채지 않는다.
-      장식 하나 때문에 앱을 못 쓰는 일이 없어야 한다
-   2) 시간은 CSS 에 직접 적는다. var/calc 로 받으면 그 값이 안 오는 순간
-      애니메이션이 통째로 멈춰 검은 화면이 남는다
+   설계 원칙: 아무것도 안 보이는 상태가 절대 나오면 안 된다.
+   기본 상태를 "다 보이는 아령" 으로 두고, 움직임은 .anim 이 붙었을 때만
+   얹는다. 전에는 반대로 두고(opacity:0 에서 시작) 애니메이션이 채워 넣게
+   했는데, 그러면 애니메이션이 안 도는 순간 검은 화면만 남는다. 실제로
+   아이폰에서 그렇게 됐다.
+
+   .anim 을 붙일지는 JS 가 정한다 (설정 + 기기의 동작 줄이기). CSS 미디어
+   쿼리로 하면 "기기는 동작 줄이기인데 사용자가 굳이 켠" 경우를 못 만든다.
+
+   덮개는 pointer-events: none — 남더라도 터치를 가로채지 않는다.
+   시간은 CSS 에 직접 적는다. var/calc 로 받으면 그 값이 안 오는 순간 멈춘다.
    원판은 실제로 끼우는 순서대로 안쪽 큰 것 → 바깥쪽 작은 것. */
 .intro {
   position: fixed; inset: 0; z-index: 300;
@@ -549,20 +562,26 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 16px;
   pointer-events: none;
-  animation: intro-veil 1200ms linear forwards;
 }
 .intro[hidden] { display: none; }
-@keyframes intro-veil {
-  0%, 88% { opacity: 1; }
-  100%    { opacity: 0; visibility: hidden; }
-}
 
 .intro-mark { width: 58%; max-width: 190px; overflow: visible; }
 .intro-bar { fill: #5c6579; }
 .intro-plate.in  { fill: var(--brand); }
 .intro-plate.out { fill: #3a5fd4; }
+.intro-word {
+  font-size: 21px; font-weight: 700; letter-spacing: -.01em; color: var(--text);
+}
 
-.intro-bar-g {
+/* 여기서부터가 움직임 */
+.intro.anim { animation: intro-veil 1200ms linear forwards; }
+@keyframes intro-veil {
+  0%   { opacity: 1; visibility: visible; }
+  88%  { opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+.intro.anim .intro-bar-g {
   transform-box: fill-box; transform-origin: center;
   animation: intro-lift 360ms cubic-bezier(.34, 1.3, .5, 1) 600ms both;
 }
@@ -572,29 +591,21 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   100% { transform: translateY(-4px); }
 }
 
-.intro-bar { animation: intro-bar-in 192ms ease-out both; }
+.intro.anim .intro-bar { animation: intro-bar-in 192ms ease-out both; }
 @keyframes intro-bar-in {
   from { opacity: 0; transform: scaleX(.86); }
   to   { opacity: 1; transform: none; }
 }
 
-.intro-plate { animation: intro-slot-l 312ms cubic-bezier(.3, 1.5, .5, 1) both; }
-.intro-plate.r { animation-name: intro-slot-r; }
-.intro-plate.in  { animation-delay: 144ms; }
-.intro-plate.out { animation-delay: 336ms; }
+.intro.anim .intro-plate { animation: intro-slot-l 312ms cubic-bezier(.3, 1.5, .5, 1) both; }
+.intro.anim .intro-plate.r { animation-name: intro-slot-r; }
+.intro.anim .intro-plate.in  { animation-delay: 144ms; }
+.intro.anim .intro-plate.out { animation-delay: 336ms; }
 @keyframes intro-slot-l { from { opacity: 0; transform: translateX(-46px); } to { opacity: 1; transform: none; } }
 @keyframes intro-slot-r { from { opacity: 0; transform: translateX(46px); }  to { opacity: 1; transform: none; } }
 
-.intro-word {
-  font-size: 21px; font-weight: 700; letter-spacing: -.01em; color: var(--text);
-  animation: intro-rise 312ms cubic-bezier(.2, .7, .3, 1) 744ms both;
-}
+.intro.anim .intro-word { animation: intro-rise 312ms cubic-bezier(.2, .7, .3, 1) 744ms both; }
 @keyframes intro-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
-
-/* 모션을 끈 기기에서는 아예 뜨지 않는다 */
-@media (prefers-reduced-motion: reduce) {
-  .intro { display: none; }
-}
 
 </style>
 </head>
@@ -632,6 +643,8 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     (function () {
       var el = document.getElementById('intro');
       if (!el) return;
+      // 설정에서 다시 볼 수 있도록 원본을 남겨 둔다 (아래에서 통째로 지우므로)
+      window.__introHTML = el.outerHTML;
 
       function hide() {
         if (!el) return;
@@ -640,19 +653,46 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         el = null;
       }
 
-      var show = false;
+      var show = false, anim = false;
       try {
+        /* 콜드 스타트인지 두 가지로 본다.
+           1) sessionStorage — 앱(탭)을 완전히 닫으면 지워진다. 안드로이드에서 정확하다
+           2) 마지막으로 살아 있던 시각 — 아이폰 홈 화면 앱은 앱을 껐다 켜도
+              sessionStorage 가 남는 경우가 있어 1)만으로는 영영 안 뜬다.
+              문서가 새로 뜬 시점에 마지막 흔적이 5분보다 오래됐으면 껐다 켠 것으로 본다 */
         var seen = sessionStorage.getItem('gm.intro');
         sessionStorage.setItem('gm.intro', '1');
-        show = !seen && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-        // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
+        var last = +(localStorage.getItem('gm.alive') || 0);
+        var coldByTime = !last || (Date.now() - last > 300000);
+        var cold = !seen || coldByTime;
+
         var raw = localStorage.getItem('gymmate.v1');
+        /* 설정: auto = 기기의 동작 줄이기를 따름 / on = 항상 / off = 사용 안 함.
+           app.js 가 아직 안 떴으므로 저장된 값을 직접 읽는다. */
+        var m = raw && raw.match(/"intro"\s*:\s*"(auto|on|off)"/);
+        var mode = m ? m[1] : 'auto';
+        var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /* 뜨느냐(show)와 움직이냐(anim)는 별개다. 동작 줄이기를 켠 기기라도
+           정지된 아령 한 장은 움직임이 아니므로 보여 준다. 아무것도 안 뜨는
+           것은 사용자가 "사용 안 함" 을 고른 경우뿐이다. */
+        anim = (mode === 'on') || (mode === 'auto' && !reduce);
+        show = cold && mode !== 'off';
+        // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
         if (raw && /"active"\s*:\s*\{/.test(raw)) show = false;
       } catch (e) { show = false; }   // 저장소가 막혀 있으면 띄우지 않는다
+
+      /* 살아 있다는 흔적을 남긴다. 다음에 문서가 뜰 때 이 값으로 판단한다 */
+      function beat() { try { localStorage.setItem('gm.alive', String(Date.now())); } catch (e) {} }
+      beat();
+      setInterval(beat, 20000);
+      window.addEventListener('pagehide', beat);
+      document.addEventListener('visibilitychange', function () { if (document.hidden) beat(); });
 
       if (!show) { hide(); return; }
 
       el.hidden = false;
+      if (anim) el.className += ' anim';
       var start = Date.now(), timer = null;
       function arm() {
         if (!el) return;
@@ -938,7 +978,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     sessions: [],       // 완료된 운동 기록
     customExercises: [],
     active: null,       // 진행 중인 세션
-    settings: { defaultRest: 90, sound: true, voice: 'ash', cueVolume: 100, unit: 'kg', bodyWeight: 70 }
+    settings: { defaultRest: 90, sound: true, voice: 'ash', cueVolume: 100, intro: 'auto', unit: 'kg', bodyWeight: 70 }
   };
 
   var state = load();
@@ -1079,6 +1119,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     settings.unit = settings.unit === 'lb' ? 'lb' : 'kg';
     settings.sound = settings.sound !== false;
     settings.cueVolume = Math.min(100, Math.max(0, n(settings.cueVolume, 100)));
+    if (['auto', 'on', 'off'].indexOf(settings.intro) === -1) settings.intro = 'auto';
 
     var out = clone(DEFAULT);
     out.routines = routines;
@@ -2154,7 +2195,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-37';
+  var APP_VERSION = '2026.09.02-40';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -3357,6 +3398,32 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         }).join('') +
       '</ul></div>';
 
+    var reduceOn = false;
+    try { reduceOn = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    var mode = st.intro || 'auto';
+    var willAnim = mode === 'on' || (mode === 'auto' && !reduceOn);
+    html += '<div class="card">' +
+      '<h3>실행 인트로</h3>' +
+      '<label class="field inline"><span>앱을 켤 때</span>' +
+      '<select data-bind="set-intro">' +
+        '<option value="auto"' + (mode === 'auto' ? ' selected' : '') + '>기기 설정 따름</option>' +
+        '<option value="on"' + (mode === 'on' ? ' selected' : '') + '>항상 보기</option>' +
+        '<option value="off"' + (mode === 'off' ? ' selected' : '') + '>사용 안 함</option>' +
+      '</select></label>' +
+      '<button class="btn sm block" data-act="intro-test">인트로 다시 보기</button>' +
+      /* 아이폰에서 "정지 이미지만 보인다" 는 신고가 있었다. 대개 기기의
+       * 동작 줄이기가 켜져 있어서인데, 화면에 드러나지 않으면 알 길이 없다.
+       * 지금 상태와 그 뜻을 그대로 적는다. */
+      '<p class="dim">기기의 <b>동작 줄이기</b>가 ' + (reduceOn ? '<b>켜져</b> 있습니다' : '꺼져 있습니다') +
+        ' → 앱을 켤 때 ' +
+        (mode === 'off' ? '<b>인트로가 나오지 않습니다</b>'
+          : willAnim ? '<b>움직이는 인트로</b>가 나옵니다'
+          : '<b>정지된 아령</b>만 잠깐 보입니다') + '.' +
+        (!willAnim && mode === 'auto'
+          ? ' 움직이는 쪽을 원하시면 위를 <b>항상 보기</b>로 바꾸세요.'
+          : '') + '</p>' +
+      '</div>';
+
     html += '<div class="card">' +
       '<h3>칼로리 추정</h3>' +
       '<label class="field inline"><span>체중(kg)</span>' +
@@ -3779,6 +3846,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         if (S.settings.voice) { unlockAudio(); playVoice(S.settings.voice); }
         render();
         break;
+      case 'intro-test':
+        playIntro();
+        break;
       case 'cue-test':
         unlockAudio();
         beep();
@@ -3919,6 +3989,10 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         if (ev.type === 'change') render();
         break;
       case 'set-sound': S.settings.sound = t.checked; S.commit(); break;
+      case 'set-intro':
+        S.settings.intro = t.value; S.commit();
+        if (ev.type === 'change') render();   // 아래 안내 문구를 새 값에 맞춘다
+        break;
       case 'set-cue-volume':
         // 끄는 동안 화면을 다시 그리면 손잡이를 놓치므로 숫자만 갈아 끼운다
         S.settings.cueVolume = Math.min(100, Math.max(0, num(t.value, 100)));
@@ -3962,6 +4036,32 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       e.returnValue = '';
     }
   });
+
+  /* 인트로를 다시 보여 준다. 실제 실행 때와 같은 마크업·CSS 를 쓰므로
+   * 이게 되는데 앱 켤 때 안 나온다면 문제는 애니메이션이 아니라 조건 쪽이다. */
+  function playIntro() {
+    var html = window.__introHTML;
+    if (!html) { toast('인트로를 불러올 수 없습니다'); return; }
+    var old = document.getElementById('intro');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var box = document.createElement('div');
+    box.innerHTML = html;
+    var el = box.firstChild;
+    el.hidden = false;
+    // 실행 때와 같은 모습을 보여 준다. 설정이 auto 인데 기기가 동작 줄이기면
+    // 여기서도 정지 상태로 보인다 — 그게 실제로 보게 될 화면이다
+    var reduce = false;
+    try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    // 눌러서 보겠다는 뜻이므로 "사용 안 함" 이어도 보여 준다.
+    // 움직임은 기기가 허용하거나 사용자가 "항상 보기" 를 고른 경우
+    var mode = S.settings.intro || 'auto';
+    if (!reduce || mode === 'on') el.className += ' anim';
+    document.body.appendChild(el);
+    function drop() { if (el && el.parentNode) el.parentNode.removeChild(el); el = null; }
+    setTimeout(drop, 1200);
+    setTimeout(drop, 3000);
+    document.addEventListener('pointerdown', drop, { once: true });
+  }
 
   // 시작
   route = parseHash();
