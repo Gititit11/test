@@ -94,7 +94,7 @@
         var times = (r.times || []).map(hm).sort(function (a, b) { return a - b; });
         for (var j = 0; j < times.length; j++) {
           var ts = atMin(dayMs, times[j]);
-          if (ts > now && ts >= r.lastFired + 60000) return ts;
+          if (ts > now) return ts;
         }
       } else {
         var since = Math.max(r.lastFired || 0, r.afterDrink ? t.lastAt : 0);
@@ -106,14 +106,52 @@
     return 0;
   }
 
+  /* 아직 울리지 않은, 지금 울려야 할 시각. 없으면 0.
+   *
+   * nextAt() 과 반드시 나눠 두어야 한다. nextAt() 은 화면에 보여 줄
+   * "다음 알림" 이라 앞으로 올 시각만 돌려준다. 그것만으로 발사를 판단하면
+   * 정한 시각 모드는 영영 울리지 않는다 — 시각이 되기 전에는 "아직 미래" 라
+   * 넘어가고, 그 시각이 지나는 순간 nextAt() 이 그 시각을 건너뛰고 다음 것을
+   * 가리키기 때문이다. 실제로 그렇게 만들어 두어 한동안 울리지 않았다. */
+  function pendingAt(now) {
+    var r = Store.remind();
+    if (!r.on) return 0;
+    if (r.snoozeUntil > 0) return r.snoozeUntil <= now ? r.snoozeUntil : 0;
+
+    var t = Store.today();
+    if (r.skipWhenDone && t.ml >= t.goal) return 0;   // 오늘은 다 마셨다
+
+    if (r.mode === 'times') {
+      /* 오늘과 어제(자정을 넘긴 시간대)의 지난 시각 중, 마지막으로 알린 뒤의 것.
+         너무 오래 지난 시각은 애초에 후보로 삼지 않는다 — 어제 이맘때를 집어
+         들고 "밀린 알림" 이라고 말하는 일이 없게. */
+      var floor = now - 30 * 60000;
+      for (var i = 0; i >= -1; i--) {
+        var dayMs = midnight(now) + i * 86400000;
+        if (!dayOn(dayMs, r)) continue;
+        var times = (r.times || []).map(hm).sort(function (a, b) { return a - b; });
+        for (var j = times.length - 1; j >= 0; j--) {
+          var ts = atMin(dayMs, times[j]);
+          if (ts <= now && ts >= floor && ts > (r.lastFired || 0)) return ts;
+        }
+      }
+      return 0;
+    }
+
+    // 간격 모드는 다음 시각 자체가 과거로 밀리면 그게 곧 밀린 알림이다
+    var at = nextAt(now);
+    return (at && at <= now) ? at : 0;
+  }
+
   /* 지금 알려야 하는가. 늦게 깨어난 시계가 한참 지난 알림을 뒤늦게
      울리지 않도록, 지난 알림은 유예 시간 안일 때만 인정한다. */
   function due(now) {
     var r = Store.remind();
     if (!r.on) return false;
-    var at = nextAt(now);
-    if (!at || at > now) return false;
-    if (!inWindow(now, r) && r.snoozeUntil <= 0) return false;
+    var at = pendingAt(now);
+    if (!at) return false;
+    if (r.snoozeUntil > 0) return true;              // 미뤄 둔 시각이 됐다
+    if (!inWindow(now, r)) return false;
     var grace = r.mode === 'times' ? 30 * 60000 : 6 * 3600000;
     return now - at <= grace;
   }
@@ -429,7 +467,7 @@
 
   global.Remind = {
     start: start, tick: tick, sync: sync, fire: fire, test: test, snooze: snooze,
-    nextAt: nextAt, due: due, inWindow: inWindow, hm: hm,
+    nextAt: nextAt, pendingAt: pendingAt, due: due, inWindow: inWindow, hm: hm,
     permission: permission, request: request, ready: ready,
     drainPending: drainPending, registerPeriodic: registerPeriodic,
     unlockAudio: unlockAudio, beep: beep,

@@ -114,5 +114,12 @@ majungmul/
 Cache Storage(`majungmul-state`)에 따로 넣어 둡니다. 서비스워커는 localStorage 를 볼 수 없습니다.
 
 ```bash
-node majungmul/tools/build-icons.js   # 아이콘 다시 만들기 (Playwright 필요)
+node majungmul/tools/check-remind.js          # 알림이 제때 울리는지 자가검사
+node majungmul/tools/check-remind.js --slow   # 진짜 시계로 1분 기다리는 검사까지
+node majungmul/tools/build-icons.js           # 아이콘 다시 만들기
 ```
+
+`check-remind.js` 는 앱을 그대로 브라우저에 띄워 **"이 순간 울리는가"** 를 확인합니다.
+"다음 알림 시각" 계산만 맞으면 된다고 여기고 그것만 확인한 적이 있는데, 정작 발사
+판단이 그 값과 어긋나 **정한 시각 모드가 한 번도 울리지 않았습니다.** 알림을 손대면
+이 검사를 돌려 주세요.
