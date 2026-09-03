@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1016">
+<meta name="description" content="마신 물의 양과 횟수를 기록하고, 정해진 시간에 물 마시라고 알려 주는 앱">
+<title>마중물 · 물 마시기 기록</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="마중물">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- 앱을 완전히 껐다 켰을 때만 보이는 인트로.
+       markup 을 여기 두는 이유는 첫 페인트에 바로 나오게 하기 위해서다.
+       app.js 를 기다리면 빈 화면이 한 번 스친다. -->
+  <!-- 앱을 껐다 켰을 때만 보이는 인트로 — 물방울이 떨어져 파문이 이는 장면.
+       markup 을 여기 두는 이유는 첫 페인트에 바로 나오게 하기 위해서다.
+       app.js 를 기다리면 빈 화면이 한 번 스친다. -->
+  <div id="intro" class="intro" hidden aria-hidden="true">
+    <svg class="intro-mark" viewBox="0 0 120 140">
+      <!-- 떨어지는 물방울 -->
+      <g class="mj-fall">
+        <path class="mj-drop" d="M60 34 C60 34, 78 57, 78 70 a18 18 0 0 1 -36 0 C42 57, 60 34, 60 34 Z"/>
+      </g>
+      <!-- 수면과 파문 -->
+      <ellipse class="mj-pool" cx="60" cy="104" rx="34" ry="4.5"/>
+      <ellipse class="mj-ring r1" cx="60" cy="104" rx="11" ry="3.6"/>
+      <ellipse class="mj-ring r2" cx="60" cy="104" rx="11" ry="3.6"/>
+      <!-- 튀어 오르는 물방울 -->
+      <circle class="mj-bit l" cx="60" cy="102" r="3"/>
+      <circle class="mj-bit r" cx="60" cy="102" r="2.2"/>
+    </svg>
+    <div class="intro-word">마중물</div>
+  </div>
+  <script>
+    /* 인트로는 이 스크립트가 혼자 책임진다 — 띄우는 것도, 걷는 것도.
+     *
+     * 걷는 일을 app.js 에 맡기면 app.js 가 어디서든 죽는 순간 화면을 덮은
+     * 채로 남아 앱을 아예 못 쓰게 된다. 인트로는 장식이므로 어떤 경우에도
+     * 앱을 막아서는 안 된다. 그래서
+     *   - 걷는 타이머를 여기(가장 먼저 실행되는 곳)에 두고
+     *   - 덮개는 터치를 아예 받지 않으며(pointer-events:none)
+     *   - 혹시 몰라 3초 뒤 통째로 DOM 에서 지우는 그물을 하나 더 둔다
+     */
+    (function () {
+      var el = document.getElementById('intro');
+      if (!el) return;
+      // 설정에서 다시 볼 수 있도록 원본을 남겨 둔다 (아래에서 통째로 지우므로)
+      window.__introHTML = el.outerHTML;
+
+      function hide() {
+        if (!el) return;
+        el.hidden = true;
+        if (el.parentNode) el.parentNode.removeChild(el);
+        el = null;
+      }
+
+      var show = false, anim = false;
+      try {
+        /* 껐다 켠 것인지(콜드 스타트) 두 가지로 본다.
+           1) sessionStorage — 탭을 완전히 닫으면 지워진다. 안드로이드에서 정확하다
+           2) 마지막으로 살아 있던 시각 — 아이폰 홈 화면 앱은 껐다 켜도
+              sessionStorage 가 남는 경우가 있어 1)만으로는 영영 안 뜬다.
+              문서가 새로 뜬 시점에 마지막 흔적이 5분보다 오래됐으면 껐다 켠 것으로 본다 */
+        var seen = sessionStorage.getItem('mj.intro');
+        sessionStorage.setItem('mj.intro', '1');
+        var last = +(localStorage.getItem('mj.alive') || 0);
+        var cold = !seen || !last || (Date.now() - last > 300000);
+
+        /* 설정: auto = 기기의 동작 줄이기를 따름 / on = 항상 / off = 사용 안 함.
+           app.js 가 아직 안 떴으므로 저장된 값을 직접 읽는다. */
+        var raw = localStorage.getItem('majungmul.v1');
+        var m = raw && raw.match(/"intro"\s*:\s*"(auto|on|off)"/);
+        var mode = m ? m[1] : 'auto';
+        var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /* 뜨느냐(show)와 움직이냐(anim)는 별개다. 동작 줄이기를 켠 기기라도
+           정지된 물방울 한 장은 움직임이 아니므로 보여 준다. 아무것도 안 뜨는
+           것은 사용자가 "사용 안 함" 을 고른 경우뿐이다. */
+        anim = (mode === 'on') || (mode === 'auto' && !reduce);
+        show = cold && mode !== 'off';
+      } catch (e) { show = false; }   // 저장소가 막혀 있으면 띄우지 않는다
+
+      /* 살아 있다는 흔적. 다음에 문서가 뜰 때 이 값으로 껐다 켠 것인지 가른다 */
+      function beat() { try { localStorage.setItem('mj.alive', String(Date.now())); } catch (e) {} }
+      beat();
+      setInterval(beat, 20000);
+      window.addEventListener('pagehide', beat);
+      document.addEventListener('visibilitychange', function () { if (document.hidden) beat(); });
+
+      if (!show) { hide(); return; }
+
+      el.hidden = false;
+      if (anim) el.className += ' anim';
+      var start = Date.now(), timer = null;
+      function arm() {
+        if (!el) return;
+        if (timer) clearTimeout(timer);
+        var left = (anim ? 1500 : 900) - (Date.now() - start);
+        timer = setTimeout(hide, left > 0 ? left : 0);
+      }
+      arm();
+      // 가려진 채 시간이 흐르면 타이머가 밀린다. 돌아왔을 때 남은 만큼 다시 건다.
+      // 무조건 닫으면 안 된다 — 아이폰 홈 화면 앱은 실행 직후 이 이벤트가 한 번 온다
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) arm(); });
+      // 급할 때 붙잡히지 않도록 화면 아무 데나 누르면 걷힌다
+      document.addEventListener('pointerdown', hide, { once: true });
+      document.addEventListener('touchstart', hide, { once: true });
+      // 마지막 그물. 위가 전부 실패해도 3.5초 뒤에는 반드시 사라진다
+      setTimeout(hide, 3500);
+    })();
+  </script>
+
+  <div id="app"></div>
+  <div id="modal" class="modal"></div>
+  <div id="toast" class="toast-root"></div>
+
+  <script src="js/store.js"></script>
+  <script src="js/remind.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      var hadController = !!navigator.serviceWorker.controller;
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').then(function (reg) {
+          if (reg && reg.update) reg.update();
+          // 등록이 끝나면 밀린 알림이 없는지 한 번 확인시킨다
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'majungmul-check' });
+          }
+        }).catch(function () { /* 오프라인 캐시 미지원 */ });
+      });
+      // 새 버전이 설치되면 새로고침해 최신 코드로 바꾼다
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (hadController) location.reload();
+      });
+    }
+  </script>
+</body>
+</html>

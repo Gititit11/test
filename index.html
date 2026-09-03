@@ -4,138 +4,114 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<meta name="description" content="헬스 머신·프리웨이트를 검색해 나만의 루틴을 만들고, 세트를 완료할 때마다 체크하는 운동 보조 앱">
-<title>GymMate · 헬스 루틴 &amp; 세트 체크</title>
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="GymMate">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/styles.css">
+<meta name="description" content="짐메이트(헬스 루틴)와 마중물(물 마시기 기록) — 설치해서 쓰는 웹앱 두 개">
+<title>앱 고르기</title>
+<style>
+  :root { --bg:#0f1115; --card:#1b2029; --line:#2c3240; --text:#eef1f6; --dim:#93a0b4;
+          --gym:#4d7cff; --water:#38b6ff; --warn:#ffc857;
+          --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(120% 60% at 50% -10%, #1a2233 0%, rgba(26,34,51,0) 60%), var(--bg);
+    color: var(--text); min-height: 100vh; min-height: 100dvh;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+      "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(28px + var(--safe-t)) 18px calc(28px + var(--safe-b));
+  }
+  .wrap { width: 100%; max-width: 420px; }
+  h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--dim); font-size: 13.5px; margin: 0 0 20px; }
+  a.app {
+    display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit;
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px; margin-bottom: 12px; transition: border-color .15s ease, transform .12s ease;
+  }
+  a.app:active { transform: scale(.99); }
+  a.app.gym:hover { border-color: var(--gym); }
+  a.app.water:hover { border-color: var(--water); }
+  .ico { width: 52px; height: 52px; border-radius: 14px; flex: none; background: #0b1016;
+         display: flex; align-items: center; justify-content: center; }
+  .ico img { width: 52px; height: 52px; border-radius: 14px; display: block; }
+  a.app > span:not(.ico):not(.go) { min-width: 0; }
+  .name, .desc { display: block; }
+  .name { font-weight: 700; font-size: 16px; }
+  .desc { color: var(--dim); font-size: 13px; margin-top: 2px; }
+  .go { margin-left: auto; color: var(--dim); font-size: 20px; flex: none; }
+  .note {
+    margin-top: 18px; padding: 14px; border-radius: 14px; font-size: 13px; line-height: 1.65;
+    border: 1px solid var(--line); color: var(--dim); background: rgba(255,255,255,0.02);
+  }
+  .note b { color: var(--text); }
+  #moved { display: none; border-color: rgba(255,200,87,0.35); background: rgba(255,200,87,0.07); color: var(--warn); }
+  #moved b { color: var(--warn); }
+</style>
 </head>
 <body>
-  <!-- 앱을 완전히 껐다 켰을 때만 보이는 인트로.
-       markup 을 여기 두는 이유는 첫 페인트에 바로 나오게 하기 위해서다.
-       app.js 를 기다리면 빈 화면이 한 번 스친다. -->
-  <div id="intro" class="intro" hidden aria-hidden="true">
-    <svg class="intro-mark" viewBox="0 0 200 104">
-      <g class="intro-bar-g">
-        <rect class="intro-bar" x="22" y="47" width="156" height="10" rx="5"/>
-        <rect class="intro-plate in  l" x="52"  y="24" width="15" height="56" rx="6"/>
-        <rect class="intro-plate out l" x="36"  y="33" width="12" height="38" rx="5"/>
-        <rect class="intro-plate in  r" x="133" y="24" width="15" height="56" rx="6"/>
-        <rect class="intro-plate out r" x="152" y="33" width="12" height="38" rx="5"/>
-      </g>
-    </svg>
-    <div class="intro-word">GymMate</div>
+  <div class="wrap">
+    <h1>앱 고르기</h1>
+    <p class="sub">둘 다 설치해서 쓰는 웹앱이에요. 열어서 홈 화면에 추가하세요.</p>
+
+    <!-- 예전 짐메이트 아이콘(주소가 /test/ 였던 것)으로 들어온 사람에게만 보인다 -->
+    <div class="note" id="moved">
+      <b>짐메이트 주소가 바뀌었어요.</b><br>
+      두 앱이 서로의 설치를 방해하던 문제를 고치면서 짐메이트가 한 칸 안으로 들어갔어요.
+      아래에서 짐메이트를 연 다음 <b>홈 화면에 다시 추가</b>해 주세요.
+      기록은 그대로 남아 있어요.
+    </div>
+
+    <a class="app gym" href="./gymmate/">
+      <span class="ico"><img src="./gymmate/icons/icon-192.png" alt="" width="52" height="52"></span>
+      <span>
+        <span class="name">짐메이트</span>
+        <span class="desc">헬스 루틴을 만들고 세트마다 체크</span>
+      </span>
+      <span class="go">›</span>
+    </a>
+
+    <a class="app water" href="./majungmul/">
+      <span class="ico"><img src="./majungmul/icons/icon-192.png" alt="" width="52" height="52"></span>
+      <span>
+        <span class="name">마중물</span>
+        <span class="desc">마신 물을 기록하고 제때 알림</span>
+      </span>
+      <span class="go">›</span>
+    </a>
+
+    <div class="note">
+      <b>홈 화면에 추가하는 법</b><br>
+      아이폰 사파리 — 공유 버튼 → 홈 화면에 추가<br>
+      안드로이드 크롬 — 오른쪽 위 ⋮ → 앱 설치<br>
+      앱마다 따로 추가하면 아이콘이 각각 생겨요.
+    </div>
   </div>
+
   <script>
-    /* 인트로는 이 스크립트가 혼자 책임진다 — 띄우는 것도, 걷는 것도.
-     *
-     * 처음에는 걷는 일을 app.js 에 맡겼는데, 그러면 app.js 가 어디서든
-     * 죽는 순간 화면을 덮은 채로 남아 앱을 아예 못 쓰게 된다. 실제로
-     * 아이폰에서 검은 화면만 뜨는 사고가 났다. 인트로는 장식이므로
-     * 어떤 경우에도 앱을 막아서는 안 된다. 그래서
-     *   - 걷는 타이머를 여기(가장 먼저 실행되는 곳)에 두고
-     *   - 덮개는 터치를 아예 받지 않으며(pointer-events:none)
-     *   - 혹시 몰라 3초 뒤 통째로 DOM 에서 지우는 그물을 하나 더 둔다
-     *
-     * 띄울지 말지는 sessionStorage 로 가른다. 앱(탭)을 완전히 닫으면
-     * 지워지고, 새로고침이나 안드로이드가 메모리에서 잠시 내렸다 복구할
-     * 때는 남는다. 그래서 "휴식 중에 유튜브 보고 돌아옴" 과
-     * "앱을 껐다가 다시 켬" 이 갈린다. */
+    /* 예전 짐메이트 아이콘은 이 주소(/test/)를 열도록 저장돼 있다.
+       그 아이콘으로 들어오면 전체화면(standalone)으로 뜨므로, 그때만
+       주소가 바뀌었다고 알려 준다. 브라우저로 그냥 온 사람에게는 필요 없는 말이다. */
     (function () {
-      var el = document.getElementById('intro');
-      if (!el) return;
-      function hide() {
-        if (!el) return;
-        el.hidden = true;
-        if (el.parentNode) el.parentNode.removeChild(el);
-        el = null;
-      }
-
-      var show = false, anim = false;
+      var standalone = false;
       try {
-        /* 콜드 스타트인지 두 가지로 본다.
-           1) sessionStorage — 앱(탭)을 완전히 닫으면 지워진다. 안드로이드에서 정확하다
-           2) 마지막으로 살아 있던 시각 — 아이폰 홈 화면 앱은 앱을 껐다 켜도
-              sessionStorage 가 남는 경우가 있어 1)만으로는 영영 안 뜬다.
-              문서가 새로 뜬 시점에 마지막 흔적이 5분보다 오래됐으면 껐다 켠 것으로 본다 */
-        var seen = sessionStorage.getItem('gm.intro');
-        sessionStorage.setItem('gm.intro', '1');
-        var last = +(localStorage.getItem('gm.alive') || 0);
-        var coldByTime = !last || (Date.now() - last > 300000);
-        var cold = !seen || coldByTime;
-
-        var raw = localStorage.getItem('gymmate.v1');
-        /* 뜨느냐(show)와 움직이냐(anim)는 별개다. 동작 줄이기를 켠 기기라도
-           정지된 아령 한 장은 움직임이 아니므로 보여 준다. */
-        anim = !matchMedia('(prefers-reduced-motion: reduce)').matches;
-        show = cold;
-        // 운동 중이면 건너뛴다. 세트를 적으러 급히 들어온 사람을 붙잡지 않는다
-        if (raw && /"active"\s*:\s*\{/.test(raw)) show = false;
-      } catch (e) { show = false; }   // 저장소가 막혀 있으면 띄우지 않는다
-
-      /* 살아 있다는 흔적을 남긴다. 다음에 문서가 뜰 때 이 값으로 판단한다 */
-      function beat() { try { localStorage.setItem('gm.alive', String(Date.now())); } catch (e) {} }
-      beat();
-      setInterval(beat, 20000);
-      window.addEventListener('pagehide', beat);
-      document.addEventListener('visibilitychange', function () { if (document.hidden) beat(); });
-
-      if (!show) { hide(); return; }
-
-      el.hidden = false;
-      if (anim) el.className += ' anim';
-      var start = Date.now(), timer = null;
-      function arm() {
-        if (!el) return;
-        if (timer) clearTimeout(timer);
-        var left = 1200 - (Date.now() - start);
-        timer = setTimeout(hide, left > 0 ? left : 0);
-      }
-      arm();
-      // 가려진 채 시간이 흐르면 타이머가 밀린다. 돌아왔을 때 남은 만큼 다시 건다.
-      // 무조건 닫으면 안 된다 — 아이폰 홈 화면 앱은 실행 직후 이 이벤트가 한 번 온다
-      document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) arm();
-      });
-      // 급할 때 붙잡히지 않도록 화면 아무 데나 누르면 걷힌다.
-      // 덮개 자신은 터치를 받지 않으므로 문서에 건다
-      document.addEventListener('pointerdown', hide, { once: true });
-      document.addEventListener('touchstart', hide, { once: true });
-      // 마지막 그물. 위가 전부 실패해도 3초 뒤에는 반드시 사라진다
-      setTimeout(hide, 3000);
+        standalone = matchMedia('(display-mode: standalone)').matches ||
+                     matchMedia('(display-mode: fullscreen)').matches ||
+                     navigator.standalone === true;
+      } catch (e) { }
+      if (standalone) document.getElementById('moved').style.display = 'block';
     })();
-  </script>
 
-  <div id="app"></div>
-  <div id="modal" class="modal"></div>
-  <div id="toast" class="toast-root"></div>
-
-  <script src="js/exercises.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/calories.js"></script>
-  <script src="js/bodyfigure.js"></script>
-  <script src="js/bodymap.js"></script>
-  <script src="js/app.js"></script>
-  <script>
+    /* 예전에 이 주소에 있던 짐메이트의 서비스워커를 걷어낸다.
+       그대로 두면 낡은 화면이 캐시에서 계속 나온다. */
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      var hadController = !!navigator.serviceWorker.controller;
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').then(function (reg) {
-          // 인트로가 도는 동안 새 버전을 확인한다. 어차피 기다리는 시간이라
-          // 여기 얹으면 사용자가 따로 기다릴 일이 없다. 화면에는 아무것도 알리지 않는다.
-          if (reg && reg.update) reg.update();
-        }).catch(function () { /* 오프라인 캐시 미지원 */ });
-      });
-      // 새 버전이 설치되면 새로고침해 최신 코드로 바꾼다.
-      // 단, 운동 중이라면 진행을 끊지 않도록 그대로 둔다.
-      navigator.serviceWorker.addEventListener('controllerchange', function () {
-        if (hadController && !(window.Store && window.Store.active())) location.reload();
-      });
+      navigator.serviceWorker.getRegistrations().then(function (rs) {
+        rs.forEach(function (r) {
+          // 각 앱이 자기 폴더에서 등록한 것은 건드리지 않는다
+          if (r.scope.replace(location.origin, '').replace(/\/$/, '') ===
+              location.pathname.replace(/\/$/, '')) r.unregister();
+        });
+      }).catch(function () { });
     }
   </script>
 </body>

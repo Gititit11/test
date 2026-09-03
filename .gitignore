@@ -1,4 +1,4 @@
 .DS_Store
 Thumbs.db
 node_modules/
-dist/gymmate.fragment.html
+gymmate/dist/gymmate.fragment.html

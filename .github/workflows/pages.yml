@@ -7,6 +7,7 @@ on:
       - main
       - master
       - claude/health-routine-workout-app-tww9lp
+      - claude/water-intake-tracker-app-gq6aat
   workflow_dispatch:
 
 permissions:
