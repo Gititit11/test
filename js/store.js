@@ -11,7 +11,7 @@
     sessions: [],       // 완료된 운동 기록
     customExercises: [],
     active: null,       // 진행 중인 세션
-    settings: { defaultRest: 90, sound: true, voice: 'ash', cueVolume: 100, intro: 'auto', unit: 'kg', bodyWeight: 70 }
+    settings: { defaultRest: 90, sound: true, voice: 'ash', cueVolume: 100, unit: 'kg', bodyWeight: 70 }
   };
 
   var state = load();
@@ -152,7 +152,6 @@
     settings.unit = settings.unit === 'lb' ? 'lb' : 'kg';
     settings.sound = settings.sound !== false;
     settings.cueVolume = Math.min(100, Math.max(0, n(settings.cueVolume, 100)));
-    if (['auto', 'on', 'off'].indexOf(settings.intro) === -1) settings.intro = 'auto';
 
     var out = clone(DEFAULT);
     out.routines = routines;
