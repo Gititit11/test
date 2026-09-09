@@ -4,8 +4,7 @@
  * 캐시에 있던 옛 화면을 계속 내보낸다. 브라우저는 갱신할 때 이 파일을 다시 받아
  * 가므로, 여기서 스스로 등록을 지우고 옛 캐시도 함께 치운다.
  *
- * 새 짐메이트는 /test/gymmate/sw.js, 마중물은 /test/majungmul/sw.js 를 쓴다.
- * 이 파일은 그 둘과 아무 관계가 없다.
+ * 지금 짐메이트는 /test/gymmate/sw.js 를 쓴다. 이 파일은 그것과 아무 관계가 없다.
  */
 self.addEventListener('install', function () { self.skipWaiting(); });
 

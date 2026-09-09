@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<meta name="description" content="짐메이트(헬스 루틴)와 마중물(물 마시기 기록) — 설치해서 쓰는 웹앱 두 개">
-<title>앱 고르기</title>
+<meta name="description" content="짐메이트 — 헬스 루틴을 만들고 세트마다 체크하는 웹앱">
+<title>짐메이트</title>
 <style>
   :root { --bg:#0f1115; --card:#1b2029; --line:#2c3240; --text:#eef1f6; --dim:#93a0b4;
-          --gym:#4d7cff; --water:#38b6ff; --warn:#ffc857;
+          --gym:#4d7cff; --warn:#ffc857;
           --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; padding: 0; }
@@ -31,7 +31,6 @@
   }
   a.app:active { transform: scale(.99); }
   a.app.gym:hover { border-color: var(--gym); }
-  a.app.water:hover { border-color: var(--water); }
   .ico { width: 52px; height: 52px; border-radius: 14px; flex: none; background: #0b1016;
          display: flex; align-items: center; justify-content: center; }
   .ico img { width: 52px; height: 52px; border-radius: 14px; display: block; }
@@ -51,13 +50,13 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>앱 고르기</h1>
-    <p class="sub">둘 다 설치해서 쓰는 웹앱이에요. 열어서 홈 화면에 추가하세요.</p>
+    <h1>짐메이트</h1>
+    <p class="sub">설치해서 쓰는 웹앱이에요. 열어서 홈 화면에 추가하세요.</p>
 
     <!-- 예전 짐메이트 아이콘(주소가 /test/ 였던 것)으로 들어온 사람에게만 보인다 -->
     <div class="note" id="moved">
       <b>짐메이트 주소가 바뀌었어요.</b><br>
-      두 앱이 서로의 설치를 방해하던 문제를 고치면서 짐메이트가 한 칸 안으로 들어갔어요.
+      짐메이트가 한 칸 안(<code>/gymmate/</code>)으로 들어갔어요.
       아래에서 짐메이트를 연 다음 <b>홈 화면에 다시 추가</b>해 주세요.
       기록은 그대로 남아 있어요.
     </div>
@@ -71,20 +70,10 @@
       <span class="go">›</span>
     </a>
 
-    <a class="app water" href="./majungmul/">
-      <span class="ico"><img src="./majungmul/icons/icon-192.png" alt="" width="52" height="52"></span>
-      <span>
-        <span class="name">마중물</span>
-        <span class="desc">마신 물을 기록하고 제때 알림</span>
-      </span>
-      <span class="go">›</span>
-    </a>
-
     <div class="note">
       <b>홈 화면에 추가하는 법</b><br>
       아이폰 사파리 — 공유 버튼 → 홈 화면에 추가<br>
-      안드로이드 크롬 — 오른쪽 위 ⋮ → 앱 설치<br>
-      앱마다 따로 추가하면 아이콘이 각각 생겨요.
+      안드로이드 크롬 — 오른쪽 위 ⋮ → 앱 설치
     </div>
   </div>
 
