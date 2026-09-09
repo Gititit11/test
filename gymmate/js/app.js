@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.09-42';
+  var APP_VERSION = '2026.09.09-43';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -68,6 +68,66 @@
     closeModal();
     render();
   });
+
+  // ── 탭 좌우 쓸어넘기기 ───────────────────────────────
+  // 하단 탭 바와 같은 순서로 옆 탭에 간다. 목록을 세로로 굴리는 손짓과
+  // 겹치지 않게, 먼저 어느 쪽으로 움직였는지 보고 가로가 이겼을 때만 센다.
+  var TAB_ORDER = ['routines', 'progress', 'history', 'settings'];
+  var SWIPE_GO = 64;     // 이만큼 가로로 가야 넘긴다
+  var SWIPE_LOCK = 12;   // 이만큼 움직이면 방향을 정한다
+  var SWIPE_EDGE = 24;   // 화면 가장자리는 브라우저 뒤로가기 몫으로 남긴다
+  var swipe = null;
+  var slideDir = 0;      // 넘어간 방향. 다음 렌더에서 화면을 그쪽에서 밀어 넣는다
+
+  // 옆 탭이 있으면 그 이름을, 없으면 빈 값
+  function tabBeside(step) {
+    if (route.param) return '';          // 상세 화면에서는 넘기지 않는다
+    var i = TAB_ORDER.indexOf(route.name);
+    if (i < 0) return '';
+    var j = i + step;
+    return j >= 0 && j < TAB_ORDER.length ? TAB_ORDER[j] : '';
+  }
+
+  document.addEventListener('touchstart', function (ev) {
+    swipe = null;
+    if (ev.touches.length !== 1) return;
+    if (modalRoot.classList.contains('show')) return;
+    if (!tabBeside(-1) && !tabBeside(1)) return;
+    var t = ev.touches[0];
+    if (t.clientX < SWIPE_EDGE || t.clientX > innerWidth - SWIPE_EDGE) return;
+    // 가로로 굴리는 줄(부위 칩)이나 슬라이더 위에서 시작했으면 그쪽 손짓이다
+    var el = t.target && t.target.closest ? t.target.closest('.chiprow, input[type=range]') : null;
+    if (el) return;
+    swipe = { x: t.clientX, y: t.clientY, locked: false };
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function (ev) {
+    if (!swipe) return;
+    if (ev.touches.length !== 1) { swipe = null; return; }
+    if (swipe.locked) return;
+    var t = ev.touches[0];
+    var dx = Math.abs(t.clientX - swipe.x), dy = Math.abs(t.clientY - swipe.y);
+    if (dx < SWIPE_LOCK && dy < SWIPE_LOCK) return;
+    swipe.locked = true;
+    if (dy >= dx) swipe = null;          // 세로가 먼저면 그냥 스크롤이다
+  }, { passive: true });
+
+  document.addEventListener('touchend', function (ev) {
+    var s = swipe;
+    swipe = null;
+    if (!s || !s.locked) return;
+    var t = ev.changedTouches[0];
+    if (!t) return;
+    var dx = t.clientX - s.x;
+    if (Math.abs(dx) < SWIPE_GO) return;
+    var step = dx < 0 ? 1 : -1;
+    var next = tabBeside(step);
+    if (!next) return;
+    slideDir = step;
+    go(next);
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', function () { swipe = null; }, { passive: true });
 
   // ── 휴식 타이머 ──────────────────────────────────────
   var REST_KEY = 'gymmate.rest';
@@ -364,15 +424,8 @@
   });
 
   // ── 공통 UI 조각 ─────────────────────────────────────
-  /* live 를 주면 초록 점과 "운동 중" 이 제목 위에 붙고 상단바가 초록을 띤다.
-   * 운동 화면과 루틴 편집 화면이 둘 다 "제목 + 작은 버튼" 이라 비슷해 보여서,
-   * 지금 운동 중인지 한눈에 갈리게 하려는 것이다. */
-  function header(title, right, live) {
-    return '<header class="topbar' + (live ? ' live' : '') + '">' +
-      '<div class="topbar-title">' +
-        (live ? '<span class="livetag"><i class="live-dot"></i>운동 중</span>' : '') +
-        '<h1>' + esc(title) + '</h1>' +
-      '</div>' +
+  function header(title, right) {
+    return '<header class="topbar"><h1>' + esc(title) + '</h1>' +
       '<div class="topbar-actions">' + (right || '') + '</div></header>';
   }
   function nav() {
@@ -641,9 +694,16 @@
     var pct = c.total ? Math.round((c.done / c.total) * 100) : 0;
     var html = header(s.routineName,
       '<button class="btn sm" data-act="cancel-session">중단</button>' +
-      '<button class="btn primary sm" data-act="finish-session">운동 완료</button>', true);
+      '<button class="btn primary sm" data-act="finish-session">운동 완료</button>');
 
     html += '<main class="page session">';
+    /* 루틴 목록의 "진행 중" 카드와 같은 모양. 스크롤을 내려도 이 박스만
+     * 위에 붙어 남는다. 경과 카드까지 따라 내려오면 화면을 너무 먹는다. */
+    html += '<div class="card livebar">' +
+      '<span class="live-dot"></span>' +
+      '<strong>운동 중</strong>' +
+      '<span class="dim">' + c.done + ' / ' + c.total + ' 세트</span>' +
+      '</div>';
     html += '<div class="card progress-card">' +
       '<div class="row between"><span class="dim">경과</span><strong data-tick="elapsed">' + fmtClock((Date.now() - s.startedAt) / 1000) + '</strong></div>' +
       '<div class="bar"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
@@ -1432,8 +1492,22 @@
       default: body = viewRoutines();
     }
     app.innerHTML = body + nav() + '<div id="restbar" class="restbar"></div>';
+    if (slideDir) {
+      var pg = app.querySelector('.page');
+      if (pg) pg.classList.add(slideDir > 0 ? 'slide-next' : 'slide-prev');
+      slideDir = 0;
+    }
+    measureTopbar();
     drawRest();
     updateWakeLock();
+  }
+
+  // 상단바에 붙는 요소(.livebar)가 쓸 높이. 글꼴 크기나 노치 여백에 따라
+  // 달라지므로 상수로 박지 않고 그때그때 잰다.
+  function measureTopbar() {
+    var bar = app.querySelector('.topbar');
+    if (!bar) return;
+    document.documentElement.style.setProperty('--topbar-h', bar.offsetHeight + 'px');
   }
 
   // ── 이벤트 위임 ──────────────────────────────────────

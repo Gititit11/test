@@ -50,26 +50,20 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
-.topbar-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.topbar h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar h1 { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar-actions { display: flex; gap: 6px; flex: none; }
-
-/* 운동 중임을 알리는 초록 상단바.
-   루틴 편집 화면과 생김새가 비슷해 헷갈린다는 지적에서 나왔다.
-   색만으로 알리지 않도록 "운동 중" 글자를 함께 둔다. */
-.topbar.live {
-  background: rgba(16, 32, 26, 0.93);
-  border-bottom-color: #2b6a52;
-  box-shadow: inset 0 2px 0 var(--ok);
-}
-.livetag {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--ok);
-}
-.livetag .live-dot { width: 7px; height: 7px; }
 .page {
   padding: 14px 14px calc(var(--tab-h) + 96px + var(--safe-b));
   display: flex; flex-direction: column; gap: 12px;
+}
+/* 옆으로 쓸어 탭을 넘겼을 때만 붙는다. 손가락이 간 쪽에서 화면이 들어와야
+   어느 방향으로 넘어갔는지 눈에 남는다. */
+.page.slide-next { animation: slide-next .18s ease-out; }
+.page.slide-prev { animation: slide-prev .18s ease-out; }
+@keyframes slide-next { from { transform: translateX(18px); opacity: .3; } }
+@keyframes slide-prev { from { transform: translateX(-18px); opacity: .3; } }
+@media (prefers-reduced-motion: reduce) {
+  .page.slide-next, .page.slide-prev { animation: none; }
 }
 
 /* 카드 */
@@ -285,10 +279,25 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .mini input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* 운동 진행 */
-.progress-card {
-  display: flex; flex-direction: column; gap: 8px;
-  position: sticky; top: calc(58px + var(--safe-t)); z-index: 10;
+.progress-card { display: flex; flex-direction: column; gap: 8px; }
+
+/* 운동 중 알림. 루틴 목록의 "진행 중" 카드와 같은 말투를 쓴다.
+   스크롤을 내려도 이 한 줄만 위에 붙어 남는다. 전에는 경과 카드가
+   통째로 붙어 있어 화면을 크게 먹고 어색하게 따라 내려왔다.
+   색만으로 알리지 않도록 "운동 중" 글자를 함께 둔다. */
+.livebar {
+  /* 붙는 위치는 상단바 실제 높이다. 글꼴·안전영역에 따라 달라지므로
+     app.js 가 매 렌더마다 --topbar-h 를 재어 넣는다. 아래 값은 그 전에
+     쓰이는 기본값. */
+  position: sticky; top: var(--topbar-h, calc(65px + var(--safe-t))); z-index: 12;
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 12px;
+  border-color: #2b6a52;
+  background: linear-gradient(180deg, #16281f, #16211c);
 }
+.livebar strong { font-size: 14px; color: var(--ok); letter-spacing: .01em; }
+.livebar .dim { margin-left: auto; font-size: 13px; }
+.livebar .live-dot { width: 8px; height: 8px; }
 .bar { height: 8px; background: var(--bg-2); border-radius: 99px; overflow: hidden; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--ok)); transition: width .25s ease; }
 .exercise { display: flex; flex-direction: column; gap: 10px; }
