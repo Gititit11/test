@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.09-43';
+  var APP_VERSION = '2026.09.09-44';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -82,6 +82,11 @@
   // 옆 탭이 있으면 그 이름을, 없으면 빈 값
   function tabBeside(step) {
     if (route.param) return '';          // 상세 화면에서는 넘기지 않는다
+    // 운동 중 화면은 탭이 아니지만 하단 탭 바가 그대로 깔려 있고 루틴에
+    // 불이 들어와 있다. 눌러서 갈 수 있으면 쓸어서도 갈 수 있어야 한다.
+    // 루틴 자리에 있는 셈 치고, 오른쪽으로 쓸면 루틴 목록으로 빠져나온다.
+    // 운동은 그대로 남아 있어서 "진행 중" 카드로 바로 돌아올 수 있다.
+    if (route.name === 'session') return step > 0 ? 'progress' : 'routines';
     var i = TAB_ORDER.indexOf(route.name);
     if (i < 0) return '';
     var j = i + step;
@@ -95,9 +100,14 @@
     if (!tabBeside(-1) && !tabBeside(1)) return;
     var t = ev.touches[0];
     if (t.clientX < SWIPE_EDGE || t.clientX > innerWidth - SWIPE_EDGE) return;
-    // 가로로 굴리는 줄(부위 칩)이나 슬라이더 위에서 시작했으면 그쪽 손짓이다
+    // 가로로 굴리는 줄(부위 칩)과 슬라이더는 그쪽 손짓이다.
     var el = t.target && t.target.closest ? t.target.closest('.chiprow, input[type=range]') : null;
     if (el) return;
+    // 무게·횟수 칸은 막지 않는다. 세트 줄 너비의 절반쯤을 이 칸들이 차지해서
+    // 통째로 막으면 운동 중에는 쓸어도 반응이 없는 것처럼 느껴진다. 대신
+    // 지금 글자를 고치고 있는 칸 위에서 시작한 손짓은 글자 고르기 몫으로 둔다.
+    var typing = document.activeElement;
+    if (typing && /^(INPUT|TEXTAREA|SELECT)$/.test(typing.tagName) && typing.contains(t.target)) return;
     swipe = { x: t.clientX, y: t.clientY, locked: false };
   }, { passive: true });
 
