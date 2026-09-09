@@ -38,7 +38,13 @@ a { color: inherit; text-decoration: none; }
 .right { margin-left: auto; }
 
 /* 레이아웃 */
-#app { max-width: 640px; margin: 0 auto; min-height: 100vh; }
+#app {
+  max-width: 640px; margin: 0 auto; min-height: 100vh;
+  /* 넘어가는 동안 옆으로 민 화면이 가로 스크롤을 만들지 않게 잘라낸다.
+     hidden 이 아니라 clip 이라야 한다. hidden 은 스크롤 상자를 만들어
+     상단바와 운동 중 박스의 sticky 를 죽인다. */
+  overflow-x: clip;
+}
 /* viewport-fit=cover + black-translucent 이라 웹 화면이 상태바·노치 아래까지
    올라온다. 상단 여백을 안 주면 제목과 버튼이 노치에 가려지고, 그 자리는
    iOS 가 터치를 가져가 버려서 눌리지도 않는다. */
@@ -56,12 +62,15 @@ a { color: inherit; text-decoration: none; }
   padding: 14px 14px calc(var(--tab-h) + 96px + var(--safe-b));
   display: flex; flex-direction: column; gap: 12px;
 }
-/* 옆으로 쓸어 탭을 넘겼을 때만 붙는다. 손가락이 간 쪽에서 화면이 들어와야
-   어느 방향으로 넘어갔는지 눈에 남는다. */
-.page.slide-next { animation: slide-next .18s ease-out; }
-.page.slide-prev { animation: slide-prev .18s ease-out; }
-@keyframes slide-next { from { transform: translateX(18px); opacity: .3; } }
-@keyframes slide-prev { from { transform: translateX(-18px); opacity: .3; } }
+/* 옆으로 쓸어 탭을 넘겼을 때만 붙는다. 손가락이 간 쪽에서 화면이 들어온다.
+   처음에는 18px 만 움직이면서 밝기까지 같이 올렸는데, 손가락은 180px 를
+   갔는데 화면은 18px 만 움찔하고 밝기가 번쩍여서 미끄러지는 게 아니라
+   흔들리는 것처럼 보였다. 손가락이 간 만큼에 가깝게 밀고, 밝기는 건드리지
+   않는다. 밝기가 변하면 그게 곧 깜빡임이다. */
+.page.slide-next { animation: slide-next .26s cubic-bezier(.22, .61, .36, 1); }
+.page.slide-prev { animation: slide-prev .26s cubic-bezier(.22, .61, .36, 1); }
+@keyframes slide-next { from { transform: translateX(30%); } }
+@keyframes slide-prev { from { transform: translateX(-30%); } }
 @media (prefers-reduced-motion: reduce) {
   .page.slide-next, .page.slide-prev { animation: none; }
 }
