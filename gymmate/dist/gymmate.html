@@ -63,8 +63,23 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
-.topbar h1 { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.topbar h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar-actions { display: flex; gap: 6px; flex: none; }
+
+/* 운동 중임을 알리는 초록 상단바.
+   루틴 편집 화면과 생김새가 비슷해 헷갈린다는 지적에서 나왔다.
+   색만으로 알리지 않도록 "운동 중" 글자를 함께 둔다. */
+.topbar.live {
+  background: rgba(16, 32, 26, 0.93);
+  border-bottom-color: #2b6a52;
+  box-shadow: inset 0 2px 0 var(--ok);
+}
+.livetag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--ok);
+}
+.livetag .live-dot { width: 7px; height: 7px; }
 .page {
   padding: 14px 14px calc(var(--tab-h) + 96px + var(--safe-b));
   display: flex; flex-direction: column; gap: 12px;
@@ -198,6 +213,9 @@ a { color: inherit; text-decoration: none; }
 @keyframes pulse {
   70% { box-shadow: 0 0 0 12px rgba(53, 201, 138, 0); }
   100% { box-shadow: 0 0 0 0 rgba(53, 201, 138, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
 }
 
 /* 폼 */
@@ -2184,7 +2202,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-41';
+  var APP_VERSION = '2026.09.09-42';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -2543,8 +2561,15 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   });
 
   // ── 공통 UI 조각 ─────────────────────────────────────
-  function header(title, right) {
-    return '<header class="topbar"><h1>' + esc(title) + '</h1>' +
+  /* live 를 주면 초록 점과 "운동 중" 이 제목 위에 붙고 상단바가 초록을 띤다.
+   * 운동 화면과 루틴 편집 화면이 둘 다 "제목 + 작은 버튼" 이라 비슷해 보여서,
+   * 지금 운동 중인지 한눈에 갈리게 하려는 것이다. */
+  function header(title, right, live) {
+    return '<header class="topbar' + (live ? ' live' : '') + '">' +
+      '<div class="topbar-title">' +
+        (live ? '<span class="livetag"><i class="live-dot"></i>운동 중</span>' : '') +
+        '<h1>' + esc(title) + '</h1>' +
+      '</div>' +
       '<div class="topbar-actions">' + (right || '') + '</div></header>';
   }
   function nav() {
@@ -2813,7 +2838,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     var pct = c.total ? Math.round((c.done / c.total) * 100) : 0;
     var html = header(s.routineName,
       '<button class="btn sm" data-act="cancel-session">중단</button>' +
-      '<button class="btn primary sm" data-act="finish-session">운동 완료</button>');
+      '<button class="btn primary sm" data-act="finish-session">운동 완료</button>', true);
 
     html += '<main class="page session">';
     html += '<div class="card progress-card">' +

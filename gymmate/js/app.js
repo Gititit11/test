@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.02-41';
+  var APP_VERSION = '2026.09.09-42';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -364,8 +364,15 @@
   });
 
   // ── 공통 UI 조각 ─────────────────────────────────────
-  function header(title, right) {
-    return '<header class="topbar"><h1>' + esc(title) + '</h1>' +
+  /* live 를 주면 초록 점과 "운동 중" 이 제목 위에 붙고 상단바가 초록을 띤다.
+   * 운동 화면과 루틴 편집 화면이 둘 다 "제목 + 작은 버튼" 이라 비슷해 보여서,
+   * 지금 운동 중인지 한눈에 갈리게 하려는 것이다. */
+  function header(title, right, live) {
+    return '<header class="topbar' + (live ? ' live' : '') + '">' +
+      '<div class="topbar-title">' +
+        (live ? '<span class="livetag"><i class="live-dot"></i>운동 중</span>' : '') +
+        '<h1>' + esc(title) + '</h1>' +
+      '</div>' +
       '<div class="topbar-actions">' + (right || '') + '</div></header>';
   }
   function nav() {
@@ -634,7 +641,7 @@
     var pct = c.total ? Math.round((c.done / c.total) * 100) : 0;
     var html = header(s.routineName,
       '<button class="btn sm" data-act="cancel-session">중단</button>' +
-      '<button class="btn primary sm" data-act="finish-session">운동 완료</button>');
+      '<button class="btn primary sm" data-act="finish-session">운동 완료</button>', true);
 
     html += '<main class="page session">';
     html += '<div class="card progress-card">' +
