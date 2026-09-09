@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1016">
+<meta name="robots" content="noindex">
+<meta name="description" content="마중물은 서비스를 종료했습니다.">
+<title>마중물 · 종료 안내</title>
+<style>
+  :root { --bg:#0b1016; --card:#14202c; --line:#22323f; --text:#eaf4fb; --dim:#8ea6bb;
+          --brand:#38b6ff; --ok:#34d399;
+          --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text); min-height: 100vh; min-height: 100dvh;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+      "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(28px + var(--safe-t)) 18px calc(28px + var(--safe-b));
+  }
+  .wrap { width: 100%; max-width: 420px; }
+  .drop { width: 54px; height: 54px; display: block; margin-bottom: 18px; opacity: .45; }
+  h1 { font-size: 21px; margin: 0 0 8px; letter-spacing: -0.02em; }
+  p { margin: 0 0 14px; color: var(--dim); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+  .card h2 { font-size: 15px; margin: 0 0 6px; }
+  .btn {
+    display: block; width: 100%; border: 0; border-radius: 12px; padding: 13px 16px;
+    background: var(--brand); color: #05202f; font: inherit; font-weight: 700;
+    cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px;
+  }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  .done { color: var(--ok); font-size: 13px; margin-top: 10px; }
+  ol { margin: 8px 0 0; padding-left: 20px; color: var(--dim); font-size: 13.5px; }
+  li { margin-bottom: 4px; }
+  #keep { display: none; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <svg class="drop" viewBox="0 0 80 100" aria-hidden="true">
+      <path d="M40 6 C 40 6, 64 38, 64 56 a 24 24 0 0 1 -48 0 C 16 38, 40 6, 40 6 Z" fill="#38b6ff"/>
+    </svg>
+
+    <h1>마중물은 종료됐어요</h1>
+    <p>물 마시기 기록 앱 마중물은 더 이상 제공하지 않아요.
+       그동안 써 주셔서 고맙습니다.</p>
+
+    <!-- 이 기기에 남은 기록이 있을 때만 보인다. 사라지기 전에 챙길 기회를 준다. -->
+    <div class="card" id="keep">
+      <h2>이 기기에 남은 기록</h2>
+      <p id="keepInfo"></p>
+      <button class="btn" id="save">기록 내려받기 (.json)</button>
+    </div>
+
+    <div class="card">
+      <h2>홈 화면 아이콘 지우기</h2>
+      <ol>
+        <li>홈 화면의 <b>마중물</b> 아이콘을 길게 누르기</li>
+        <li>삭제 / 앱 제거 선택</li>
+      </ol>
+      <p class="done" id="cleaned"></p>
+    </div>
+
+    <a class="btn ghost" href="../gymmate/">짐메이트로 가기</a>
+  </div>
+
+  <script>
+    /* 이 페이지가 하는 일은 두 가지다.
+     *   1) 사라지기 전에 기록을 챙겨 갈 기회를 준다
+     *   2) 마중물이 이 기기에 남긴 것(서비스워커·캐시)을 스스로 걷어낸다
+     * 설치한 사람은 홈 화면 아이콘을 눌러 이 페이지로 들어오게 된다. */
+    (function () {
+      // ── 남은 기록이 있으면 알려 준다
+      var raw = null;
+      try { raw = localStorage.getItem('majungmul.v1'); } catch (e) { }
+      if (raw) {
+        try {
+          var data = JSON.parse(raw);
+          var n = (data.logs || []).length;
+          if (n > 0) {
+            document.getElementById('keep').style.display = 'block';
+            document.getElementById('keepInfo').textContent =
+              '물 마신 기록 ' + n + '건이 이 휴대폰에 남아 있어요. 필요하면 지금 내려받아 두세요.';
+          }
+        } catch (e) { }
+        document.getElementById('save').onclick = function () {
+          var blob = new Blob([raw], { type: 'application/json' });
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'majungmul-backup.json';
+          document.body.appendChild(a); a.click();
+          setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        };
+      }
+
+      /* 마중물이 남긴 것을 치운다. 기록(localStorage)은 건드리지 않는다 —
+         내려받기 전에 지워 버리면 되돌릴 수 없다.
+         두 가지를 각각 치우고 둘 다 끝난 뒤에 알린다. 따로 알리면 먼저 끝난
+         쪽이 아직 아무것도 못 지운 상태에서 "정리했다" 고 말하게 된다. */
+      var jobs = [];
+
+      if ('serviceWorker' in navigator) {
+        jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+          var mine = rs.filter(function (r) { return r.scope.indexOf('/majungmul/') >= 0; });
+          return Promise.all(mine.map(function (r) { return r.unregister(); }))
+            .then(function () { return mine.length; });
+        }).catch(function () { return 0; }));
+      }
+
+      if (window.caches) {
+        jobs.push(caches.keys().then(function (keys) {
+          var mine = keys.filter(function (k) { return k.indexOf('majungmul') === 0; });
+          return Promise.all(mine.map(function (k) { return caches.delete(k); }))
+            .then(function () { return mine.length; });
+        }).catch(function () { return 0; }));
+      }
+
+      /* 치울 것이 있었을 때만 알린다. 대개는 이 페이지가 뜨기 전에 sw.js 가
+         먼저 자기 자신과 캐시를 걷어내므로 여기서는 남는 게 없다 — 그때는
+         조용히 넘어간다. "정리할 게 없다" 는 말은 도움이 되지 않는다. */
+      Promise.all(jobs).then(function (counts) {
+        var n = counts.reduce(function (a, b) { return a + (b || 0); }, 0);
+        if (n) document.getElementById('cleaned').textContent =
+          '이 휴대폰에 남아 있던 앱 파일은 정리했어요.';
+      });
+    })();
+  </script>
+</body>
+</html>
