@@ -14,4 +14,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "gyeopsajin"
+include(":core")
 include(":app")

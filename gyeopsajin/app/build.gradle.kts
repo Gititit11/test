@@ -39,19 +39,14 @@ android {
         compose = true
     }
 
-    testOptions {
-        unitTests.all {
-            // 검사가 사진을 여러 장 만들어 들고 있는다. 기본 힙으로는 모자란다.
-            it.maxHeapSize = "2g"
-        }
-    }
-
     packaging {
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
     }
 }
 
 dependencies {
+    implementation(project(":core"))
+
     implementation(platform("androidx.compose:compose-bom:2024.10.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
