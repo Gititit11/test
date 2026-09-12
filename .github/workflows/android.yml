@@ -1,0 +1,60 @@
+# 겹사진(안드로이드 앱)을 검사하고 APK 를 만든다.
+# 만들어진 APK 는 이 워크플로 실행 페이지의 Artifacts 에서 내려받아 폰에 설치하면 된다.
+name: 겹사진 APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - claude/android-gallery-organizer-1fty18
+    paths:
+      - 'gyeopsajin/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'gyeopsajin/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gyeopsajin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 자바 준비
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 그레이들 준비
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: 같은 사진을 제대로 알아보는지 검사
+        run: ./gradlew --no-daemon test
+
+      - name: APK 만들기
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: 검사 결과 남기기
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 검사-결과
+          path: gyeopsajin/app/build/reports/tests/
+          if-no-files-found: ignore
+
+      - name: APK 남기기
+        uses: actions/upload-artifact@v4
+        with:
+          name: gyeopsajin-apk
+          path: gyeopsajin/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

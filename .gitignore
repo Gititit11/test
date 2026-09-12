@@ -2,3 +2,11 @@
 Thumbs.db
 node_modules/
 gymmate/dist/gymmate.fragment.html
+
+# 안드로이드 앱 빌드 찌꺼기
+gyeopsajin/.gradle/
+gyeopsajin/build/
+gyeopsajin/app/build/
+gyeopsajin/local.properties
+gyeopsajin/.idea/
+gyeopsajin/*.iml

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 사진 두 장이 겹쳐 있는 모양. 앱 이름 그대로다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 뒤에 반쯤 가려진 사진 -->
+    <path
+        android:fillColor="#8FB4EC"
+        android:pathData="M30,26 H70 a5,5 0 0 1 5,5 V37 H46 a9,9 0 0 0 -9,9 V75 H30 a5,5 0 0 1 -5,-5 V31 a5,5 0 0 1 5,-5 z" />
+
+    <!-- 앞에 놓인 사진 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M46,42 H78 a5,5 0 0 1 5,5 V79 a5,5 0 0 1 -5,5 H46 a5,5 0 0 1 -5,-5 V47 a5,5 0 0 1 5,-5 z" />
+
+    <!-- 그 안의 해 -->
+    <path
+        android:fillColor="#F0B429"
+        android:pathData="M54,56 m-4.5,0 a4.5,4.5 0 1 0 9,0 a4.5,4.5 0 1 0 -9,0" />
+
+    <!-- 그 안의 산 -->
+    <path
+        android:fillColor="#2F6BD8"
+        android:pathData="M41,79 V76 l11,-13 7,8 6,-6 18,14 v0 a5,5 0 0 1 -5,5 H46 a5,5 0 0 1 -5,-5 z" />
+</vector>
