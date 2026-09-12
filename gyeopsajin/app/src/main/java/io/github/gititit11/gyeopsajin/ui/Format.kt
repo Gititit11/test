@@ -16,10 +16,11 @@ fun formatBytes(bytes: Long): String = when {
     else -> "${bytes}B"
 }
 
-/** 3024x4032 를 1220만 화소로 */
+/** 3024x4032 를 "1.2천만 화소" 로, 1200x1600 을 "192만 화소" 로 */
 fun formatPixels(width: Int, height: Int): String {
-    val mp = width.toLong() * height / 10_000L   // 만 화소
-    return if (mp >= 100) "${mp / 100}.${(mp % 100) / 10}천만 화소" else "${mp}만 화소"
+    val man = width.toLong() * height / 10_000L          // 만 화소
+    return if (man >= 1_000) "${man / 1_000}.${(man % 1_000) / 100}천만 화소"
+    else "${man}만 화소"
 }
 
 fun formatDate(millis: Long): String =
