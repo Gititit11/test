@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -74,6 +75,9 @@ private fun neededPermissions(): Array<String> =
 private fun App(vm: ScanViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // 무더기를 열었다 닫아도 보던 자리로 돌아오도록, 목록의 위치를 화면 밖에서 쥐고 있는다
+    val groupListState = rememberLazyListState()
 
     var route by rememberSaveable(
         stateSaver = Saver(
@@ -178,6 +182,7 @@ private fun App(vm: ScanViewModel) {
     when (val here = route) {
         is Route.Home -> HomeScreen(
             state = state,
+            listState = groupListState,
             hasPermission = granted,
             partialPermission = partial,
             onAskPermission = { askPermission.launch(neededPermissions()) },

@@ -5,6 +5,7 @@ package io.github.gititit11.gyeopsajin.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,14 @@ import io.github.gititit11.gyeopsajin.core.PhotoGroup
 @Composable
 fun HomeScreen(
     state: UiState,
+    /**
+     * 목록이 어디까지 내려가 있는지.
+     *
+     * 이 화면 안에서 기억하면 안 된다. 무더기를 열면 이 화면은 화면에서 통째로
+     * 내려가고, 그때 기억도 함께 사라진다. 돌아왔을 때 맨 위로 튕기는 이유가
+     * 그것이다. 그래서 이 화면보다 오래 사는 쪽에서 만들어 건네받는다.
+     */
+    listState: LazyListState,
     hasPermission: Boolean,
     partialPermission: Boolean,
     onAskPermission: () -> Unit,
@@ -115,7 +124,7 @@ fun HomeScreen(
                         Button(onClick = onScan) { Text("다시 해 보기") }
                     }
                 }
-                else -> GroupList(state, onOpenGroup, onScan, onSelectAllExtras)
+                else -> GroupList(state, listState, onOpenGroup, onScan, onSelectAllExtras)
             }
         }
     }
@@ -217,6 +226,7 @@ private fun Progress(title: String, done: Int, total: Int, note: String?, onCanc
 @Composable
 private fun GroupList(
     state: UiState,
+    listState: LazyListState,
     onOpen: (PhotoGroup) -> Unit,
     onScan: () -> Unit,
     onSelectAllExtras: () -> Unit,
@@ -245,6 +255,7 @@ private fun GroupList(
     }
 
     LazyColumn(
+        state = listState,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
