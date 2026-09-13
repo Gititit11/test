@@ -17,7 +17,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # 만든 APK 를 릴리스에 올리려면 쓰기 권한이 필요하다
+  contents: write
 
 jobs:
   build:
@@ -58,3 +59,46 @@ jobs:
           name: gyeopsajin-apk
           path: gyeopsajin/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      # Artifacts 에서 받으려면 로그인해야 하고, zip 을 풀어야 APK 가 나온다.
+      # 폰에서 그 과정을 거치기가 번거로워서, 릴리스에도 APK 를 그대로 올린다.
+      # 그러면 아래 주소를 누르는 것만으로 폰에 APK 가 받아진다.
+      #   https://github.com/<소유자>/<저장소>/releases/latest/download/gyeopsajin.apk
+      - name: 폰에서 바로 받을 수 있게 릴리스에 올리기
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: gyeopsajin-latest
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk gyeopsajin.apk
+
+          # 릴리스를 태그째 지우고 다시 만든다. 태그가 늘 최신 커밋을 가리키게 하는
+          # 가장 단순한 방법이다.
+          gh release delete "$TAG" --cleanup-tag --yes || true
+
+          gh release create "$TAG" gyeopsajin.apk \
+            --target "$GITHUB_SHA" \
+            --title "겹사진 — 최신" \
+            --latest \
+            --notes "$(cat <<'NOTES'
+          ## 설치하는 법
+
+          아래 **gyeopsajin.apk** 를 폰에서 누르면 받아집니다.
+          받은 뒤 알림이나 다운로드 폴더에서 한 번 더 누르면 설치 화면이 뜹니다.
+
+          처음에는 "이 출처의 앱을 설치할 수 없다" 는 안내가 나올 수 있습니다.
+          그 화면에서 **허용**을 한 번 눌러 주면 됩니다. 이 앱이 구글 플레이를
+          거치지 않아서 나오는 안내이며, 한 번만 하면 됩니다.
+
+          안드로이드 11 이상에서 동작합니다.
+
+          ## 이 앱이 하는 일
+
+          갤러리에서 **같은 사진**을 찾아 한 무더기로 묶어 줍니다.
+          크기만 줄여 저장한 사본도, 이름이 전혀 다른 사본도 같은 사진으로 봅니다.
+
+          **지우는 일은 하지 않습니다.** 무엇을 지울지 고르는 것도, 지우기를 누르는
+          것도 사람이 하고, 그 뒤에 안드로이드가 한 번 더 물어봅니다. 기본은
+          되돌릴 수 있는 휴지통입니다.
+          NOTES
+          )"

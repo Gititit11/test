@@ -74,8 +74,17 @@
 ## 만들기
 
 이 저장소에 밀어 넣으면 [GitHub Actions](../.github/workflows/android.yml) 가 검사하고
-APK 를 만듭니다. 워크플로 실행 페이지의 **Artifacts → gyeopsajin-apk** 에서 내려받아
-폰에 설치하면 됩니다(출처를 알 수 없는 앱 설치를 한 번 허용해야 합니다).
+APK 를 만들어 릴리스에 올립니다. 폰에서 아래 주소를 누르면 APK 가 바로 받아집니다.
+
+```
+https://github.com/Gititit11/test/releases/latest/download/gyeopsajin.apk
+```
+
+받은 파일을 한 번 더 누르면 설치 화면이 뜹니다. 구글 플레이를 거치지 않는 앱이라
+"이 출처의 앱을 설치할 수 없다" 는 안내가 한 번 나오는데, 그 화면에서 허용하면 됩니다.
+
+(워크플로 실행 페이지의 **Artifacts → gyeopsajin-apk** 에도 같은 APK 가 zip 으로
+남습니다. 릴리스 쪽이 받기 쉬워서 그쪽을 권합니다.)
 
 직접 만들려면 Android Studio 로 이 폴더를 열거나:
 
