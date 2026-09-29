@@ -307,6 +307,30 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .livebar strong { font-size: 14px; color: var(--ok); letter-spacing: .01em; }
 .livebar .dim { margin-left: auto; font-size: 13px; }
 .livebar .live-dot { width: 8px; height: 8px; }
+/* 2주 전과 같은 부위 — 운동 중 화면 */
+.ago-list { gap: 8px; }
+.ago-row {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-2);
+}
+.ago-row strong { font-size: 14px; }
+.ago-row .dim { font-size: 12px; margin-top: 3px; }
+.ago-tag {
+  flex: none;
+  font-size: 12px; font-weight: 700;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--card-2); color: var(--dim);
+  border: 1px solid var(--line);
+}
+/* 같음·적음은 눈에 띄어야 한다. 이걸 보라고 만든 카드다.
+   노랑은 부위별 운동량의 '부족' 과 같은 색을 쓴다 — 둘 다 "더 하라" 는 뜻. */
+.ago-same, .ago-less { border-color: #5c5228; background: #221f14; }
+.ago-same .ago-tag, .ago-less .ago-tag { background: #ebd873; color: #241f06; border-color: #ebd873; }
+.ago-more .ago-tag { background: #143028; color: var(--ok); border-color: #24483a; }
+.ago-tip { margin-top: 10px; font-size: 12px; color: #ebd873; font-weight: 600; line-height: 1.4; }
+
 .bar { height: 8px; background: var(--bg-2); border-radius: 99px; overflow: hidden; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--ok)); transition: width .25s ease; }
 .exercise { display: flex; flex-direction: column; gap: 10px; }

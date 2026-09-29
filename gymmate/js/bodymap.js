@@ -87,34 +87,62 @@
     return out;
   }
 
+  function blank() {
+    var acc = {};
+    GROUPS.forEach(function (g) { acc[g.id] = { sets: 0, volume: 0, reps: 0, primary: 0, top: {} }; });
+    return acc;
+  }
+
+  /* 기록 하나를 그룹별로 합산해 acc 에 더한다.
+   * onlyDone 은 진행 중인 운동에 쓴다. 끝난 기록은 체크하지 않은 세트를
+   * 이미 버리고 저장하므로 상관없지만, 진행 중에는 아직 안 한 세트가
+   * 그대로 들어 있다. */
+  function addSession(acc, s, findExercise, onlyDone) {
+    s.items.forEach(function (it) {
+      var sets = onlyDone
+        ? it.sets.filter(function (st) { return st.done !== false; })
+        : it.sets;
+      if (!sets.length) return;
+      var parts = contributions(it, findExercise(it.exerciseId));
+      var vol = 0, reps = 0;
+      sets.forEach(function (st) {
+        if (it.type === 'time') return;
+        var r = Number(st.reps) || 0;
+        reps += r;
+        vol += r * (Number(st.weight) || 0);
+      });
+      Object.keys(parts).forEach(function (g) {
+        if (!acc[g]) return;
+        var w = parts[g];
+        acc[g].sets += sets.length * w;
+        acc[g].volume += vol * w;
+        acc[g].reps += reps * w;
+        // 주동근으로 쓴 세트. 벤치프레스는 가슴이 주동근이고 어깨·삼두는
+        // 보조근인데, 보조근까지 "2주 전과 같다" 고 일러 주면 운동 하나에
+        // 세 줄이 붙어 정작 볼 줄이 묻힌다. 그 구분에 쓴다.
+        if (w === PRIMARY) acc[g].primary += sets.length;
+        acc[g].top[it.name] = (acc[g].top[it.name] || 0) + sets.length * w;
+      });
+    });
+  }
+
+  // 기록 하나만 그룹별로 합산
+  function tally(session, findExercise, onlyDone) {
+    var acc = blank();
+    addSession(acc, session, findExercise, onlyDone);
+    return acc;
+  }
+
   // 기간 내 완료 기록을 그룹별로 합산
   function aggregate(sessions, days, findExercise) {
     var since = Date.now() - days * 864e5;
-    var acc = {};
-    GROUPS.forEach(function (g) { acc[g.id] = { sets: 0, volume: 0, top: {} }; });
-
+    var acc = blank();
     var used = 0;
     sessions.forEach(function (s) {
       if (s.startedAt < since) return;
       used++;
-      s.items.forEach(function (it) {
-        var ex = findExercise(it.exerciseId);
-        var parts = contributions(it, ex);
-        var setCount = it.sets.length;
-        var vol = it.sets.reduce(function (a, st) {
-          if (it.type === 'time') return a;
-          return a + (Number(st.reps) || 0) * (Number(st.weight) || 0);
-        }, 0);
-        Object.keys(parts).forEach(function (g) {
-          if (!acc[g]) return;
-          var w = parts[g];
-          acc[g].sets += setCount * w;
-          acc[g].volume += vol * w;
-          acc[g].top[it.name] = (acc[g].top[it.name] || 0) + setCount * w;
-        });
-      });
+      addSession(acc, s, findExercise, false);
     });
-
     return { byGroup: acc, sessions: used };
   }
 
@@ -208,6 +236,7 @@
     PRIMARY: PRIMARY,
     SECONDARY: SECONDARY,
     aggregate: aggregate,
+    tally: tally,
     colorFor: colorFor,
     figure: figure,
     fmtSets: fmtSets

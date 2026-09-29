@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.29-46';
+  var APP_VERSION = '2026.09.29-47';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -34,6 +34,10 @@
     if (sec < 60) return sec + '초';
     var m = Math.floor(sec / 60), r = sec % 60;
     return m + '분' + (r ? ' ' + r + '초' : '');
+  }
+  function fmtDay(ts) {
+    var d = new Date(ts);
+    return (d.getMonth() + 1) + '/' + d.getDate();
   }
   function fmtDate(ts) {
     var d = new Date(ts);
@@ -714,6 +718,7 @@
       '<strong>운동 중</strong>' +
       '<span class="dim">' + c.done + ' / ' + c.total + ' 세트</span>' +
       '</div>';
+    html += twoWeekCard(s);
     html += '<div class="card progress-card">' +
       '<div class="row between"><span class="dim">경과</span><strong data-tick="elapsed">' + fmtClock((Date.now() - s.startedAt) / 1000) + '</strong></div>' +
       '<div class="bar"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
@@ -909,6 +914,107 @@
 
   // 예전 버전은 최대가 150 이었다. 저장된 값이 그보다 크면 100 으로 본다.
   function volPct(st) { return Math.min(100, Math.max(0, num(st.cueVolume, 100))); }
+
+  /* ── 2주 전 같은 부위와 견주기 ────────────────────────
+   * 근성장은 같은 자극을 반복하는 것으로는 일어나지 않는다. 그래서 운동
+   * 중에 "이 부위, 2주 전이랑 똑같습니다" 를 그 자리에서 알려 준다.
+   * 끝난 뒤에 알면 이미 늦고, 운동 중이어야 무게를 올릴 수 있다.
+   *
+   * 견주는 값은 '오늘 계획' 이다. 지금까지 한 양으로 견주면 운동 초반에는
+   * 무조건 모자라게 나와서 쓸모가 없다. 계획대로 끝냈을 때 2주 전과
+   * 같아지는지를 보여 줘야 지금 무게를 올릴지 말지 판단할 수 있다. */
+  var AGO_MIN = 11, AGO_MAX = 17;   // '2주 전' 으로 인정할 범위 (일)
+  var SAME_BAND = 0.02;             // 2% 안쪽이면 같은 것으로 본다
+
+  function twoWeekRows(active) {
+    var BM = window.BodyMap;
+    if (!BM || !BM.tally) return [];
+    var find = function (id) { return S.findExercise(id); };
+    var now = Date.now();
+    var plan = BM.tally(active, find, false);   // 오늘 계획 (전체 세트)
+    var so = BM.tally(active, find, true);      // 지금까지 한 것
+
+    // 그 무렵 같은 부위를 한 기록 중 가장 최근 것
+    var window_ = S.sessions().filter(function (x) {
+      // 며칠 전인지는 날짜 단위로 센다. 소수점까지 따지면 딱 17일 전
+      // 기록이 몇 시간 차이로 들었다 났다 한다.
+      var age = Math.floor((now - x.startedAt) / 864e5);
+      return x.finishedAt && age >= AGO_MIN && age <= AGO_MAX;
+    }).sort(function (a, b) { return b.startedAt - a.startedAt; });
+
+    var rows = [];
+    BM.GROUPS.forEach(function (g) {
+      var p = plan[g.id];
+      if (!p || !p.primary) return;                      // 오늘 주동근으로 쓰는 부위만
+      if (!p.volume && !p.reps) return;
+
+      var ref = null, refTally = null;
+      for (var i = 0; i < window_.length; i++) {
+        var tl = BM.tally(window_[i], find, false)[g.id];
+        // 그때도 주동근으로 쓴 날이라야 같은 것끼리 견주는 셈이 된다
+        if (tl && tl.primary && (tl.volume || tl.reps)) { ref = window_[i]; refTally = tl; break; }
+      }
+      if (!ref) return;                                   // 견줄 게 없으면 말하지 않는다
+
+      // 맨몸처럼 무게가 0 인 운동은 볼륨이 0 이라 횟수로 견준다
+      var byVolume = p.volume > 0 && refTally.volume > 0;
+      var then = byVolume ? refTally.volume : refTally.reps;
+      var plan_ = byVolume ? p.volume : p.reps;
+      var done = byVolume ? so[g.id].volume : so[g.id].reps;
+      if (!then) return;
+
+      var diff = (plan_ - then) / then;
+      rows.push({
+        id: g.id, ko: g.ko,
+        unit: byVolume ? S.settings.unit : '회',
+        thenAt: ref.startedAt,
+        then: Math.round(then), plan: Math.round(plan_), done: Math.round(done),
+        pct: Math.round(diff * 100),
+        state: Math.abs(diff) <= SAME_BAND ? 'same' : (diff > 0 ? 'more' : 'less')
+      });
+    });
+    return rows;
+  }
+
+  var AGO_TAG = { same: '같음', less: '적음', more: '늘었음' };
+
+  /* 카드는 운동 내내 떠 있지만, 한 번은 말로 짚어 준다. 시작하는 순간에
+   * 알아야 무게를 올릴 기회가 있다. 앱을 켜 둔 동안 운동 하나에 한 번만. */
+  var agoTold = {};
+  function tellTwoWeek() {
+    var a = S.active();
+    if (!a || agoTold[a.id]) return;
+    var rows = twoWeekRows(a).filter(function (r) { return r.state !== 'more'; });
+    if (!rows.length) return;
+    agoTold[a.id] = true;
+    toast(rows.map(function (r) { return r.ko; }).join(', ') + ' 볼륨이 2주 전보다 늘지 않았습니다');
+  }
+
+  function twoWeekCard(active) {
+    var rows = twoWeekRows(active);
+    if (!rows.length) return '';
+    // 늘어난 부위만 있으면 굳이 자리를 차지하지 않는다
+    if (!rows.some(function (r) { return r.state !== 'more'; })) return '';
+
+    /* 운동 중 화면에서는 세로 한 줄이 비싸다. 이 카드가 길어지면 정작
+     * 첫 운동이 화면 밖으로 밀린다. 줄마다 "올리세요" 를 붙이지 않고
+     * 카드 끝에 한 번만 적는다. */
+    return '<section class="card agocard">' +
+      '<h3>2주 전과 같은 부위</h3>' +
+      '<ul class="list ago-list">' + rows.map(function (r) {
+        return '<li class="ago-row ago-' + r.state + '">' +
+          '<div class="row between"><strong>' + esc(r.ko) + '</strong>' +
+          '<span class="ago-tag">' + AGO_TAG[r.state] +
+          (r.state === 'same' ? '' : (r.pct > 0 ? ' +' : ' ') + r.pct + '%') +
+          '</span></div>' +
+          '<p class="dim">' + fmtDay(r.thenAt) + ' ' + r.then.toLocaleString() + r.unit +
+          ' → 오늘 계획 ' + r.plan.toLocaleString() + r.unit +
+          (r.done ? ' (지금 ' + r.done.toLocaleString() + r.unit + ')' : '') +
+          '</p></li>';
+      }).join('') + '</ul>' +
+      '<p class="ago-tip">무게나 횟수를 조금 올려 보세요. 같은 자극을 반복하면 근성장은 멈춥니다.</p>' +
+      '</section>';
+  }
 
   function bodyMapCard(sessions) {
     var BM = window.BodyMap;
@@ -1510,6 +1616,7 @@
     measureTopbar();
     drawRest();
     updateWakeLock();
+    if (route.name === 'session') tellTwoWeek();
   }
 
   // 상단바에 붙는 요소(.livebar)가 쓸 높이. 글꼴 크기나 노치 여백에 따라
