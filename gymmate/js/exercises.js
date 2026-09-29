@@ -42,6 +42,7 @@
     ['덤벨 원암 로우', 'One Arm Dumbbell Row', '등', '덤벨', '광배근,능형근', 'dbrow 원암'],
     ['시티드 케이블 로우', 'Seated Cable Row', '등', '케이블', '광배근,능형근', 'cablerow 시티드로우'],
     ['랫 풀다운', 'Lat Pulldown', '등', '머신', '광배근,대원근', 'latpulldown 랫풀'],
+    ['와이드 풀다운', 'Wide Grip Lat Pulldown', '등', '머신', '광배근,대원근', 'widegrip 와이드 와이드그립 와이드풀다운 랫풀'],
     ['클로즈그립 랫풀다운', 'Close Grip Lat Pulldown', '등', '머신', '광배근', ''],
     ['리버스그립 랫풀다운', 'Reverse Grip Lat Pulldown', '등', '머신', '광배근,이두', ''],
     ['시티드 로우 머신', 'Seated Row Machine', '등', '머신', '광배근,능형근', ''],
