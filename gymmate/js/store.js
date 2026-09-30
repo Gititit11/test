@@ -92,6 +92,9 @@
         type: type,
         restSec: optN(raw.restSec, 0, 3600),
         memo: str(raw.memo, ''),
+        // 루틴에 없던 것을 운동 중에 끼워 넣었다는 표시. 진행 중인
+        // 운동에서만 쓰고, 기록으로 넘어갈 때 떼어 낸다.
+        adhoc: raw.adhoc === true || undefined,
         sets: sets
       };
     }
@@ -119,6 +122,9 @@
       if (!items.length) { dropped++; return null; }      // 내용 없는 기록은 버린다
       return {
         id: str(raw.id, uid('ss')),
+        // 어느 루틴으로 한 운동인지. 이걸 버리면 새로고침한 뒤에
+        // "루틴에도 넣을까요" 를 물을 데가 없어진다.
+        routineId: str(raw.routineId, ''),
         routineName: str(raw.routineName, '운동'),
         startedAt: n(raw.startedAt, Date.now()),
         finishedAt: n(raw.finishedAt, null),
@@ -362,6 +368,7 @@
     addActiveItem: function (exercise, opts) {
       if (!state.active) return null;
       var item = makeItem(exercise, opts);
+      item.adhoc = true;
       item.sets = item.sets.map(function (st) {
         return Object.assign({}, st, { done: false, doneAt: null });
       });
@@ -447,6 +454,7 @@
         it.sets = it.sets.filter(function (st) { return st.done; });
       });
       s.items = s.items.filter(function (it) { return it.sets.length > 0; });
+      s.items.forEach(function (it) { delete it.adhoc; });   // 기록에는 남길 표시가 아니다
       state.active = null;
       if (s.items.length) state.sessions.unshift(s);
       save();

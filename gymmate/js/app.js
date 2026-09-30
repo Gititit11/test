@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.30-48';
+  var APP_VERSION = '2026.09.30-49';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -1617,6 +1617,42 @@
     drawPicker();
   }
 
+  /* 운동 중에 끼워 넣은 종목을 루틴에도 남길지 묻는다. 끝나는 순간이
+   * 묻기 가장 좋은 때다 — 방금 해 봤으니 계속 할 만한지 알 수 있다.
+   * 넣을 때는 계획이 아니라 오늘 실제로 한 세트 수와 마지막 무게·횟수를
+   * 쓴다. 다음에 그 자리에서 다시 시작하는 편이 맞다. */
+  function askKeepAdhoc(cur) {
+    var r = cur.routineId ? S.getRoutine(cur.routineId) : null;
+    if (!r) return;                       // 루틴이 지워졌으면 넣을 곳이 없다
+    var have = {};
+    r.items.forEach(function (i) { have[i.exerciseId] = true; });
+    var fresh = cur.items.filter(function (it) {
+      return it.adhoc
+        && it.exerciseId
+        && !have[it.exerciseId]           // 이미 루틴에 있으면 또 넣지 않는다
+        && it.sets.some(function (st) { return st.done; });   // 실제로 한 것만
+    });
+    if (!fresh.length) return;
+
+    var names = fresh.map(function (it) { return '“' + it.name + '”'; }).join(', ');
+    if (!confirm('오늘 추가한 ' + names + ' 을(를) 루틴 “' + r.name + '”에도 넣을까요?')) return;
+
+    var added = 0;
+    fresh.forEach(function (it) {
+      var ex = S.findExercise(it.exerciseId);
+      if (!ex) return;
+      var done = it.sets.filter(function (st) { return st.done; });
+      var last = done[done.length - 1] || {};
+      var made = S.addItem(r.id, ex, it.type === 'time'
+        ? { sets: done.length, sec: num(last.sec, 60) }
+        : { sets: done.length, reps: num(last.reps, 10), weight: num(last.weight, 0) });
+      // 오늘 고쳐 쓴 휴식 시간도 그대로 가져간다
+      if (made && it.restSec != null) S.updateItem(r.id, made.id, { restSec: it.restSec });
+      if (made) added++;
+    });
+    if (added) toast('루틴 “' + r.name + '”에 ' + added + '개 넣었습니다');
+  }
+
   // ── 렌더 ─────────────────────────────────────────────
   function render() {
     var body;
@@ -1827,6 +1863,7 @@
           S.cancelSession(); stopRest(); go('routines'); render(); return;
         }
         if (cnt.done < cnt.total && !confirm('남은 세트가 ' + (cnt.total - cnt.done) + '개 있습니다. 지금 완료할까요?')) return;
+        askKeepAdhoc(cur);
         var saved = S.finishSession();
         stopRest();
         toast('기록을 저장했습니다');
