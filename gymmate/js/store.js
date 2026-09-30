@@ -217,6 +217,36 @@
     return s;
   }
 
+  // 루틴에 넣든 오늘 기록에 넣든 운동 항목의 모양은 하나여야 한다
+  function makeItem(exercise, opts) {
+    opts = opts || {};
+    var sets = opts.sets || 3;
+    var reps = opts.reps || 10;
+    var sec = opts.sec || 60;
+    // 유산소는 세트로 끊지 않고 한 번에 쭉 한다. 20분 1세트로 시작하고,
+    // 인터벌처럼 나눠 하고 싶으면 세트를 더하면 된다.
+    var isCardio = exercise.type === 'time' && exercise.part === '유산소';
+    if (isCardio) {
+      sets = opts.sets != null ? opts.sets : 1;
+      sec = opts.sec || 1200;
+    }
+    var arr = [];
+    for (var i = 0; i < sets; i++) {
+      arr.push(exercise.type === 'time' ? { sec: sec } : { reps: reps, weight: opts.weight || 0 });
+    }
+    return {
+      id: uid('it'),
+      exerciseId: exercise.id,
+      name: exercise.name,
+      type: exercise.type,
+      // null = 설정의 기본 휴식 시간을 따른다. 유산소 1세트는 끝나고
+      // 쉬는 개념이 아니라서 0(휴식 없음)으로 둔다.
+      restSec: isCardio ? 0 : null,
+      memo: '',
+      sets: arr
+    };
+  }
+
   var Store = {
     uid: uid,
     clone: clone,
@@ -320,36 +350,29 @@
     addItem: function (routineId, exercise, opts) {
       var r = this.getRoutine(routineId);
       if (!r) return null;
-      opts = opts || {};
-      var sets = opts.sets || 3;
-      var reps = opts.reps || 10;
-      var sec = opts.sec || 60;
-      // 유산소는 세트로 끊지 않고 한 번에 쭉 한다. 20분 1세트로 시작하고,
-      // 인터벌처럼 나눠 하고 싶으면 편집에서 세트를 더하면 된다.
-      var isCardio = exercise.type === 'time' && exercise.part === '유산소';
-      if (isCardio) {
-        sets = opts.sets != null ? opts.sets : 1;
-        sec = opts.sec || 1200;
-      }
-      var arr = [];
-      for (var i = 0; i < sets; i++) {
-        arr.push(exercise.type === 'time' ? { sec: sec } : { reps: reps, weight: opts.weight || 0 });
-      }
-      var item = {
-        id: uid('it'),
-        exerciseId: exercise.id,
-        name: exercise.name,
-        type: exercise.type,
-        // null = 설정의 기본 휴식 시간을 따른다. 유산소 1세트는 끝나고
-        // 쉬는 개념이 아니라서 0(휴식 없음)으로 둔다.
-        restSec: isCardio ? 0 : null,
-        memo: '',
-        sets: arr
-      };
+      var item = makeItem(exercise, opts);
       r.items.push(item);
       r.updatedAt = Date.now();
       save();
       return item;
+    },
+    /* 운동 중에 종목을 하나 더 하는 경우. 오늘 기록에만 넣고 루틴은
+     * 건드리지 않는다. 루틴은 다음에도 쓸 틀이라, 오늘 한 번 끼워 넣은
+     * 운동 때문에 말없이 바뀌면 곤란하다. */
+    addActiveItem: function (exercise, opts) {
+      if (!state.active) return null;
+      var item = makeItem(exercise, opts);
+      item.sets = item.sets.map(function (st) {
+        return Object.assign({}, st, { done: false, doneAt: null });
+      });
+      state.active.items.push(item);
+      save();
+      return item;
+    },
+    removeActiveItem: function (itemId) {
+      if (!state.active) return;
+      state.active.items = state.active.items.filter(function (i) { return i.id !== itemId; });
+      save();
     },
     updateItem: function (routineId, itemId, patch) {
       var r = this.getRoutine(routineId);

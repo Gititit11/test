@@ -5,7 +5,7 @@
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.29-47';
+  var APP_VERSION = '2026.09.30-48';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -775,6 +775,7 @@
         '<div class="row gap">' +
           '<button class="btn sm" data-act="live-add-set" data-iid="' + it.id + '">+ 세트</button>' +
           '<button class="btn sm" data-act="live-del-set" data-iid="' + it.id + '">− 세트</button>' +
+          '<button class="btn sm ghost danger" data-act="live-del-item" data-iid="' + it.id + '">운동 빼기</button>' +
           '<label class="mini restedit right"><span>휴식</span>' +
             '<input type="number" inputmode="numeric" min="0" step="10"' +
             ' value="' + (it.restSec == null ? '' : it.restSec) + '"' +
@@ -784,6 +785,9 @@
       '</section>';
     }).join('');
 
+    /* 하다 보면 오늘만 하나 더 하고 싶을 때가 있다. 세트는 늘릴 수 있는데
+     * 종목은 못 늘려서 루틴 편집으로 나갔다 와야 했다. */
+    html += '<button class="btn block" data-act="live-add-item">＋ 운동 추가</button>';
     html += '<button class="btn primary block lg" data-act="finish-session">운동 완료하고 기록 저장</button>';
     html += '</main>';
     return html;
@@ -1426,10 +1430,29 @@
   }
 
   // ── 운동 검색 모달 ───────────────────────────────────
-  var picker = { routineId: null, q: '', part: '', equip: '', sets: 3, reps: 10 };
+  var picker = { routineId: null, live: false, q: '', part: '', equip: '', sets: 3, reps: 10 };
 
-  function openPicker(routineId) {
+  /* live 면 루틴이 아니라 진행 중인 운동에 넣는다. 루틴 편집과 같은
+   * 검색 시트를 그대로 쓴다 — 운동 중이라고 다른 화면을 익힐 이유는 없다. */
+  // 시트에서 고른 운동을 지금 맞는 곳에 넣는다
+  function addPicked(ex) {
+    // 유산소는 픽커의 세트 기본값을 쓰지 않는다 (한 번에 쭉 하는 운동)
+    var cardio = ex.type === 'time' && ex.part === '유산소';
+    var opts = cardio ? {} : { sets: picker.sets, reps: picker.reps };
+    if (picker.live) {
+      if (!S.active()) { toast('진행 중인 운동이 없습니다'); closeModal(); return; }
+      S.addActiveItem(ex, opts);
+      toast('“' + ex.name + '” 오늘 운동에 추가됨');
+    } else {
+      S.addItem(picker.routineId, ex, opts);
+      toast('“' + ex.name + '” 추가됨');
+    }
+    render();
+  }
+
+  function openPicker(routineId, live) {
     picker.routineId = routineId;
+    picker.live = !!live;
     picker.q = ''; picker.part = ''; picker.equip = '';
     drawPicker();
     setTimeout(function () {
@@ -1516,7 +1539,7 @@
       '<div class="sheet-bg" data-act="close-modal"></div>' +
       '<div class="sheet">' +
         '<div class="sheet-head">' +
-          '<h2>운동 검색</h2>' +
+          '<h2>' + (picker.live ? '오늘 운동에 추가' : '운동 검색') + '</h2>' +
           '<button class="icon" data-act="close-modal">✕</button>' +
         '</div>' +
         '<div class="sheet-search">' +
@@ -1528,6 +1551,7 @@
           '기본값 <input type="number" inputmode="numeric" min="1" max="20" value="' + picker.sets + '" data-bind="pk-sets">세트 × ' +
           '<input type="number" inputmode="numeric" min="1" max="100" value="' + picker.reps + '" data-bind="pk-reps">회로 추가' +
         '</div>' +
+        (picker.live ? '<p class="sheet-note dim">오늘 기록에만 더합니다. 루틴은 그대로 둡니다.</p>' : '') +
         '<div class="sheet-list">' + pickerResults() + '</div>' +
         '<div class="sheet-foot">' +
           '<button class="btn block" data-act="pk-custom">＋ 직접 추가하기' + (picker.q ? ' (“' + esc(picker.q) + '”)' : '') + '</button>' +
@@ -1588,10 +1612,7 @@
       type: isTime ? 'time' : 'reps'
     });
     toast('“' + ex.name + '” 등록됨');
-    if (picker.routineId) {
-      S.addItem(picker.routineId, ex, { sets: picker.sets, reps: picker.reps });
-      render();
-    }
+    if (picker.live || picker.routineId) addPicked(ex);
     picker.q = '';
     drawPicker();
   }
@@ -1703,11 +1724,7 @@
       case 'pk-add': {
         var ex = S.findExercise(t.dataset.id);
         if (!ex) return;
-        var cardio = ex.type === 'time' && ex.part === '유산소';
-        // 유산소는 픽커의 세트 기본값을 쓰지 않는다 (한 번에 쭉 하는 운동)
-        S.addItem(picker.routineId, ex, cardio ? {} : { sets: picker.sets, reps: picker.reps });
-        toast('“' + ex.name + '” 추가됨');
-        render();
+        addPicked(ex);
         break;
       }
       case 'pk-custom': customExerciseForm(); break;
@@ -1755,6 +1772,24 @@
           if (restSec) startRest(restSec, item.name + ' ' + (si + 1) + '세트 완료');
           else beep();
         }
+        render();
+        break;
+      }
+      case 'live-add-item':
+        if (!S.active()) { toast('진행 중인 운동이 없습니다'); return; }
+        openPicker(null, true);
+        break;
+      case 'live-del-item': {
+        var a = S.active();
+        if (!a) return;
+        var gone = a.items.filter(function (i) { return i.id === iid; })[0];
+        if (!gone) return;
+        if (a.items.length <= 1) { toast('운동이 하나는 있어야 합니다'); return; }
+        // 이미 체크한 세트가 있으면 지우는 순간 그 기록이 사라진다
+        var didSome = gone.sets.some(function (st) { return st.done; });
+        if (didSome && !confirm('“' + gone.name + '”은(는) 이미 한 세트가 있습니다. 빼면 그 기록도 사라집니다.')) return;
+        S.removeActiveItem(iid);
+        toast('“' + gone.name + '” 뺌');
         render();
         break;
       }

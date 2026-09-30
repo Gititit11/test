@@ -271,6 +271,11 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .mini input { text-align: right; padding: 8px 8px; }
 .mini > span { font-size: 12px; color: var(--dim); flex: none; }
 .x { color: var(--dim); flex: none; }
+/* 운동 카드 아래 줄: 세트 ±, 운동 빼기, 휴식 시간.
+   글자가 단어 가운데서 꺾이면 버튼이 두 줄이 되어 카드가 쓸데없이
+   길어진다. 버튼은 안 꺾고, 자리가 모자라면 휴식 칸을 다음 줄로 내린다. */
+.exercise > .row.gap { flex-wrap: wrap; row-gap: 8px; }
+.exercise > .row.gap > .btn { white-space: nowrap; }
 .mini.restedit { flex: 0 0 auto; gap: 4px; }
 .mini.restedit input { width: 68px; text-align: center; padding: 7px 6px; }
 /* 유산소는 속도·경사·시간 세 칸이라 좁다. 입력칸 묶음만 안에서 줄바꿈하고
@@ -503,6 +508,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .fchip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
 .sheet-default { padding: 6px 14px 10px; font-size: 13px; color: var(--dim); }
 .sheet-default input { width: 56px; display: inline-block; text-align: center; padding: 5px; margin: 0 3px; }
+.sheet-note { margin: 0 14px 6px; font-size: 12px; }
 .sheet-list { flex: 1 1 auto; min-height: 120px; overflow-y: auto; padding: 4px 14px; -webkit-overflow-scrolling: touch; }
 .ex {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -1235,6 +1241,36 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     return s;
   }
 
+  // 루틴에 넣든 오늘 기록에 넣든 운동 항목의 모양은 하나여야 한다
+  function makeItem(exercise, opts) {
+    opts = opts || {};
+    var sets = opts.sets || 3;
+    var reps = opts.reps || 10;
+    var sec = opts.sec || 60;
+    // 유산소는 세트로 끊지 않고 한 번에 쭉 한다. 20분 1세트로 시작하고,
+    // 인터벌처럼 나눠 하고 싶으면 세트를 더하면 된다.
+    var isCardio = exercise.type === 'time' && exercise.part === '유산소';
+    if (isCardio) {
+      sets = opts.sets != null ? opts.sets : 1;
+      sec = opts.sec || 1200;
+    }
+    var arr = [];
+    for (var i = 0; i < sets; i++) {
+      arr.push(exercise.type === 'time' ? { sec: sec } : { reps: reps, weight: opts.weight || 0 });
+    }
+    return {
+      id: uid('it'),
+      exerciseId: exercise.id,
+      name: exercise.name,
+      type: exercise.type,
+      // null = 설정의 기본 휴식 시간을 따른다. 유산소 1세트는 끝나고
+      // 쉬는 개념이 아니라서 0(휴식 없음)으로 둔다.
+      restSec: isCardio ? 0 : null,
+      memo: '',
+      sets: arr
+    };
+  }
+
   var Store = {
     uid: uid,
     clone: clone,
@@ -1338,36 +1374,29 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
     addItem: function (routineId, exercise, opts) {
       var r = this.getRoutine(routineId);
       if (!r) return null;
-      opts = opts || {};
-      var sets = opts.sets || 3;
-      var reps = opts.reps || 10;
-      var sec = opts.sec || 60;
-      // 유산소는 세트로 끊지 않고 한 번에 쭉 한다. 20분 1세트로 시작하고,
-      // 인터벌처럼 나눠 하고 싶으면 편집에서 세트를 더하면 된다.
-      var isCardio = exercise.type === 'time' && exercise.part === '유산소';
-      if (isCardio) {
-        sets = opts.sets != null ? opts.sets : 1;
-        sec = opts.sec || 1200;
-      }
-      var arr = [];
-      for (var i = 0; i < sets; i++) {
-        arr.push(exercise.type === 'time' ? { sec: sec } : { reps: reps, weight: opts.weight || 0 });
-      }
-      var item = {
-        id: uid('it'),
-        exerciseId: exercise.id,
-        name: exercise.name,
-        type: exercise.type,
-        // null = 설정의 기본 휴식 시간을 따른다. 유산소 1세트는 끝나고
-        // 쉬는 개념이 아니라서 0(휴식 없음)으로 둔다.
-        restSec: isCardio ? 0 : null,
-        memo: '',
-        sets: arr
-      };
+      var item = makeItem(exercise, opts);
       r.items.push(item);
       r.updatedAt = Date.now();
       save();
       return item;
+    },
+    /* 운동 중에 종목을 하나 더 하는 경우. 오늘 기록에만 넣고 루틴은
+     * 건드리지 않는다. 루틴은 다음에도 쓸 틀이라, 오늘 한 번 끼워 넣은
+     * 운동 때문에 말없이 바뀌면 곤란하다. */
+    addActiveItem: function (exercise, opts) {
+      if (!state.active) return null;
+      var item = makeItem(exercise, opts);
+      item.sets = item.sets.map(function (st) {
+        return Object.assign({}, st, { done: false, doneAt: null });
+      });
+      state.active.items.push(item);
+      save();
+      return item;
+    },
+    removeActiveItem: function (itemId) {
+      if (!state.active) return;
+      state.active.items = state.active.items.filter(function (i) { return i.id !== itemId; });
+      save();
     },
     updateItem: function (routineId, itemId, patch) {
       var r = this.getRoutine(routineId);
@@ -2274,7 +2303,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   var S = window.Store;
   var DB = window.ExerciseDB;
 
-  var APP_VERSION = '2026.09.29-47';
+  var APP_VERSION = '2026.09.30-48';
 
   var app = document.getElementById('app');
   var modalRoot = document.getElementById('modal');
@@ -3044,6 +3073,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
         '<div class="row gap">' +
           '<button class="btn sm" data-act="live-add-set" data-iid="' + it.id + '">+ 세트</button>' +
           '<button class="btn sm" data-act="live-del-set" data-iid="' + it.id + '">− 세트</button>' +
+          '<button class="btn sm ghost danger" data-act="live-del-item" data-iid="' + it.id + '">운동 빼기</button>' +
           '<label class="mini restedit right"><span>휴식</span>' +
             '<input type="number" inputmode="numeric" min="0" step="10"' +
             ' value="' + (it.restSec == null ? '' : it.restSec) + '"' +
@@ -3053,6 +3083,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       '</section>';
     }).join('');
 
+    /* 하다 보면 오늘만 하나 더 하고 싶을 때가 있다. 세트는 늘릴 수 있는데
+     * 종목은 못 늘려서 루틴 편집으로 나갔다 와야 했다. */
+    html += '<button class="btn block" data-act="live-add-item">＋ 운동 추가</button>';
     html += '<button class="btn primary block lg" data-act="finish-session">운동 완료하고 기록 저장</button>';
     html += '</main>';
     return html;
@@ -3695,10 +3728,29 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   }
 
   // ── 운동 검색 모달 ───────────────────────────────────
-  var picker = { routineId: null, q: '', part: '', equip: '', sets: 3, reps: 10 };
+  var picker = { routineId: null, live: false, q: '', part: '', equip: '', sets: 3, reps: 10 };
 
-  function openPicker(routineId) {
+  /* live 면 루틴이 아니라 진행 중인 운동에 넣는다. 루틴 편집과 같은
+   * 검색 시트를 그대로 쓴다 — 운동 중이라고 다른 화면을 익힐 이유는 없다. */
+  // 시트에서 고른 운동을 지금 맞는 곳에 넣는다
+  function addPicked(ex) {
+    // 유산소는 픽커의 세트 기본값을 쓰지 않는다 (한 번에 쭉 하는 운동)
+    var cardio = ex.type === 'time' && ex.part === '유산소';
+    var opts = cardio ? {} : { sets: picker.sets, reps: picker.reps };
+    if (picker.live) {
+      if (!S.active()) { toast('진행 중인 운동이 없습니다'); closeModal(); return; }
+      S.addActiveItem(ex, opts);
+      toast('“' + ex.name + '” 오늘 운동에 추가됨');
+    } else {
+      S.addItem(picker.routineId, ex, opts);
+      toast('“' + ex.name + '” 추가됨');
+    }
+    render();
+  }
+
+  function openPicker(routineId, live) {
     picker.routineId = routineId;
+    picker.live = !!live;
     picker.q = ''; picker.part = ''; picker.equip = '';
     drawPicker();
     setTimeout(function () {
@@ -3785,7 +3837,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       '<div class="sheet-bg" data-act="close-modal"></div>' +
       '<div class="sheet">' +
         '<div class="sheet-head">' +
-          '<h2>운동 검색</h2>' +
+          '<h2>' + (picker.live ? '오늘 운동에 추가' : '운동 검색') + '</h2>' +
           '<button class="icon" data-act="close-modal">✕</button>' +
         '</div>' +
         '<div class="sheet-search">' +
@@ -3797,6 +3849,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
           '기본값 <input type="number" inputmode="numeric" min="1" max="20" value="' + picker.sets + '" data-bind="pk-sets">세트 × ' +
           '<input type="number" inputmode="numeric" min="1" max="100" value="' + picker.reps + '" data-bind="pk-reps">회로 추가' +
         '</div>' +
+        (picker.live ? '<p class="sheet-note dim">오늘 기록에만 더합니다. 루틴은 그대로 둡니다.</p>' : '') +
         '<div class="sheet-list">' + pickerResults() + '</div>' +
         '<div class="sheet-foot">' +
           '<button class="btn block" data-act="pk-custom">＋ 직접 추가하기' + (picker.q ? ' (“' + esc(picker.q) + '”)' : '') + '</button>' +
@@ -3857,10 +3910,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       type: isTime ? 'time' : 'reps'
     });
     toast('“' + ex.name + '” 등록됨');
-    if (picker.routineId) {
-      S.addItem(picker.routineId, ex, { sets: picker.sets, reps: picker.reps });
-      render();
-    }
+    if (picker.live || picker.routineId) addPicked(ex);
     picker.q = '';
     drawPicker();
   }
@@ -3972,11 +4022,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       case 'pk-add': {
         var ex = S.findExercise(t.dataset.id);
         if (!ex) return;
-        var cardio = ex.type === 'time' && ex.part === '유산소';
-        // 유산소는 픽커의 세트 기본값을 쓰지 않는다 (한 번에 쭉 하는 운동)
-        S.addItem(picker.routineId, ex, cardio ? {} : { sets: picker.sets, reps: picker.reps });
-        toast('“' + ex.name + '” 추가됨');
-        render();
+        addPicked(ex);
         break;
       }
       case 'pk-custom': customExerciseForm(); break;
@@ -4024,6 +4070,24 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
           if (restSec) startRest(restSec, item.name + ' ' + (si + 1) + '세트 완료');
           else beep();
         }
+        render();
+        break;
+      }
+      case 'live-add-item':
+        if (!S.active()) { toast('진행 중인 운동이 없습니다'); return; }
+        openPicker(null, true);
+        break;
+      case 'live-del-item': {
+        var a = S.active();
+        if (!a) return;
+        var gone = a.items.filter(function (i) { return i.id === iid; })[0];
+        if (!gone) return;
+        if (a.items.length <= 1) { toast('운동이 하나는 있어야 합니다'); return; }
+        // 이미 체크한 세트가 있으면 지우는 순간 그 기록이 사라진다
+        var didSome = gone.sets.some(function (st) { return st.done; });
+        if (didSome && !confirm('“' + gone.name + '”은(는) 이미 한 세트가 있습니다. 빼면 그 기록도 사라집니다.')) return;
+        S.removeActiveItem(iid);
+        toast('“' + gone.name + '” 뺌');
         render();
         break;
       }
