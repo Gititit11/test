@@ -1,0 +1,169 @@
+/* 스캔메이트 — 모바일 우선 다크 테마 (짐메이트와 같은 바탕색) */
+:root {
+  --bg: #0f1115;
+  --bg-2: #161a21;
+  --card: #1b2029;
+  --card-2: #222836;
+  --line: #2c3240;
+  --text: #eef1f6;
+  --dim: #93a0b4;
+  --brand: #2fd4a7;
+  --brand-ink: #062a20;
+  --accent: #4d7cff;
+  --danger: #ff5f6d;
+  --radius: 14px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+    "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh; min-height: 100dvh;
+}
+h1, h2 { margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 19px; }
+h2 { font-size: 18px; }
+.dim { color: var(--dim); font-size: 13px; }
+
+/* 버튼 */
+.btn {
+  appearance: none; border: 1px solid var(--line); background: var(--card-2); color: var(--text);
+  font: inherit; font-weight: 600; font-size: 14.5px;
+  min-height: 44px; padding: 0 16px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: transform .1s ease, opacity .15s ease, background .15s ease;
+}
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .4; pointer-events: none; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--dim); }
+.btn.danger { color: var(--danger); }
+.btn.small { min-height: 34px; padding: 0 10px; font-size: 13px; }
+.btn.grow { flex: 1; }
+
+/* 홈 */
+.topbar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 10px;
+  padding: calc(14px + var(--safe-t)) 16px 12px;
+  background: rgba(15, 17, 21, 0.92); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar h1 { flex: 1; }
+.home { max-width: 760px; margin: 0 auto; padding: 16px 16px calc(96px + var(--safe-b)); }
+
+.empty { text-align: center; padding: 36px 8px 0; color: var(--dim); }
+.empty h2 { color: var(--text); margin: 14px 0 6px; }
+.empty p { margin: 0 0 18px; font-size: 14px; }
+.empty-ico { width: 84px; height: 84px; fill: none; stroke: var(--brand); stroke-width: 2.4;
+             stroke-linecap: round; stroke-linejoin: round; }
+.tips { list-style: none; padding: 14px 16px; margin: 0 auto; max-width: 380px; text-align: left;
+        background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); font-size: 13.5px; }
+.tips li { padding: 4px 0 4px 18px; position: relative; }
+.tips li::before { content: ""; position: absolute; left: 2px; top: 12px; width: 6px; height: 6px;
+                   border-radius: 50%; background: var(--brand); }
+.tips b { color: var(--text); }
+
+.grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.grid li { position: relative; }
+.grid button.thumb {
+  display: block; width: 100%; aspect-ratio: 3 / 4; padding: 6px; cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+}
+.grid button.thumb:active { transform: scale(.98); }
+.grid img { width: 100%; height: 100%; object-fit: contain; display: block; border-radius: 4px; }
+.grid .no {
+  position: absolute; left: 10px; top: 10px; min-width: 24px; height: 24px; padding: 0 7px;
+  border-radius: 12px; background: rgba(0,0,0,.7); color: #fff; font-size: 12.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; pointer-events: none;
+}
+
+.bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  display: flex; gap: 8px; padding: 10px 12px calc(10px + var(--safe-b));
+  background: rgba(15, 17, 21, 0.94); backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line);
+}
+.bar .btn { min-height: 50px; }
+
+/* 전체 화면 작업창 */
+.screen {
+  position: fixed; inset: 0; z-index: 10; background: #07080a;
+  display: flex; flex-direction: column;
+  padding-top: var(--safe-t); padding-bottom: var(--safe-b);
+}
+.screen-top, .screen-bottom {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex: none;
+}
+.screen-title { flex: 1; text-align: center; font-weight: 600; font-size: 15px;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screen-bottom { justify-content: center; }
+.screen-bottom.col { flex-direction: column; align-items: stretch; gap: 10px; }
+.stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center;
+         justify-content: center; overflow: hidden; touch-action: none; }
+#cropCanvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+#editCanvas { max-width: calc(100% - 24px); max-height: calc(100% - 16px);
+              box-shadow: 0 4px 24px rgba(0,0,0,.6); background: #fff; }
+.loupe { position: absolute; top: 12px; left: 12px; width: 120px; height: 120px; border-radius: 50%;
+         border: 2px solid var(--brand); box-shadow: 0 4px 16px rgba(0,0,0,.6); pointer-events: none;
+         background: #000; }
+.loupe.right { left: auto; right: 12px; }
+
+.chips { display: flex; gap: 8px; overflow-x: auto; justify-content: center; }
+.chips button {
+  appearance: none; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--dim);
+  padding: 8px 14px; border-radius: 999px; white-space: nowrap;
+}
+.chips button.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.tools { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.tools .btn { padding: 0 12px; }
+
+/* PDF 시트 */
+.sheet-wrap { background: rgba(0,0,0,.6); justify-content: flex-end; align-items: center; }
+.sheet {
+  width: 100%; max-width: 520px; background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: 20px 20px 0 0; padding: 20px 18px calc(18px + var(--safe-b));
+  margin-bottom: calc(-1 * var(--safe-b));
+  display: flex; flex-direction: column; gap: 14px;
+}
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > span { font-size: 13px; color: var(--dim); }
+.field input {
+  font: inherit; font-size: 16px; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; outline: none;
+}
+.field input:focus { border-color: var(--brand); }
+.seg { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { flex: 1; appearance: none; border: 0; background: transparent; color: var(--dim);
+              font: inherit; font-size: 14px; font-weight: 600; padding: 9px 6px; border-radius: 8px; cursor: pointer; }
+.seg button.on { background: var(--card-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+.sheet-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.sheet-actions .btn.accent { flex: 1; }
+
+/* 진행 표시 · 알림 */
+.busy { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.55);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+.spinner { width: 38px; height: 38px; border-radius: 50%; border: 3px solid rgba(255,255,255,.2);
+           border-top-color: var(--brand); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toast {
+  position: fixed; left: 50%; top: calc(14px + var(--safe-t)); z-index: 40;
+  transform: translate(-50%, -20px); opacity: 0; pointer-events: none;
+  background: #2a3140; color: var(--text); padding: 10px 16px; border-radius: 12px; font-size: 14px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.5); transition: opacity .2s ease, transform .2s ease;
+  max-width: calc(100% - 32px);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<meta name="description" content="짐메이트 — 헬스 루틴을 만들고 세트마다 체크하는 웹앱">
-<title>짐메이트</title>
+<meta name="description" content="설치해서 쓰는 웹앱 모음 — 짐메이트, 스캔메이트">
+<title>웹앱 모음</title>
 <style>
   :root { --bg:#0f1115; --card:#1b2029; --line:#2c3240; --text:#eef1f6; --dim:#93a0b4;
           --gym:#4d7cff; --warn:#ffc857;
@@ -31,6 +31,7 @@
   }
   a.app:active { transform: scale(.99); }
   a.app.gym:hover { border-color: var(--gym); }
+  a.app.scan:hover { border-color: #2fd4a7; }
   .ico { width: 52px; height: 52px; border-radius: 14px; flex: none; background: #0b1016;
          display: flex; align-items: center; justify-content: center; }
   .ico img { width: 52px; height: 52px; border-radius: 14px; display: block; }
@@ -50,7 +51,7 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>짐메이트</h1>
+    <h1>웹앱 모음</h1>
     <p class="sub">설치해서 쓰는 웹앱이에요. 열어서 홈 화면에 추가하세요.</p>
 
     <!-- 예전 짐메이트 아이콘(주소가 /test/ 였던 것)으로 들어온 사람에게만 보인다 -->
@@ -66,6 +67,15 @@
       <span>
         <span class="name">짐메이트</span>
         <span class="desc">헬스 루틴을 만들고 세트마다 체크</span>
+      </span>
+      <span class="go">›</span>
+    </a>
+
+    <a class="app scan" href="./scanner/">
+      <span class="ico"><img src="./scanner/icons/icon-192.png" alt="" width="52" height="52"></span>
+      <span>
+        <span class="name">스캔메이트</span>
+        <span class="desc">문서 사진을 스캔본처럼 펴서 PDF 로</span>
       </span>
       <span class="go">›</span>
     </a>

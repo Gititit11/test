@@ -1,16 +1,18 @@
-# GymMate
+# 웹앱 모음
 
-헬스 루틴을 만들고 세트마다 체크하는 웹앱입니다.
+설치해서 쓰는 웹앱(PWA)들이 폴더마다 하나씩 들어 있습니다.
 
 | 주소 | 내용 |
 | --- | --- |
-| `/test/` | 안내 페이지 (짐메이트로 들어가는 입구) |
-| `/test/gymmate/` | **짐메이트** — 앱 본체 · [문서](gymmate/README.md) |
+| `/test/` | 안내 페이지 (앱으로 들어가는 입구) |
+| `/test/gymmate/` | **짐메이트** — 헬스 루틴 & 세트 체크 · [문서](gymmate/README.md) |
+| `/test/scanner/` | **스캔메이트** — 문서 사진을 스캔본 PDF 로 · [문서](scanner/README.md) |
 
 ```bash
 npx http-server . -p 8080 --silent
 # → http://localhost:8080/          안내 페이지
 # → http://localhost:8080/gymmate/  짐메이트
+# → http://localhost:8080/scanner/  스캔메이트
 ```
 
 ## `gyeopsajin/` 은 무엇인가
