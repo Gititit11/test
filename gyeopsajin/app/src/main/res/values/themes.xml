@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      화면은 전부 Compose 가 그린다. 여기서는 앱이 뜨는 순간의 배경과,
+      제목 표시줄을 쓰지 않는다는 것만 정해 두면 된다.
+    -->
+    <style name="Theme.Gyeopsajin" parent="@android:style/Theme.DeviceDefault.DayNight">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
