@@ -1,12 +1,14 @@
-# 웹앱 모음
+# 앱 모음
 
-설치해서 쓰는 웹앱(PWA)들이 폴더마다 하나씩 들어 있습니다.
+앱마다 폴더 하나씩 들어 있습니다. 모든 앱은 `main` 갈래에서 함께 관리합니다.
 
-| 주소 | 내용 |
-| --- | --- |
-| `/test/` | 안내 페이지 (앱으로 들어가는 입구) |
-| `/test/gymmate/` | **짐메이트** — 헬스 루틴 & 세트 체크 · [문서](gymmate/README.md) |
-| `/test/scanner/` | **스캔메이트** — 문서 사진을 스캔본 PDF 로 · [문서](scanner/README.md) |
+| 폴더 | 앱 | 종류 |
+| --- | --- | --- |
+| `gymmate/` | **짐메이트** — 헬스 루틴 & 세트 체크 · [문서](gymmate/README.md) | 웹앱 · `/test/gymmate/` |
+| `gyeopsajin/` | **겹사진** — 갤러리에서 같은 사진 묶기 · [문서](gyeopsajin/README.md) | 안드로이드 앱 (APK) |
+| `scanner/` | **스캔메이트** — 문서 사진을 스캔본 PDF 로 · [문서](scanner/README.md) | 웹앱 · `/test/scanner/` |
+
+`/test/` 는 앱으로 들어가는 안내 페이지입니다.
 
 ```bash
 npx http-server . -p 8080 --silent
@@ -24,8 +26,9 @@ npx http-server . -p 8080 --silent
 지울 수 없어서, 웹으로 만들면 "이 사진들을 지우세요" 라는 목록을 보여 주는 데에서
 멈춥니다. 안드로이드 앱은 시스템 확인창을 띄워 사용자가 그 자리에서 지울 수 있습니다.
 
-APK 는 `.github/workflows/android.yml` 이 만들며, 워크플로 실행 페이지의
-Artifacts 에서 내려받습니다. GitHub Pages 와는 상관이 없습니다.
+APK 는 `.github/workflows/android.yml` 이 만들어 릴리스에 올립니다. 폰에서는
+`https://github.com/Gititit11/test/releases/latest/download/gyeopsajin.apk` 로 바로 받습니다.
+GitHub Pages 와는 상관이 없습니다.
 
 ## 왜 앱이 폴더 안에 있나
 
@@ -55,4 +58,7 @@ Artifacts 에서 내려받습니다. GitHub Pages 와는 상관이 없습니다.
 
 ## 배포
 
-`.github/workflows/pages.yml` 이 저장소 전체를 GitHub Pages 로 올립니다.
+`main` 에 올라온 것만 배포합니다. 다른 갈래에 올려도 사이트나 APK 는 바뀌지 않습니다.
+
+- `.github/workflows/pages.yml` — 저장소 전체를 GitHub Pages 로 올립니다 (웹앱)
+- `.github/workflows/android.yml` — `gyeopsajin/` 이 바뀌면 APK 를 만들어 릴리스에 올립니다

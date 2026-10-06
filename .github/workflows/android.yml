@@ -6,8 +6,6 @@ on:
   push:
     branches:
       - main
-      - master
-      - claude/android-gallery-organizer-1fty18
     paths:
       - 'gyeopsajin/**'
       - '.github/workflows/android.yml'

@@ -4,10 +4,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
+      # 모든 앱은 main 에서 관리한다. 다른 갈래가 사이트를 덮어쓰지 않게 main 만 둔다.
       - main
-      - master
-      - claude/health-routine-workout-app-tww9lp
-      - claude/water-intake-tracker-app-gq6aat
   workflow_dispatch:
 
 permissions:
