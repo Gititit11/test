@@ -1,8 +1,8 @@
 /* 오프라인 캐시 — 스캔은 전부 기기 안에서 하므로 네트워크 없이도 돌아간다 */
-var CACHE = 'scanner-v1';
+var CACHE = 'scanner-v2';
 var ASSETS = [
   './', './index.html', './manifest.json',
-  './css/styles.css', './js/scan.js', './js/pdf.js', './js/app.js',
+  './css/styles.css', './js/scan.js', './js/pdf.js', './js/app.js', './js/install.js',
   './icons/icon-192.png', './icons/icon-512.png',
   './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'
 ];
