@@ -21,7 +21,7 @@ self.addEventListener('install', function (e) {
 
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    // 같은 주소(origin)에 다른 앱(majungmul)이 함께 올라가 있다.
+    // 같은 주소(origin)에 다른 앱(scanner 등)이 함께 올라가 있다.
     // 남의 캐시까지 지우면 그 앱이 망가지므로 내 것만 정리한다.
     return Promise.all(keys
       .filter(function (k) { return k.indexOf('gymmate') === 0 && k !== CACHE; })
