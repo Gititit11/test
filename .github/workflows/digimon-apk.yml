@@ -1,0 +1,85 @@
+# 디지타마(웹앱)를 안드로이드 APK 로 감싸서 만든다.
+# 만든 APK 는 릴리스 'digitama-latest' 에 올라가고, 폰에서는 아래 주소로 바로 받는다.
+#   https://github.com/<소유자>/<저장소>/releases/download/digitama-latest/digitama.apk
+name: 디지타마 APK
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+    paths:
+      - 'digimon/**'
+      - '.github/workflows/digimon-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: digitama-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: digimon/android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 자바 준비
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 그레이들 준비
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: 게임 규칙 시험
+        working-directory: .
+        run: TZ=UTC node --test digimon/test/*.test.js
+
+      - name: APK 만들기
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: APK 남기기
+        uses: actions/upload-artifact@v4
+        with:
+          name: digitama-apk
+          path: digimon/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      # 겹사진이 '최신 릴리스' 자리를 쓰므로, 디지타마는 자기 태그로만 받게 한다 (--latest=false)
+      - name: 폰에서 바로 받을 수 있게 릴리스에 올리기
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: digitama-latest
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk digitama.apk
+
+          gh release delete "$TAG" --cleanup-tag --yes || true
+
+          gh release create "$TAG" digitama.apk \
+            --target "$GITHUB_SHA" \
+            --title "디지타마 — 최신" \
+            --latest=false \
+            --notes "$(cat <<'NOTES'
+          ## 설치하는 법
+
+          아래 **digitama.apk** 를 폰에서 누르면 받아집니다.
+          받은 뒤 알림이나 다운로드 폴더에서 한 번 더 누르면 설치 화면이 뜹니다.
+
+          처음에는 "이 출처의 앱을 설치할 수 없다" 는 안내가 나올 수 있습니다.
+          그 화면에서 **허용**을 한 번 눌러 주면 됩니다. 구글 플레이를 거치지 않아서
+          나오는 안내이며, 한 번만 하면 됩니다.
+
+          새 버전이 나오면 같은 주소에서 받아 그대로 덮어 설치하면 됩니다.
+          키우던 디지몬은 그대로 남습니다.
+
+          안드로이드 7 이상에서 동작합니다.
+          NOTES
+          )"

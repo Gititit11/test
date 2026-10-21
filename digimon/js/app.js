@@ -1041,7 +1041,8 @@
     pictures.forEach(function (p) { picture(p[0], p[1], p[2]); });
   });
 
-  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  // 안드로이드 앱(APK) 안에서는 파일이 이미 기기에 있어서 오프라인 캐시가 필요 없다
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0 && !/DigitamaApp/.test(navigator.userAgent)) {
     navigator.serviceWorker.register('sw.js').catch(function () { });
   }
 })();
