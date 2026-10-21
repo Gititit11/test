@@ -833,12 +833,6 @@
     }
     $('dcInfo').textContent = D.STAGE_NAMES[S.stage] + ' · ' + D.ATTR_NAMES[S.attr] + (S.armor ? ' · 아머체' : '') +
       (S.terminal ? ' · 막다른 진화 (전투력 높음)' : '');
-    var st = [];
-    if (e && e.raised) st.push('키워 봤어요');
-    if (e && e.wins) st.push(e.wins + '번 이겼어요');
-    if (e && !st.length) st.push('만나 봤지만 아직 못 이겼어요');
-    if (!e) st.push('아직 못 만났어요');
-    $('dcState').textContent = st.join(' · ');
 
     var box = $('dcEvo');
     box.innerHTML = '';
