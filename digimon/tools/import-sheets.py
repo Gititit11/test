@@ -13,6 +13,14 @@
   3) 배경을 지운 그림 한 장 (포즈가 하나뿐일 때) — 12프레임을 모두 그 그림으로 채운다
      python3 digimon/tools/import-sheets.py single 잘라낸.png --id guilmon
 
+  4) 64x56 칸 4x3 개가 1px 분홍 선으로 나뉜 시트 (342x172, 오른쪽 초상화는 버린다)
+     배경은 초록(#00ff00)이거나 투명. 손실 없이 옮긴다.
+     python3 digimon/tools/import-sheets.py cells 시트.png --id growlmon
+
+  5) 도트를 크게 키운 그림 (가로 4 x 세로 3, 검은 배경, 도트 간격이 딱 맞지 않아도 됨)
+     도트 한 칸 크기를 찾아서 줄인 뒤 grid 와 같은 방식으로 정리한다.
+     python3 digimon/tools/import-sheets.py big 그림.png --id gigimon   (잘못 잡으면 --dot 5.4)
+
 시트는 12프레임을 가로로 이은 PNG 이다. 모든 프레임을 덮는 상자 하나로 잘라서
 프레임끼리의 위치 차이(뛰기, 눕기)는 그대로 남는다. 끝나면 js/sheets.js 를 다시 쓴다.
 필요: pip install pillow numpy scipy
@@ -103,6 +111,69 @@ def from_single(src, sid):
     save_strip([a] * 12, sid)
 
 
+def from_cells(src, sid):
+    a = np.asarray(Image.open(src).convert('RGBA')).copy()
+    rgb = a[:, :, :3].astype(int)
+    green = (rgb[:, :, 1] > 200) & (rgb[:, :, 0] < 80) & (rgb[:, :, 2] < 80)
+    a[green | (a[:, :, 3] < 128)] = 0
+    a[a[:, :, 3] > 0, 3] = 255
+    frames = [a[1 + r * 57:1 + r * 57 + 56, 1 + c * 65:1 + c * 65 + 64] for r in range(3) for c in range(4)]
+    save_strip(frames, sid)
+
+
+def from_big(src, sid, colors, dot=None):
+    from scipy import ndimage
+    from scipy.cluster.vq import kmeans2
+    im = Image.open(src).convert('RGB')
+    ref = np.asarray(im).astype(float)
+    if not dot:
+        # 색이 확 바뀌는 경계 사이의 간격 = 도트 한 칸. 간격들의 가운데 값을 쓴다.
+        gaps = []
+        for arr in (ref, ref.transpose(1, 0, 2)):
+            d = np.abs(np.diff(arr, axis=1)).sum(2) > 60
+            for row in d:
+                idx = np.nonzero(row)[0]
+                g = np.diff(idx)
+                gaps.extend(g[(g >= 3) & (g <= 12)].tolist())
+        dot = float(np.median(gaps))
+    w, h = round(im.width / dot), round(im.height / dot)
+    s = np.asarray(im.resize((w, h), Image.BOX)).astype(float)
+    cw, ch = w // 4, h // 3
+    cells = [s[r * ch:(r + 1) * ch, c * cw:(c + 1) * cw] for r in range(3) for c in range(4)]
+    masks = []
+    for f in cells:
+        m = f.max(axis=2) > 40
+        lab, n = ndimage.label(m)
+        sizes = ndimage.sum(m, lab, range(1, n + 1))
+        masks.append(ndimage.binary_fill_holes(np.isin(lab, [i + 1 for i, z in enumerate(sizes) if z >= 6])))
+    pix = np.concatenate([f[m] for f, m in zip(cells, masks)])
+    cent, _ = kmeans2(pix, colors, minit='++', seed=1)
+    # 칸마다 그림 위치가 제각각이라, 잘라 낸 뒤 발끝(아래)과 가운데를 맞춰 다시 놓는다
+    crops = []
+    for f, m in zip(cells, masks):
+        ys, xs = np.nonzero(m)
+        f, m = f[ys.min():ys.max() + 1, xs.min():xs.max() + 1], m[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+        q = cent[((f[:, :, None, :] - cent[None, None]) ** 2).sum(-1).argmin(-1)]
+        sat = (f[m].max(1) - f[m].min(1)).mean()
+        if sat < 20:
+            q[:] = (128, 128, 128)  # 회색 실루엣 = 그 동작이 없다
+        crops.append((q, m))
+    W = max(m.shape[1] for _, m in crops) + 2
+    H = max(m.shape[0] for _, m in crops) + 2
+    frames = []
+    for q, m in crops:
+        out = np.zeros((H, W, 4), 'uint8')
+        y0, x0 = H - 1 - m.shape[0], (W - m.shape[1]) // 2
+        mm = np.zeros((H, W), bool)
+        mm[y0:y0 + m.shape[0], x0:x0 + m.shape[1]] = m
+        out[mm, :3] = q[m].clip(0, 255)
+        out[mm, 3] = 255
+        out[ndimage.binary_dilation(mm) & ~mm] = (4, 4, 4, 255)
+        frames.append(out)
+    print('도트 한 칸', round(dot, 1), 'px')
+    save_strip(frames, sid)
+
+
 def is_silhouette(fr):
     rgb = fr[fr[:, :, 3] > 0][:, :3].astype(int)
     if not len(rgb): return True
@@ -127,17 +198,22 @@ def write_index():
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('kind', nargs='?', choices=['png', 'grid', 'single'])
+    ap.add_argument('kind', nargs='?', choices=['png', 'grid', 'single', 'cells', 'big'])
     ap.add_argument('src', nargs='?')
     ap.add_argument('--id')
     ap.add_argument('--ids')
     ap.add_argument('--cols', type=int, default=12)
     ap.add_argument('--colors', type=int, default=28)
+    ap.add_argument('--dot', type=float, help='big: 도트 한 칸 크기(px). 안 주면 찾는다')
     a = ap.parse_args()
     if a.kind == 'png':
         from_png(a.src, a.id)
     elif a.kind == 'single':
         from_single(a.src, a.id)
+    elif a.kind == 'cells':
+        from_cells(a.src, a.id)
+    elif a.kind == 'big':
+        from_big(a.src, a.id, min(a.colors, 16), a.dot)
     elif a.kind == 'grid':
         from_grid(a.src, a.ids.split(','), a.cols, a.colors)
     write_index()
