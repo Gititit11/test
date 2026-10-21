@@ -538,13 +538,14 @@
   function startBattle(w) {
     E.tick(state, now());
     battle = E.startBattle(state, w);
-    view = { me: battle.me, foe: w.id, meAttr: D.SPECIES[battle.me].attr, foeAttr: w.attr, php: 100, ehp: 100 };
+    view = { me: battle.me, foe: w.id, meAttr: D.SPECIES[battle.me].attr, foeAttr: w.attr, php: 100, ehp: 100,
+      grade: w.grade, intro: performance.now() };
     turn = null;
     $('pName').textContent = name(battle.me);
     $('eName').textContent = w.name + gradeTag(w.grade);
     $('blog').textContent = josa('야생 ' + w.name, '이', '가') + ' 나타났다!' + (battle.hungry ? ' (배가 고파 힘이 빠져 있다)' : '');
     $('cmds').hidden = false; $('battleDone').hidden = true;
-    setCmds(true);
+    setCmds(false); // 시작 연출이 끝나면 켠다
     hpBars();
     show('battle', true);
     requestAnimationFrame(arenaLoop);
@@ -558,6 +559,7 @@
    * 한 턴 = 내 행동 → 상대 행동. 공격은 상대 쪽으로 튀어나갔다 돌아오고, 필살기는 속성 색 탄을 쏜다.
    * 맞으면 깜빡이며 흔들리고, 머리 위로 피해 숫자가 떠오른다. 방어는 앞에 방패를 세운다.
    */
+  var INTRO = { walk: 900, end: 1800 };
   var T = { pGo: 0, pHit: 280, pBack: 460, eGo: 600, eHit: 880, eBack: 1060, end: 1500 };
   var SHOT = { vaccine: ['#fff4b0', '#ffb43a', '#e0602a'], data: ['#e6f6ff', '#5ab4ff', '#2a5fd0'],
     virus: ['#ffe0ff', '#c46aff', '#6a2aa8'], free: ['#f0ffe0', '#7ad05a', '#2f8a3a'] };
@@ -567,7 +569,10 @@
     3: ['111', '001', '111', '001', '111'], 4: ['101', '101', '111', '001', '001'], 5: ['111', '100', '111', '001', '111'],
     6: ['111', '100', '111', '101', '111'], 7: ['111', '001', '010', '010', '010'], 8: ['111', '101', '111', '101', '111'],
     9: ['111', '101', '111', '001', '111'], M: ['10001', '11011', '10101', '10001', '10001'], I: ['111', '010', '010', '010', '111'],
-    S: ['011', '100', '010', '001', '110'], '?': ['111', '001', '011', '000', '010'], '!': ['1', '1', '1', '0', '1']
+    S: ['011', '100', '010', '001', '110'], '?': ['111', '001', '011', '000', '010'], '!': ['1', '1', '1', '0', '1'],
+    V: ['101', '101', '101', '101', '010'], B: ['110', '101', '110', '101', '110'], O: ['111', '101', '101', '101', '111'],
+    L: ['100', '100', '100', '100', '111'], E: ['111', '100', '110', '100', '111'], G: ['111', '100', '101', '101', '111'],
+    N: ['1001', '1101', '1011', '1001', '1001'], D: ['110', '101', '101', '101', '110']
   };
   function textWidth(str, px) {
     var w = 0;
@@ -638,6 +643,26 @@
     var idleF = Math.floor(ts / 420);
     var P = { x: px0, anim: 'idle', frame: idleF, hide: false }, Q = { x: ex0, anim: 'idle', frame: idleF, hide: false };
     var fx = [];
+
+    // 시작 연출: 양쪽에서 걸어 들어온 뒤 VS (보스·전설이면 경고 글자도)
+    if (view.intro) {
+      var it = ts - view.intro, w = Math.min(1, it / INTRO.walk); // 걸음은 일정한 속도로
+      P.x = -ma.w + (px0 + ma.w) * w; Q.x = 200 + (ex0 - 200) * w;
+      if (it < INTRO.walk) { P.anim = Q.anim = 'walk'; P.frame = Q.frame = Math.floor(it / 120); }
+      if (it >= INTRO.walk && it < INTRO.walk + 70) { ax.fillStyle = '#ffffff'; ax.fillRect(0, 0, 200, 96); }
+      if (it >= INTRO.walk) {
+        var k = Math.min(1, (it - INTRO.walk) / 160), size = Math.round(6 - 3 * k);
+        fx.push(function () { pixelText('VS', 100, 40 - size * 2.5, size, '#ff9d3a'); });
+        if (view.grade === 'boss' || view.grade === 'legend') {
+          var on = Math.floor((it - INTRO.walk) / 140) % 2 === 0;
+          if (on) fx.push(function () {
+            pixelText(view.grade === 'boss' ? 'BOSS!' : 'LEGEND!', ex0 + mb.w / 2, Math.max(2, floor - mb.h - 14), 2,
+              view.grade === 'boss' ? '#ff5f6d' : '#f5c242');
+          });
+        }
+      }
+      if (it >= INTRO.end) { view.intro = null; if (battle && !battle.over) setCmds(true); }
+    }
 
     if (turn) {
       var t = ts - turn.t0, r = turn.r;
