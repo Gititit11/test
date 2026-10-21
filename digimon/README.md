@@ -141,6 +141,7 @@
 | `guilmon` | 길몬 | 성장기 | |
 | `growlmon` | 그라우몬 | 성숙기 | |
 | `growlmon_yellow` | 그라우몬(황) | 성숙기 | 데이터 |
+| `seasarmon` | 시사몬 | 성숙기 | |
 | `megalogrowlmon` | 메가로그라우몬 | 완전체 | |
 | `megalogrowlmon_yellow` | 메가로그라우몬(황) | 완전체 | 데이터 |
 | `dukemon` | 듀크몬 | 궁극체 | |
