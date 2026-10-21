@@ -7,7 +7,7 @@
 | `gymmate/` | **짐메이트** — 헬스 루틴 & 세트 체크 · [문서](gymmate/README.md) | 웹앱 · `/test/gymmate/` |
 | `gyeopsajin/` | **겹사진** — 갤러리에서 같은 사진 묶기 · [문서](gyeopsajin/README.md) | 안드로이드 앱 (APK) |
 | `scanner/` | **스캔메이트** — 문서 사진을 스캔본 PDF 로 · [문서](scanner/README.md) | 웹앱 · `/test/scanner/` |
-| `digimon/` | **디지타마** — 디지몬 육성 & 바코드 배틀 · [문서](digimon/README.md) | 웹앱 · `/test/digimon/` |
+| `digimon/` | **디지타마** — 디지몬 육성 & 바코드 배틀 · [문서](digimon/README.md) | 웹앱 · `/test/digimon/` + 안드로이드 앱 ([APK](https://github.com/Gititit11/test/releases/download/digitama-latest/digitama.apk)) |
 
 `/test/` 는 앱으로 들어가는 안내 페이지입니다.
 

@@ -5,6 +5,9 @@
 
 돌보기 → 훈련 → 바코드 배틀 → 진화 → 도감 수집
 
+**안드로이드 앱 받기**: https://github.com/Gititit11/test/releases/download/digitama-latest/digitama.apk
+(폰에서 누르면 받아짐 → 설치. 처음 한 번은 '출처를 알 수 없는 앱' 허용이 필요. 새 버전은 같은 주소에서 받아 덮어 설치하면 키우던 디지몬이 그대로 남음)
+
 ## 쓰는 법
 
 1. **디지타마 고르기**: 아구몬 · 파피몬 · 브이몬 중 하나를 고르면 바로 부화합니다
@@ -137,7 +140,8 @@
 | `js/sheets.js`, `sprites/` | 도트 시트와 목록 (`tools/import-sheets.py` 가 만듦) |
 | `js/app.js` | 화면 흐름 |
 | `js/install.js` | "앱 설치" 버튼 (다른 앱과 같은 파일) |
-| `sw.js` | 오프라인 캐시 |
+| `sw.js` | 오프라인 캐시 (웹으로 열 때만) |
+| `android/` | 웹앱을 APK 안에 넣어 WebView 로 띄우는 안드로이드 앱. `.github/workflows/digimon-apk.yml` 이 만들어 릴리스 `digitama-latest` 에 올림 |
 | `test/engine.test.js` | 규칙 시험 (`TZ=UTC node --test digimon/test/*.test.js`) |
 | `tools/build-icons.py` | 아이콘 다시 만들기 (`python3 digimon/tools/build-icons.py`) |
 
