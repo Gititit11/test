@@ -61,7 +61,12 @@ jobs:
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk digitama.apk
 
-          gh release delete "$TAG" --cleanup-tag --yes || true
+          # 릴리스가 이미 있으면 파일만 바꿔 끼운다. 릴리스째 지웠다 다시 만들면 그사이에
+          # 받던 사람의 다운로드가 끝나지 않고 멈춘다.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" digitama.apk --clobber
+            exit 0
+          fi
 
           gh release create "$TAG" digitama.apk \
             --target "$GITHUB_SHA" \
