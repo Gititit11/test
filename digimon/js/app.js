@@ -55,7 +55,8 @@
   function picture(c, id, o) {
     pictures = pictures.filter(function (p) { return p[0] !== c; }).concat([[c, id, o]]);
     var x = c.getContext('2d'), m = Sprite.measure(id);
-    var sc = Math.max(1, Math.floor((c.width - 8) / Math.max(m.w, m.h)));
+    var fit = (c.width - 8) / Math.max(m.w, m.h);
+    var sc = fit >= 1 ? Math.floor(fit) : fit; // 칸보다 큰 보스는 줄여서 그린다
     x.clearRect(0, 0, c.width, c.height);
     Sprite.draw(x, id, Math.floor((c.width - m.w * sc) / 2), Math.floor((c.height - m.h * sc) / 2), sc, o);
   }
@@ -98,8 +99,8 @@
     var cur = alive(), left = E.slotsLeft(state);
     $('eggsBack').hidden = !cur;
     $('eggsNote').textContent = cur
-      ? '고른 알은 바로 부화해요. 키우던 ' + josa(name(E.form(cur)), '은', '는') + ' 보관함으로 가요 (남은 칸 ' + left + ').'
-      : '고른 알은 바로 부화해요. 시간은 실제 시간으로 흘러요.';
+      ? '고른 알은 5분 뒤에 깨어나요. 키우던 ' + josa(name(E.form(cur)), '은', '는') + ' 보관함으로 가요 (남은 칸 ' + left + ').'
+      : '고른 알은 5분 동안 흔들리다가 깨어나요. 시간은 실제 시간으로 흘러요.';
     $('eggBox').hidden = !state.box.length || !!cur;
     if (!cur) monList($('eggBoxList'), false);
     var ul = $('eggList');
@@ -109,8 +110,9 @@
       var li = document.createElement('li'), b = document.createElement('button');
       b.type = 'button';
       var c = document.createElement('canvas');
-      c.width = Sprite.EGG_W * 2; c.height = Sprite.EGG_H * 2;
-      Sprite.egg(c.getContext('2d'), id, 0, 0, 2);
+      c.width = 64; c.height = 80;
+      var em = Sprite.measure('egg_' + id);
+      Sprite.egg(c.getContext('2d'), id, Math.floor((64 - em.w * 2) / 2), 80 - em.h * 2, 2);
       var tx = document.createElement('span');
       tx.innerHTML = '<span class="n"></span><br><span class="t"></span>';
       tx.querySelector('.n').textContent = L.name + '의 디지타마';
@@ -122,7 +124,7 @@
         if (!E.hatch(state, id, now())) { toast('보관함이 가득 찼어요. 한 마리를 떠나보내 주세요'); return; }
         state.events = []; choosing = false;
         save(); render();
-        toast(josa(name(D.LINES[id].baby1), '이', '가') + ' 태어났어요!');
+        toast(L.name + '의 디지타마를 받았어요! ' + R.eggMinutes + '분 뒤에 깨어나요');
       });
       li.appendChild(b); ul.appendChild(li);
     });
@@ -210,17 +212,19 @@
     $('home').hidden = eggs;
     if (eggs) { renderEggs(); return; }
 
-    var id = E.form(mon), S = D.SPECIES[id];
-    $('monName').textContent = S.name;
+    var id = E.form(mon), S = D.SPECIES[id], egg = mon.stage === 'egg';
+    $('monName').textContent = egg ? D.LINES[mon.line].name + '의 디지타마' : S.name;
     $('monStage').textContent = mon.armor ? '아머체' : D.STAGE_NAMES[mon.stage];
     var at = $('monAttr');
     at.textContent = D.ATTR_NAMES[S.attr]; at.className = 'chip attr ' + S.attr;
+    at.hidden = egg;
     $('monAge').textContent = dur(t - mon.born) + '째';
     pips($('hunger'), mon.hunger);
     pips($('strength'), mon.strength);
 
     var msg = $('msg'), warn = E.warning(mon, t), text = '', bad = false;
-    if (mon.sleeping) { text = mon.lights ? '잠들었어요. 불을 꺼 주세요!' : '쿨쿨…'; bad = mon.lights; }
+    if (egg) text = mon.stageEnd - t > 60000 ? '흔들흔들… 안에서 뭔가 움직여요' : '금이 가고 있어요! 곧 깨어나요';
+    else if (mon.sleeping) { text = mon.lights ? '잠들었어요. 불을 꺼 주세요!' : '쿨쿨…'; bad = mon.lights; }
     else if (mon.callH > 0) { text = '배고파해요!'; bad = true; }
     else if (mon.callS > 0) { text = '힘이 없어요. 간식이나 훈련을!'; bad = true; }
     else if (mon.poops.length) { text = '똥을 치워 주세요'; }
@@ -231,7 +235,8 @@
     msg.textContent = text; msg.className = 'msg' + (bad ? ' warn' : '');
 
     var next;
-    if (mon.stageEnd) next = '다음 진화까지 ' + dur(mon.stageEnd - t);
+    if (egg) next = '부화까지 ' + clock(mon.stageEnd - t);
+    else if (mon.stageEnd) next = '다음 진화까지 ' + dur(mon.stageEnd - t);
     else if (mon.stage === 'ultimate') next = '궁극체 · 수명이 다할 때까지 함께해요' + (specialHint(mon) || '');
     else next = '더 진화하지 않아요';
     $('next').textContent = next;
@@ -242,6 +247,15 @@
     document.querySelector('[data-act="armor"]').hidden = !E.canArmor(state, t);
     document.querySelector('[data-act="chip"]').hidden = !state.meta.items.chip;
     document.querySelector('[data-act="chip"]').lastChild.textContent = '디지 칩 ×' + state.meta.items.chip;
+    // 디지타마일 때는 돌볼 것이 없다
+    ['feed', 'snack', 'train', 'clean', 'lights'].forEach(function (k) {
+      document.querySelector('[data-act="' + k + '"]').disabled = egg;
+    });
+    if (egg) document.querySelector('[data-act="chip"]').hidden = true;
+  }
+  function clock(ms) { // 분:초
+    var sec = Math.max(0, Math.ceil(ms / 1000));
+    return Math.floor(sec / 60) + '분 ' + (sec % 60 < 10 ? '0' : '') + sec % 60 + '초';
   }
 
   /* ---------- 화면(LCD) 그리기 ---------- */
@@ -292,6 +306,7 @@
     lx.fillStyle = dark ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.04)';
     for (var gy = 0; gy < Hh; gy += 4) lx.fillRect(0, gy, W, 1);
 
+    if (mon.stage === 'egg') { drawEgg(mon, W, Hh); return; }
     var id = E.form(mon), m = Sprite.measure(id), sw = m.w;
     var floor = 104, y = floor - m.h, acting = effect && ts < effect.until && effect.anim;
     if (!eating || Math.floor(ts / 220) !== Math.floor(lastStep / 220)) { walk.frame++; lastStep = ts; }
@@ -352,6 +367,14 @@
       lx.fillStyle = dark ? '#fff' : '#1b1f17';
       lx.fillText(effect.text, 8, 36);
     }
+  }
+  // 디지타마: 흔들흔들하다가 마지막 1분 동안 금이 점점 커진다 (프레임 2-6)
+  function drawEgg(mon, W, Hh) {
+    var left = mon.stageEnd - now(), m = Sprite.measure('egg_' + mon.line), S = 2;
+    var frame = left > 60000 ? null : 2 + Math.min(4, Math.floor((60000 - Math.max(0, left)) / 12000));
+    var x = Math.round((W - m.w * S) / 2), y = 104 - m.h * S;
+    if (frame == null) Sprite.egg(lx, mon.line, x, y, S, (walk.frame++ >> 1) & 1); // 천천히 흔들기
+    else Sprite.egg(lx, mon.line, x + ((walk.frame++ & 1) ? 1 : -1), y, S, frame);
   }
   function fx(text, anim) { effect = { text: text, anim: anim, until: performance.now() + 1600 }; }
   // 음식을 내려놓는다. 디지몬 앞에 자리가 없으면 반대쪽을 보게 돌려세운다.
@@ -615,6 +638,7 @@
    * 맞으면 깜빡이며 흔들리고, 머리 위로 피해 숫자가 떠오른다. 방어는 앞에 방패를 세운다.
    */
   var INTRO = { walk: 900, end: 1800 };
+  var AW = arena.width, AH = arena.height; // 보스(레이드 128px)도 들어가게 크게 잡는다
   var T = { pGo: 0, pHit: 280, pBack: 460, eGo: 600, eHit: 880, eBack: 1060, end: 1500 };
   var SHOT = { vaccine: ['#fff4b0', '#ffb43a', '#e0602a'], data: ['#e6f6ff', '#5ab4ff', '#2a5fd0'],
     virus: ['#ffe0ff', '#c46aff', '#6a2aa8'], free: ['#f0ffe0', '#7ad05a', '#2f8a3a'] };
@@ -690,10 +714,10 @@
   function drawArena(ts) {
     if (!view) return;
     ts = ts || performance.now();
-    ax.fillStyle = '#d7e8c4'; ax.fillRect(0, 0, 200, 96);
-    ax.fillStyle = 'rgba(0,0,0,.05)'; ax.fillRect(0, 88, 200, 8); // 바닥
+    ax.fillStyle = '#d7e8c4'; ax.fillRect(0, 0, AW, AH);
+    ax.fillStyle = 'rgba(0,0,0,.05)'; ax.fillRect(0, AH - 8, AW, 8); // 바닥
     var a = view.me, b = view.foe, ma = Sprite.measure(a), mb = Sprite.measure(b);
-    var px0 = 10, ex0 = 190 - mb.w, floor = 90;
+    var px0 = 10, ex0 = AW - 10 - mb.w, floor = AH - 6;
     var gap = Math.max(0, ex0 - (px0 + ma.w)), reach = Math.min(gap - 4, 70);
     var idleF = Math.floor(ts / 420);
     var P = { x: px0, anim: 'idle', frame: idleF, hide: false }, Q = { x: ex0, anim: 'idle', frame: idleF, hide: false };
@@ -702,12 +726,12 @@
     // 시작 연출: 양쪽에서 걸어 들어온 뒤 VS (보스·전설이면 경고 글자도)
     if (view.intro) {
       var it = ts - view.intro, w = Math.min(1, it / INTRO.walk); // 걸음은 일정한 속도로
-      P.x = -ma.w + (px0 + ma.w) * w; Q.x = 200 + (ex0 - 200) * w;
+      P.x = -ma.w + (px0 + ma.w) * w; Q.x = AW + (ex0 - AW) * w;
       if (it < INTRO.walk) { P.anim = Q.anim = 'walk'; P.frame = Q.frame = Math.floor(it / 120); }
-      if (it >= INTRO.walk && it < INTRO.walk + 70) { ax.fillStyle = '#ffffff'; ax.fillRect(0, 0, 200, 96); }
+      if (it >= INTRO.walk && it < INTRO.walk + 70) { ax.fillStyle = '#ffffff'; ax.fillRect(0, 0, AW, AH); }
       if (it >= INTRO.walk) {
         var k = Math.min(1, (it - INTRO.walk) / 160), size = Math.round(6 - 3 * k);
-        fx.push(function () { pixelText('VS', 100, 40 - size * 2.5, size, '#ff9d3a'); });
+        fx.push(function () { pixelText('VS', AW / 2, AH / 2 - 8 - size * 2.5, size, '#ff9d3a'); });
         if (view.grade === 'boss' || view.grade === 'legend') {
           var on = Math.floor((it - INTRO.walk) / 140) % 2 === 0;
           if (on) fx.push(function () {
@@ -973,7 +997,7 @@
       ['나이', dur(t - mon.born)],
       ['남은 수명', dur(mon.deathAt - t)],
       ['다음 진화', mon.stageEnd ? dur(mon.stageEnd - t) + ' 뒤' : '없음'],
-      ['전투력', Math.round(E.myPower(mon))]
+      ['전투력', mon.stage === 'egg' ? '-' : Math.round(E.myPower(mon))]
     ]));
     body.appendChild(heading('이 단계에서 쌓인 값 (진화 판정에 쓰여요)'));
     body.appendChild(table([
@@ -1007,7 +1031,7 @@
   var queue = [], evoOpen = false;
   var KIND = {
     normal: '진화!', mid: '진화!', bad: '진화…?', dark: '폭주 진화!', purify: '정화 진화!', hidden: '숨은 진화!',
-    jogress: '조그레스 진화!', mode: '모드 체인지!', armor: '아머진화!'
+    jogress: '조그레스 진화!', mode: '모드 체인지!', armor: '아머진화!', hatch: '부화!'
   };
   var NOTE = {
     dark: '돌보는 방식이 진화를 비틀었어요',
@@ -1016,7 +1040,8 @@
     bad: '돌보기가 많이 서툴렀어요',
     jogress: '두 영웅의 힘이 하나가 됐어요',
     mode: '보스를 이겨 낸 힘으로 모습이 바뀌었어요',
-    armor: '48시간 동안 아머체가 돼요. 보스전에 강해요'
+    armor: '48시간 동안 아머체가 돼요. 보스전에 강해요',
+    hatch: '디지타마에서 깨어났어요. 잘 돌봐 주세요!'
   };
   function drainEvents() {
     var evs = state.events.splice(0);

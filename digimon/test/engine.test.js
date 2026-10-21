@@ -24,6 +24,7 @@ function at(lineId, stage, species, counters) {
   var s = E.newState();
   var mon = E.hatch(s, lineId, MORNING);
   mon.stage = stage; mon.species = species;
+  mon.stageEnd = MORNING + 1000 * H; // 시험 도중에 저절로 진화하지 않게
   Object.assign(mon.c, counters || {});
   return s;
 }
@@ -36,7 +37,12 @@ function quiet(mon) { // 시간을 흘려도 배고픔·힘·배변이 끼어들
 
 test('데이터: 모든 종에 도트 시트가 있고, 표가 서로 맞는다', function () {
   Object.keys(D.SPECIES).forEach(function (id) { assert.ok(SHEETS[id], id + ' 시트'); });
-  assert.deepEqual(D.LINE_ORDER, ['agumon', 'gabumon', 'veemon']);
+  assert.deepEqual(D.LINE_ORDER, ['agumon', 'gabumon', 'veemon', 'impmon', 'guilmon', 'renamon']);
+  assert.equal(Object.keys(D.WILD).reduce(function (n, st) {
+    return n + Object.keys(D.WILD[st]).reduce(function (m, a) { return m + D.WILD[st][a].length; }, 0);
+  }, 0), 150, '야생 150종');
+  assert.equal(D.BOSSES.perfect.length + D.BOSSES.ultimate.length + D.LEGENDS.length, 30, '보스 30종');
+  D.LINE_ORDER.forEach(function (k) { assert.ok(SHEETS['egg_' + k], k + ' 디지타마 그림'); });
   D.LINE_ORDER.forEach(function (k) {
     var L = D.LINES[k];
     Object.keys(L.evo).forEach(function (from) {
@@ -92,6 +98,34 @@ test('성장기 → 성숙기 (파피몬·브이몬)', function () {
   assert.equal(s.mon.stageEnd, null, '디지타몬은 더 진화하지 않는다');
 });
 
+test('새 스타터: 임프몬 · 길몬 · 레나몬', function () {
+  var ok = { mistakes: 2, battles: 15, wins: 9 }, ult = { mistakes: 1, battles: 10, wins: 7, bossWins: 1 };
+  assert.equal(to('impmon', 'child', 'impmon', { training: 20 }), 'wizarmon');
+  assert.equal(to('impmon', 'child', 'impmon', { sleep: 4, training: 20 }), 'devimon');
+  assert.equal(to('impmon', 'child', 'impmon', { hygiene: 4 }), 'raremon');
+  assert.equal(to('impmon', 'child', 'impmon', {}), 'bakemon');
+  assert.equal(to('impmon', 'adult', 'devimon', ok), 'baalmon', '정화');
+  assert.equal(to('impmon', 'perfect', 'baalmon', Object.assign({ sleep: 0 }, ult)), 'beelzebumon_2010');
+  assert.equal(to('guilmon', 'child', 'guilmon', { training: 20 }), 'growmon');
+  assert.equal(to('guilmon', 'child', 'guilmon', { training: 60 }), 'growmon_orange', '㉑ 훈련 48 이상');
+  assert.equal(to('guilmon', 'child', 'guilmon', { training: 60, mistakes: 5 }), 'siesamon');
+  assert.equal(to('guilmon', 'child', 'guilmon', { mistakes: 6 }), 'devidramon');
+  assert.equal(to('guilmon', 'perfect', 'megalogrowmon', { mistakes: 3, maxStreak: 5 }), 'megidramon');
+  assert.equal(E.judge(at('guilmon', 'perfect', 'mihiramon', ult).mon).kind, 'terminal', '데바는 막다른 진화');
+  assert.equal(to('renamon', 'child', 'renamon', { training: 20 }), 'kyubimon');
+  assert.equal(to('renamon', 'child', 'renamon', { sleep: 4, training: 20 }), 'youkomon');
+  assert.equal(to('renamon', 'adult', 'youkomon', {}), 'doumon');
+  assert.equal(to('renamon', 'perfect', 'taomon', Object.assign({ sleep: 1 }, ult)), 'sakuyamon');
+  assert.equal(to('renamon', 'perfect', 'parasimon', { mistakes: 3, maxStreak: 5 }), 'vikaralamon');
+
+  var boss = { id: 'piemon', name: '피에몬', attr: 'virus', grade: 'boss', level: E.STAGE_IDX.ultimate };
+  [['guilmon', 'dukemon', 'dukemon_crimson'], ['impmon', 'beelzebumon', 'beelzebumon_blast']].forEach(function (c) {
+    var s = at(c[0], 'ultimate', c[1]);
+    for (var i = 0; i < 3; i++) { var b = E.startBattle(s, boss); b.over = true; b.won = true; E.endBattle(s, b, MORNING, seeded(i)); }
+    assert.equal(s.mon.species, c[2]);
+  });
+});
+
 test('성숙기 → 완전체', function () {
   var ok = { mistakes: 2, battles: 15, wins: 9 };
   assert.equal(to('agumon', 'adult', 'greymon', ok), 'metalgreymon');
@@ -140,7 +174,7 @@ test('진화 실패: 성숙기는 수명이 줄고, 완전체는 그대로', fun
 });
 
 test('⑩ 오메가몬: 짝을 키워 본 적 있고 보스 3번 격파 / ⑲ 파이터 모드', function () {
-  var boss = { id: 'piemon', name: '피에몬', attr: 'virus', grade: 'boss', level: 5 };
+  var boss = { id: 'piemon', name: '피에몬', attr: 'virus', grade: 'boss', level: E.STAGE_IDX.ultimate };
   function win(s) { var b = E.startBattle(s, boss); b.over = true; b.won = true; return E.endBattle(s, b, MORNING, seeded(1)); }
 
   var s = at('agumon', 'ultimate', 'wargreymon');
@@ -158,13 +192,31 @@ test('⑩ 오메가몬: 짝을 키워 본 적 있고 보스 3번 격파 / ⑲ �
   assert.equal(s.mon.species, 'imperialdramon');
 });
 
+test('디지타마: 5분 동안 흔들리다가 부화한다', function () {
+  var s = E.newState();
+  E.hatch(s, 'guilmon', MORNING);
+  assert.equal(s.mon.stage, 'egg');
+  assert.equal(E.form(s.mon), 'egg_guilmon');
+  assert.equal(E.feed(s).ok, false, '디지타마는 먹이를 먹지 않는다');
+  E.tick(s, MORNING + 4 * M);
+  assert.equal(s.mon.stage, 'egg');
+  assert.equal(s.mon.hunger, 2, '알일 때는 배고파지지 않는다');
+  assert.ok(!s.meta.dex.jyarimon, '부화 전에는 도감에 없다');
+  s.events = [];
+  E.tick(s, MORNING + 5 * M);
+  assert.equal(s.mon.species, 'jyarimon');
+  assert.equal(s.events.filter(function (e) { return e.type === 'evolve'; })[0].kind, 'hatch');
+  assert.ok(s.meta.dex.jyarimon.raised);
+  assert.equal(s.mon.stageEnd, MORNING + 5 * M + H);
+});
+
 test('부화부터 성장기까지 시간이 흐르고, 단계가 바뀌면 수치가 초기화된다', function () {
   var s = E.newState();
   E.hatch(s, 'agumon', MORNING);
-  E.tick(s, MORNING + H);
+  E.tick(s, MORNING + 5 * M + H);
   assert.equal(s.mon.species, 'koromon');
   assert.equal(s.mon.c.mistakes, 0);
-  E.tick(s, MORNING + 25 * H);
+  E.tick(s, MORNING + 5 * M + 25 * H);
   assert.equal(s.mon.species, 'agumon');
   assert.ok(s.meta.dex.botamon.raised && s.meta.dex.koromon.raised && s.meta.dex.agumon.raised);
 });
@@ -316,15 +368,15 @@ test('야생: 같은 단계 70% · 한 단계 위 30%, 단계별 등급 확률',
     }
     return t;
   }
-  var c = tally(2);
+  var c = tally(E.STAGE_IDX.child);
   assert.ok(Math.abs(c.up / N - 0.3) < 0.01, JSON.stringify(c));
   assert.equal(c.boss + c.legend, 0, '성장기·성숙기에는 보스가 없다');
   assert.ok(Math.abs(c.rare / N - 0.25) < 0.01);
 
-  var p = tally(4); // 완전체: 완전체 70% (보스 6%), 궁극체 30% (보스 2%, 전설 0.3%)
+  var p = tally(E.STAGE_IDX.perfect); // 완전체: 완전체 70% (보스 6%), 궁극체 30% (보스 2%, 전설 0.3%)
   assert.ok(Math.abs(p.boss / N - (0.7 * 0.06 + 0.3 * 0.02)) < 0.005, JSON.stringify(p));
 
-  var u = tally(5);
+  var u = tally(E.STAGE_IDX.ultimate);
   assert.equal(u.up, 0, '궁극체는 궁극체만 만난다');
   assert.ok(Math.abs(u.boss / N - 0.02) < 0.004, JSON.stringify(u));
   assert.ok(u.legend > 40 && u.legend < 200, '전설 0.3%: ' + u.legend);
@@ -362,7 +414,7 @@ test('유년기는 배틀할 수 없다', function () {
 test('배틀 결과: 수치·도감·보상·배고픔', function () {
   var s = at('agumon', 'adult', 'greymon'), r = seeded(9);
   s.mon.hunger = 0;
-  var w = { id: 'myotismon', name: '묘티스몬', attr: 'virus', grade: 'boss', level: 4 };
+  var w = { id: 'vamdemon', name: '묘티스몬', attr: 'virus', grade: 'boss', level: E.STAGE_IDX.perfect };
   var got = [];
   for (var i = 0; i < 4; i++) {
     var b = E.startBattle(s, w);
@@ -371,11 +423,11 @@ test('배틀 결과: 수치·도감·보상·배고픔', function () {
   }
   assert.deepEqual(got.slice(0, 3).sort(), ['archer', 'flame', 'thunder'], '완전체 보스는 디지멘탈 셋을 겹치지 않게');
   assert.equal(got[3], 'chip');
-  assert.equal(s.meta.dex.myotismon.wins, 4);
+  assert.equal(s.meta.dex.vamdemon.wins, 4);
   assert.equal(s.mon.c.hungryBattles, 4, '배고픈 채로 네 번');
   assert.equal(s.mon.c.bossWins, 4);
 
-  var u = { id: 'piemon', name: '피에몬', attr: 'virus', grade: 'boss', level: 5 };
+  var u = { id: 'piemon', name: '피에몬', attr: 'virus', grade: 'boss', level: E.STAGE_IDX.ultimate };
   b = E.startBattle(s, u); b.over = true; b.won = true;
   assert.equal(E.endBattle(s, b, MORNING, r).reward, 'miracle');
   b = E.startBattle(s, u); b.over = true; b.won = true;
@@ -394,13 +446,13 @@ test('배틀 결과: 수치·도감·보상·배고픔', function () {
 test('배틀 턴이 끝까지 진행되고, 블리츠그레이몬은 가끔 명령을 무시한다', function () {
   var s = at('agumon', 'ultimate', 'blitzgreymon');
   var r = seeded(42);
-  var b = E.startBattle(s, E.wildFor(5, r)), n = 0;
+  var b = E.startBattle(s, E.wildFor(E.STAGE_IDX.ultimate, r)), n = 0;
   while (!b.over) { E.battleTurn(b, 'attack', r); n++; }
   assert.ok(n <= 20);
   assert.equal(b.ignores, true);
   var armor = at('veemon', 'child', 'veemon');
   armor.meta.items.flame = true;
   E.armor(armor, MORNING, 'flame');
-  var boss = { id: 'myotismon', attr: 'virus', grade: 'boss', level: 4 };
+  var boss = { id: 'vamdemon', attr: 'virus', grade: 'boss', level: E.STAGE_IDX.perfect };
   assert.ok(E.startBattle(armor, boss).pPow > E.myPower(armor.mon) * 1.4, '아머체는 보스에게 강하다');
 });

@@ -18,6 +18,12 @@
      크게 키운 사본(예: 1456x732)이면 342x172 로 줄이고 색을 정리한 뒤 옮긴다.
      python3 digimon/tools/import-sheets.py cells 시트.png --id growlmon
 
+  6) 바이탈 브레스 카드 원본 시트 (가로 4 x 세로 3 칸, 256x256 은 칸 64, 512x512 는 칸 128) — 손실 없이
+     python3 digimon/tools/import-sheets.py sheet c0189.png --id agumon
+
+  7) 디지타마 시트 (가로 4 x 세로 2 칸, 칸 32x40: 흔들기 2 · 금 가기 5 · 깨짐 1)
+     python3 digimon/tools/import-sheets.py egg tamago012.png --id egg_agumon
+
   5) 도트를 크게 키운 그림 (가로 4 x 세로 3, 검은 배경, 도트 간격이 딱 맞지 않아도 됨)
      도트 한 칸 크기를 찾아서 줄인 뒤 grid 와 같은 방식으로 정리한다.
      python3 digimon/tools/import-sheets.py big 그림.png --id gigimon   (잘못 잡으면 --dot 5.4)
@@ -199,10 +205,26 @@ def from_big(src, sid, colors, dot=None):
     save_strip(frames, sid)
 
 
+def from_sheet(src, sid):
+    a = np.asarray(Image.open(src).convert('RGBA'))
+    c = a.shape[1] // 4
+    save_strip([a[r * c:(r + 1) * c, k * c:(k + 1) * c] for r in range(3) for k in range(4)], sid)
+
+
+def from_egg(src, sid):
+    a = np.asarray(Image.open(src).convert('RGBA'))
+    w, h = a.shape[1] // 4, a.shape[0] // 2
+    save_strip([a[r * h:(r + 1) * h, k * w:(k + 1) * w] for r in range(2) for k in range(4)], sid)
+
+
 def is_silhouette(fr):
+    """그 동작이 없는 칸: 회색 한 색(바브) 이거나 채도가 낮은 갈색 톤(레이드 보스)"""
     rgb = fr[fr[:, :, 3] > 0][:, :3].astype(int)
     if not len(rgb): return True
-    return (rgb.max(1) - rgb.min(1)).max() < 24 and len({tuple(c) for c in rgb}) <= 3
+    sat = (rgb.max(1) - rgb.min(1)).max()
+    if len(np.unique(rgb, axis=0)) <= 3 and sat < 24:
+        return True                       # 바브: 회색 한 색
+    return fr.shape[1] >= 96 and sat < 60  # 레이드 보스(칸 128): 옅은 갈색 톤
 
 
 def write_index():
@@ -210,7 +232,7 @@ def write_index():
     for path in sorted(glob.glob(os.path.join(OUT, '*.png'))):
         sid = os.path.splitext(os.path.basename(path))[0]
         a = np.asarray(Image.open(path).convert('RGBA'))
-        n = 12
+        n = 8 if sid.startswith('egg_') else 12
         w = a.shape[1] // n
         gray = [i for i in range(n) if is_silhouette(a[:, i * w:(i + 1) * w])]
         sheets[sid] = {'w': w, 'h': a.shape[0], 'n': n, 'gray': gray}
@@ -223,7 +245,7 @@ def write_index():
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('kind', nargs='?', choices=['png', 'grid', 'single', 'cells', 'big'])
+    ap.add_argument('kind', nargs='?', choices=['png', 'grid', 'single', 'cells', 'big', 'sheet', 'egg'])
     ap.add_argument('src', nargs='?')
     ap.add_argument('--id')
     ap.add_argument('--ids')
@@ -235,6 +257,10 @@ if __name__ == '__main__':
         from_png(a.src, a.id)
     elif a.kind == 'single':
         from_single(a.src, a.id)
+    elif a.kind == 'sheet':
+        from_sheet(a.src, a.id)
+    elif a.kind == 'egg':
+        from_egg(a.src, a.id)
     elif a.kind == 'cells':
         from_cells(a.src, a.id)
     elif a.kind == 'big':

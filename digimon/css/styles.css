@@ -64,7 +64,7 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
   color: inherit; font: inherit;
 }
 .egg-list button:active { transform: scale(.99); }
-.egg-list canvas { width: 48px; height: 60px; flex: none; }
+.egg-list canvas { width: 48px; height: 60px; flex: none; image-rendering: pixelated; }
 .egg-list .n { font-weight: 700; font-size: 16px; }
 .egg-list .t { color: var(--dim); font-size: 13px; }
 .eggs .back { margin: 0 0 8px -10px; }
@@ -190,7 +190,7 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .bar { height: 10px; border-radius: 6px; background: var(--card-2); overflow: hidden; margin-top: 4px; }
 .bar i { display: block; height: 100%; width: 100%; background: var(--good); transition: width .35s ease; }
 .hp.right .bar i { margin-left: auto; background: var(--danger); }
-#arena { width: 100%; aspect-ratio: 200 / 96; background: var(--lcd); border-radius: 12px; }
+#arena { width: 100%; aspect-ratio: 256 / 140; background: var(--lcd); border-radius: 12px; }
 .blog { min-height: 44px; font-size: 14px; }
 .cmds { display: flex; gap: 8px; }
 .cmds .btn { flex: 1; }

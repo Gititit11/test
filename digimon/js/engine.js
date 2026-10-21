@@ -3,7 +3,7 @@
  * 화면(DOM)에 손대지 않는 순수 로직이라 node 에서 그대로 시험한다 (test/engine.test.js).
  *
  *   newState()                  → 빈 저장 상태
- *   hatch(state, line, now)     → 디지타마를 골라 부화 (키우던 디지몬은 보관함으로)
+ *   hatch(state, line, now)     → 디지타마를 받는다. 5분 동안 흔들리다가 부화 (키우던 디지몬은 보관함으로)
  *   store / resume / release    → 보관함. 보관한 디지몬은 시간이 멈춘다
  *   tick(state, now)            → 마지막으로 본 때부터 now 까지 1분씩 흘려 보낸다
  *   feed / snack / train / clean / toggleLights / wake / armor / useChip
@@ -81,8 +81,8 @@ var Engine = (function (D) {
     var L = D.LINES[lineId], t = floorMin(now);
     state.mon = {
       uid: ++state.meta.uid,
-      line: lineId, species: L.baby1, stage: 'baby1',
-      born: t, stageStart: t, stageEnd: t + R.stageHours.baby1 * HOUR,
+      line: lineId, species: 'egg_' + lineId, stage: 'egg',
+      born: t, stageStart: t, stageEnd: t + R.eggMinutes * MIN,
       deathAt: t + R.lifespanHours * HOUR,
       hunger: 2, strength: 2, poops: [],
       lights: true, sleeping: false, woken: 0, lightMin: 0, sleepPenalized: false,
@@ -91,8 +91,7 @@ var Engine = (function (D) {
       armor: null, armorTo: null, armorDay: '',
       dead: false, lastTick: t
     };
-    register(state, L.baby1, 'raised', t);
-    emit(state, 'hatch', t, { to: L.baby1 });
+    emit(state, 'egg', t, { to: state.mon.species });
     return state.mon;
   }
 
@@ -160,6 +159,10 @@ var Engine = (function (D) {
   function step(state, mon, t) {
     if (t >= mon.deathAt) { die(state, mon, t); return; }
 
+    if (mon.stage === 'egg') { // 디지타마는 흔들리기만 한다
+      if (t >= mon.stageEnd) evolveNow(state, mon, t);
+      return;
+    }
     if (mon.armor && t >= mon.armor) endArmor(state, mon, t);
 
     // 잠 — 취침 시간이 되면 잠들고, 깨우면 잠깐 깨어 있다가 다시 잔다
@@ -223,6 +226,7 @@ var Engine = (function (D) {
     var wr = winRate(c), bat = c.battles >= 15;
     switch (rule) {
       case 'r1': return c.mistakes <= 3 && c.training >= 16 && c.training <= 47; // 훈련도 너무 많으면 안 된다
+      case 'r21': return c.mistakes <= 3 && c.training >= 48;
       case 'r2': case 'r14': case 'r18': return true;
       case 'r3': return c.mistakes >= 6;
       case 'r4': return c.hygiene >= 4 || c.overfeed >= 6;
@@ -242,6 +246,7 @@ var Engine = (function (D) {
 
   function judge(mon) {
     var L = line(mon);
+    if (mon.stage === 'egg') return { to: L.baby1, kind: 'hatch' };
     if (mon.stage === 'baby1') return { to: L.baby2, kind: 'normal' };
     if (mon.stage === 'baby2') return { to: L.child, kind: 'normal' };
     var list = evoList(mon);
@@ -274,7 +279,7 @@ var Engine = (function (D) {
     mon.species = to; mon.stage = S.stage;
     mon.stageStart = t; mon.c = freshCounters();
     mon.armor = null; mon.armorTo = null;
-    mon.stageEnd = evoList(mon) || S.stage === 'baby2' || S.stage === 'child'
+    mon.stageEnd = evoList(mon) || S.stage === 'baby1' || S.stage === 'baby2' || S.stage === 'child'
       ? t + R.stageHours[S.stage] * HOUR : null;
     register(state, to, 'raised', t);
     emit(state, 'evolve', t, { from: from, to: to, kind: kind });
@@ -298,9 +303,11 @@ var Engine = (function (D) {
 
   /* ---------- 돌보기 ---------- */
   function asleep() { return { ok: false, reason: 'sleep' }; }
+  function isEgg(state) { return state.mon.stage === 'egg'; }
 
   function feed(state) {
     var mon = state.mon;
+    if (isEgg(state)) return { ok: false, reason: 'egg' };
     if (mon.sleeping) return asleep();
     if (mon.hunger >= 4) { mon.c.overfeed++; return { ok: true, over: true }; }
     mon.hunger++;
@@ -309,6 +316,7 @@ var Engine = (function (D) {
 
   function snack(state) {
     var mon = state.mon;
+    if (isEgg(state)) return { ok: false, reason: 'egg' };
     if (mon.sleeping) return asleep();
     var over = mon.hunger >= 4;
     if (over) mon.c.overfeed++;
@@ -319,6 +327,7 @@ var Engine = (function (D) {
   // 훈련 미니게임 한 판 = 훈련 1회. 세 번 중 두 번 맞히면 힘이 오른다.
   function train(state, hits) {
     var mon = state.mon;
+    if (isEgg(state)) return { ok: false, reason: 'egg' };
     if (mon.sleeping) return asleep();
     mon.c.training++;
     var good = hits >= 2;
@@ -372,7 +381,7 @@ var Engine = (function (D) {
   // 디지 칩: 배고픔과 힘을 가득 채운다. 과식으로 치지 않는다.
   function useChip(state) {
     var mon = state.mon, it = state.meta.items;
-    if (!it.chip || mon.sleeping) return { ok: false };
+    if (!it.chip || mon.sleeping || isEgg(state)) return { ok: false };
     it.chip--;
     mon.hunger = 4; mon.strength = 4;
     return { ok: true };
