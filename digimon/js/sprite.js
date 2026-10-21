@@ -1,15 +1,62 @@
-/* 도트 디지몬 그리기
+/* 디지몬 그리기
  *
- * 공식 그림은 저작권이 있어서 쓰지 않는다. 대신 종 id 를 씨앗으로 좌우 대칭 도트
- * 몬스터를 만든다. 같은 종은 늘 같은 모양이고, 단계가 오를수록 커진다.
+ * sprites/<id>.png 시트가 있으면 그걸 쓴다 (tools/extract-sprites.py 로 만든 12프레임 시트).
+ * 없는 종은 id 를 씨앗으로 만든 임시 도트로 그린다. 시트가 생기면 저절로 바뀐다.
  *
- *   Sprite.draw(ctx, id, x, y, cell, { flip, dark, silhouette, frame })
- *   Sprite.size(id)  → 한 변의 칸 수 (테두리 포함)
+ * 시트의 프레임 순서 (왼쪽을 보는 그림):
+ *   0-1 서 있기  2-3 걷기  4-5 달리기  6-7 훈련  8 기쁨  9 잠  10 공격  11 먹기
+ *
+ *   Sprite.measure(id)                  → { w, h } 배율 1 일 때 크기(px)
+ *   Sprite.draw(ctx, id, x, y, scale, { flip, dark, silhouette, frame, anim })
  *   Sprite.egg(ctx, lineId, x, y, cell, wobble)
- *   Sprite.canvas(id, px, opts) → 도감·아이콘용 작은 캔버스
+ *   Sprite.canvas(id, px, opts)         → 도감·아이콘용 작은 캔버스
+ *   Sprite.onload(fn)                   → 시트 그림이 다 불러와지면 한 번 부른다
  */
-var Sprite = (function (D) {
+var Sprite = (function (D, SHEETS) {
   'use strict';
+
+  var CELL = 3; // 임시 도트 한 칸 = 3px
+  var ANIM = {
+    idle: [0, 1], walk: [2, 3], run: [4, 5], train: [6, 7],
+    happy: [8, 0], sleep: [9], attack: [10, 4], eat: [11, 0]
+  };
+  var imgs = {}, tinted = {}, pending = 0, waiters = [];
+  if (typeof Image !== 'undefined') {
+    Object.keys(SHEETS).forEach(function (id) {
+      var im = new Image();
+      pending++;
+      im.onload = im.onerror = function () {
+        if (--pending === 0) waiters.splice(0).forEach(function (f) { f(); });
+      };
+      im.src = 'sprites/' + id + '.png';
+      imgs[id] = im;
+    });
+  }
+  function onload(fn) { if (pending === 0) fn(); else waiters.push(fn); }
+  function sheet(id) {
+    var im = imgs[id];
+    return im && im.complete && im.naturalWidth ? im : null;
+  }
+  function frameOf(id, anim, frame) {
+    var S = SHEETS[id], list = (ANIM[anim] || ANIM.idle).filter(function (i) {
+      return i < S.n && S.gray.indexOf(i) < 0;
+    });
+    if (!list.length) list = ANIM.idle;
+    return list[(frame || 0) % list.length];
+  }
+  // 어둡게(진화 예고) · 실루엣(도감) 은 시트 전체를 한 번 칠해 둔다
+  function tint(id, kind) {
+    var key = id + ':' + kind;
+    if (tinted[key]) return tinted[key];
+    var im = sheet(id), c = document.createElement('canvas');
+    c.width = im.naturalWidth; c.height = im.naturalHeight;
+    var x = c.getContext('2d');
+    x.drawImage(im, 0, 0);
+    x.globalCompositeOperation = 'source-atop';
+    x.fillStyle = kind === 'sil' ? '#2a3040' : 'rgba(20,10,30,.55)';
+    x.fillRect(0, 0, c.width, c.height);
+    return (tinted[key] = c);
+  }
 
   var SIZE = { baby1: 7, baby2: 9, child: 11, adult: 13, perfect: 15, ultimate: 16 };
   var OUTLINE = '#1b1f17';
@@ -114,10 +161,16 @@ var Sprite = (function (D) {
     return p;
   }
 
-  function size(id) { return build(id).n; }
+  function measure(id) {
+    if (SHEETS[id]) return { w: SHEETS[id].w, h: SHEETS[id].h };
+    var n = build(id).n * CELL;
+    return { w: n, h: n };
+  }
 
-  function draw(ctx, id, x0, y0, cell, o) {
+  function draw(ctx, id, x0, y0, scale, o) {
     o = o || {};
+    if (SHEETS[id] && sheet(id)) return drawSheet(ctx, id, x0, y0, scale, o);
+    var cell = CELL * scale;
     var s = build(id), pal = palette(id, o.dark), n = s.n;
     for (var y = 0; y < n; y++) {
       // 걷는 느낌: 홀수 프레임엔 아래 두 줄을 한 칸 옆으로
@@ -129,6 +182,21 @@ var Sprite = (function (D) {
         ctx.fillRect(x0 + (x + shift) * cell, y0 + y * cell, cell, cell);
       }
     }
+  }
+
+  function drawSheet(ctx, id, x0, y0, scale, o) {
+    var S = SHEETS[id], f = frameOf(id, o.anim, o.frame);
+    var src = o.silhouette ? tint(id, 'sil') : o.dark ? tint(id, 'dark') : sheet(id);
+    var w = S.w * scale, h = S.h * scale;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    if (o.flip) {
+      ctx.translate(x0 + w, y0); ctx.scale(-1, 1);
+      ctx.drawImage(src, f * S.w, 0, S.w, S.h, 0, 0, w, h);
+    } else {
+      ctx.drawImage(src, f * S.w, 0, S.w, S.h, x0, y0, w, h);
+    }
+    ctx.restore();
   }
 
   var EGG = [
@@ -149,15 +217,16 @@ var Sprite = (function (D) {
     });
   }
 
+  // 정사각 캔버스 가운데 바닥에 맞춰 그린다
   function canvas(id, px, o) {
-    var n = size(id), cell = Math.max(1, Math.floor(px / n));
-    var c = document.createElement('canvas');
-    c.width = c.height = n * cell;
-    draw(c.getContext('2d'), id, 0, 0, cell, o);
+    var m = measure(id), c = document.createElement('canvas');
+    c.width = c.height = Math.max(m.w, m.h);
+    draw(c.getContext('2d'), id, Math.floor((c.width - m.w) / 2), c.height - m.h, 1, o);
     return c;
   }
 
-  return { draw: draw, size: size, egg: egg, canvas: canvas };
-})(typeof DigiData !== 'undefined' ? DigiData : require('./data.js'));
+  return { measure: measure, draw: draw, egg: egg, canvas: canvas, onload: onload, ANIM: ANIM };
+})(typeof DigiData !== 'undefined' ? DigiData : require('./data.js'),
+   typeof SHEETS !== 'undefined' ? SHEETS : require('./sheets.js'));
 
 if (typeof module !== 'undefined' && module.exports) module.exports = Sprite;

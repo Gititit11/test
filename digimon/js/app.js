@@ -49,6 +49,13 @@
     if (h) return h + '시간 ' + m + '분';
     return m + '분';
   }
+  // 캔버스 가운데에 정수 배율로 크게 그린다
+  function picture(c, id, o) {
+    var x = c.getContext('2d'), m = Sprite.measure(id);
+    var sc = Math.max(1, Math.floor((c.width - 8) / Math.max(m.w, m.h)));
+    x.clearRect(0, 0, c.width, c.height);
+    Sprite.draw(x, id, Math.floor((c.width - m.w * sc) / 2), Math.floor((c.height - m.h * sc) / 2), sc, o);
+  }
   function vibrate(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { } }
 
   /* ---------- 화면 전환 (안드로이드 뒤로가기로 닫히게 history 를 쓴다) ---------- */
@@ -155,7 +162,7 @@
 
   /* ---------- 화면(LCD) 그리기 ---------- */
   var lcd = $('lcd'), lx = lcd.getContext('2d');
-  var walk = { x: 60, dir: 1, frame: 0 }, effect = null, lastFrame = 0;
+  var walk = { x: 60, dir: -1, frame: 0, rest: 0 }, effect = null, lastFrame = 0;
   var POOP = ['..X..', '.XXX.', 'XXXXX'];
 
   function drawLcd(ts) {
@@ -170,21 +177,28 @@
     lx.fillStyle = dark ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.04)';
     for (var gy = 0; gy < Hh; gy += 4) lx.fillRect(0, gy, W, 1);
 
-    var id = E.form(mon), n = Sprite.size(id), cell = 4, sw = n * cell;
-    var floor = 100, y = floor - sw;
-    walk.frame ^= 1;
+    var id = E.form(mon), m = Sprite.measure(id), sw = m.w;
+    var floor = 104, y = floor - m.h, acting = effect && ts < effect.until && effect.anim;
+    walk.frame++;
     if (mon.sleeping) {
       walk.x = (W - sw) / 2 - 12;
-    } else {
-      walk.x += walk.dir * 4;
-      var maxX = W - sw - 34;
-      if (walk.x > maxX) { walk.x = maxX; walk.dir = -1; }
-      if (walk.x < 4) { walk.x = 4; walk.dir = 1; }
-      if (Math.random() < 0.08) walk.dir *= -1;
+    } else if (!acting) {
+      // 걷다가 가끔 멈춰 선다
+      if (walk.rest > 0) walk.rest--;
+      else {
+        walk.x += walk.dir * 3;
+        var maxX = W - sw - 30;
+        if (walk.x > maxX) { walk.x = maxX; walk.dir = -1; }
+        if (walk.x < 4) { walk.x = 4; walk.dir = 1; }
+        if (Math.random() < 0.06) walk.dir *= -1;
+        if (Math.random() < 0.05) walk.rest = 6 + Math.floor(Math.random() * 10);
+      }
     }
-    var bob = mon.sleeping ? 0 : walk.frame * 2;
-    Sprite.draw(lx, id, Math.round(walk.x), y + bob, cell, {
-      flip: walk.dir < 0, frame: mon.sleeping ? 0 : walk.frame, dark: E.warning(mon, now())
+    var anim = mon.sleeping ? 'sleep' : acting ? effect.anim : walk.rest > 0 ? 'idle' : 'walk';
+    var bob = SHEETS[id] || mon.sleeping ? 0 : (walk.frame & 1) * 2; // 시트는 프레임에 움직임이 들어 있다
+    // 시트는 왼쪽을 보는 그림이라 오른쪽으로 갈 때 뒤집는다
+    Sprite.draw(lx, id, Math.round(walk.x), y + bob, 1, {
+      flip: walk.dir > 0, frame: walk.frame, anim: anim, dark: E.warning(mon, now())
     });
     if (dark) { lx.fillStyle = 'rgba(10,12,20,.55)'; lx.fillRect(0, 0, W, Hh); }
 
@@ -201,20 +215,20 @@
     lx.font = 'bold 12px monospace';
     if (mon.sleeping) {
       lx.fillStyle = dark ? '#c9d4ff' : '#1b1f17';
-      lx.fillText(walk.frame ? 'Z z' : 'z Z', (W + sw) / 2 - 8, y + 4);
+      lx.fillText(walk.frame & 2 ? 'Z z' : 'z Z', (W + sw) / 2 - 8, y + 4);
     }
     if (!mon.sleeping && (mon.callH > 0 || mon.callS > 0)) {
       lx.fillStyle = '#d6332f';
       lx.fillRect(6, 6, 14, 16);
       lx.fillStyle = '#fff'; lx.fillText('!', 10, 18);
     }
-    if (effect && ts < effect.until) {
+    if (effect && ts < effect.until && effect.text) {
       lx.font = 'bold 14px sans-serif';
       lx.fillStyle = dark ? '#fff' : '#1b1f17';
       lx.fillText(effect.text, 8, 36);
     }
   }
-  function fx(text) { effect = { text: text, until: performance.now() + 1400 }; }
+  function fx(text, anim) { effect = { text: text, anim: anim, until: performance.now() + 1600 }; }
 
   /* ---------- 돌보기 ---------- */
   function sleepingGuard() {
@@ -227,23 +241,24 @@
     feed: function () {
       if (sleepingGuard()) return;
       var r = E.feed(state);
-      if (r.over) { toast('배가 불러요… 과식했어요'); fx('윽…'); } else fx('냠냠');
+      if (r.over) { toast('배가 불러요… 과식했어요'); fx('윽…', 'idle'); } else fx('냠냠', 'eat');
     },
     snack: function () {
       if (sleepingGuard()) return;
       var r = E.snack(state);
-      if (r.over) { toast('배부른데 간식까지… 과식했어요'); fx('윽…'); } else fx('♪');
+      if (r.over) { toast('배부른데 간식까지… 과식했어요'); fx('윽…', 'idle'); } else fx('♪', 'eat');
     },
     train: function () { if (!sleepingGuard()) startTrain(); },
     clean: function () {
       var r = E.clean(state);
       toast(r.n ? '깨끗해졌어요' : '치울 게 없어요');
+      if (r.n) fx('', 'happy');
     },
     lights: function () { E.toggleLights(state); },
     wake: function () {
       if (!state.mon.sleeping) return;
       if (!confirm('자는 걸 깨우면 수면 방해로 쳐요. 깨울까요?')) return;
-      E.wake(state, now()); fx('하암…');
+      E.wake(state, now()); fx('하암…', 'idle');
     },
     battle: function () { openScan(); },
     dex: function () { renderDex(); show('dex'); },
@@ -306,7 +321,7 @@
     setTimeout(function () {
       closeScreen();
       toast(r.good ? '훈련 성공! 힘이 올랐어요' : '훈련 끝. 다음엔 더 잘할 수 있어요');
-      fx(r.good ? '하앗!' : '헉헉');
+      fx(r.good ? '하앗!' : '헉헉', r.good ? 'train' : 'idle');
     }, 450);
   });
 
@@ -376,9 +391,7 @@
     found = r.wild;
     save(); updateScanLeft();
     var w = r.wild, S = D.SPECIES[w.id];
-    var c = $('wildPic'), x = c.getContext('2d'), n = Sprite.size(w.id), cell = Math.floor(72 / n);
-    x.clearRect(0, 0, 72, 72);
-    Sprite.draw(x, w.id, Math.floor((72 - n * cell) / 2), Math.floor((72 - n * cell) / 2), cell, { flip: true });
+    picture($('wildPic'), w.id, {});
     var nm = $('wildName');
     nm.textContent = '야생 ' + S.name;
     if (w.grade !== 'normal') {
@@ -400,7 +413,7 @@
   });
 
   /* ---------- 배틀 ---------- */
-  var battle = null, arena = $('arena'), ax = arena.getContext('2d'), shake = { p: 0, e: 0 };
+  var battle = null, arena = $('arena'), ax = arena.getContext('2d'), shake = { p: 0, e: 0, f: 0 };
   var CMD_NAMES = { attack: '공격', special: '필살기', guard: '방어' };
 
   function startBattle(w) {
@@ -421,10 +434,10 @@
   function drawArena() {
     if (!battle) return;
     ax.fillStyle = '#d7e8c4'; ax.fillRect(0, 0, 200, 96);
-    var a = battle.me, b = battle.wild.id;
-    var na = Sprite.size(a), nb = Sprite.size(b), ca = Math.max(2, Math.floor(80 / Math.max(na, nb))), cb = ca;
-    Sprite.draw(ax, a, 12 + shake.p, 90 - na * ca, ca, {});
-    Sprite.draw(ax, b, 188 - nb * cb + shake.e, 90 - nb * cb, cb, { flip: true });
+    var a = battle.me, b = battle.wild.id, ma = Sprite.measure(a), mb = Sprite.measure(b);
+    // 내 디지몬은 왼쪽에서 오른쪽을 본다 (그림은 왼쪽을 보므로 뒤집는다)
+    Sprite.draw(ax, a, 10 + shake.p, 92 - ma.h, 1, { flip: true, anim: shake.pa || 'idle', frame: shake.f });
+    Sprite.draw(ax, b, 190 - mb.w + shake.e, 92 - mb.h, 1, { anim: shake.ea || 'idle', frame: shake.f });
   }
   function setCmds(on) {
     Array.prototype.forEach.call(document.querySelectorAll('[data-cmd]'), function (b) { b.disabled = !on; });
@@ -440,10 +453,11 @@
       $('blog').textContent = lines.join(' · ');
       setCmds(false);
       shake.e = r.pDmg ? 4 : 0; shake.p = r.eDmg ? -4 : 0;
+      shake.pa = r.pCmd === 'guard' ? 'idle' : 'attack'; shake.ea = r.eCmd === 'guard' ? 'idle' : 'attack';
       drawArena(); hpBars();
       vibrate(r.eDmg ? 40 : 0);
       setTimeout(function () {
-        shake.p = shake.e = 0; drawArena();
+        shake.p = shake.e = 0; shake.pa = shake.ea = null; shake.f++; drawArena();
         if (battle.over) finishBattle(false); else setCmds(true);
       }, 380);
     });
@@ -616,10 +630,8 @@
     var e = queue.shift();
     if (e.type === 'death') { showDead(); return; }
     evoOpen = true;
-    var sec = $('evo'), pic = $('evoPic'), x = pic.getContext('2d');
-    x.clearRect(0, 0, 128, 128);
-    var id = e.to, n = Sprite.size(id), cell = Math.floor(112 / n);
-    Sprite.draw(x, id, Math.floor((128 - n * cell) / 2), Math.floor((128 - n * cell) / 2), cell, {});
+    var sec = $('evo'), id = e.to;
+    picture($('evoPic'), id, { anim: e.type === 'fail' ? 'idle' : 'happy' });
     if (e.type === 'fail') {
       $('evoKind').textContent = '진화 실패';
       $('evoName').textContent = josa(name(id), '은', '는') + ' 그대로예요';
@@ -641,9 +653,7 @@
   function showDead() {
     var mon = state.mon;
     $('home').hidden = true;
-    var x = $('deadPic').getContext('2d'), n = Sprite.size(mon.species), cell = Math.floor(112 / n);
-    x.clearRect(0, 0, 128, 128);
-    Sprite.draw(x, mon.species, Math.floor((128 - n * cell) / 2), Math.floor((128 - n * cell) / 2), cell, { dark: true });
+    picture($('deadPic'), mon.species, { dark: true, anim: 'sleep' });
     $('deadName').textContent = josa(name(mon.species), '이', '가') + ' 디지타마로 돌아갔어요';
     $('deadNote').textContent = dur(mon.deathAt - mon.born) + ' 동안 함께했어요. 도감과 아이템은 그대로 남아요.';
     $('dead').hidden = false;
@@ -669,6 +679,7 @@
   setInterval(loop, 5000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) loop(); });
   requestAnimationFrame(drawLcd);
+  Sprite.onload(function () { if (openScreen === 'dex') renderDex(); });
 
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
     navigator.serviceWorker.register('sw.js').catch(function () { });
