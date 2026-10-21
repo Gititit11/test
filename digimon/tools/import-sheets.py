@@ -15,6 +15,7 @@
 
   4) 64x56 칸 4x3 개가 1px 분홍 선으로 나뉜 시트 (342x172, 오른쪽 초상화는 버린다)
      배경은 초록(#00ff00)이거나 투명. 손실 없이 옮긴다.
+     크게 키운 사본(예: 1456x732)이면 342x172 로 줄이고 색을 정리한 뒤 옮긴다.
      python3 digimon/tools/import-sheets.py cells 시트.png --id growlmon
 
   5) 도트를 크게 키운 그림 (가로 4 x 세로 3, 검은 배경, 도트 간격이 딱 맞지 않아도 됨)
@@ -111,13 +112,37 @@ def from_single(src, sid):
     save_strip([a] * 12, sid)
 
 
-def from_cells(src, sid):
-    a = np.asarray(Image.open(src).convert('RGBA')).copy()
+def from_cells(src, sid, colors=48):
+    im = Image.open(src).convert('RGBA')
+    if im.size != (342, 172):
+        # 크게 키운 사본: 원래 크기로 줄이고, 줄이면서 섞인 색을 정리한다
+        im = im.resize((342, 172), Image.BOX)
+        a = np.asarray(im).copy()
+        rgb = a[:, :, :3].astype(float)
+        # 줄이면서 테두리와 섞인 어두운 초록까지 배경으로 본다
+        green = (rgb[:, :, 1] - np.maximum(rgb[:, :, 0], rgb[:, :, 2]) > 30) & (rgb[:, :, 1] > 60)
+        from scipy.cluster.vq import kmeans2
+        body = ~green
+        cent, _ = kmeans2(rgb[body], colors, minit='++', seed=1)
+        q = cent[((rgb[:, :, None, :] - cent[None, None]) ** 2).sum(-1).argmin(-1)]
+        a[body, :3] = q[body].clip(0, 255)
+        a[green] = (0, 255, 0, 255)
+        im = Image.fromarray(a)
+    a = np.asarray(im).copy()
     rgb = a[:, :, :3].astype(int)
     green = (rgb[:, :, 1] > 200) & (rgb[:, :, 0] < 80) & (rgb[:, :, 2] < 80)
     a[green | (a[:, :, 3] < 128)] = 0
     a[a[:, :, 3] > 0, 3] = 255
-    frames = [a[1 + r * 57:1 + r * 57 + 56, 1 + c * 65:1 + c * 65 + 64] for r in range(3) for c in range(4)]
+    frames = [a[1 + r * 57:1 + r * 57 + 56, 1 + c * 65:1 + c * 65 + 64].copy() for r in range(3) for c in range(4)]
+    from scipy import ndimage
+    for f in frames:
+        # 몸과 떨어진 자잘한 점(번진 초록, 서명 글자 조각)을 지운다
+        lab, n = ndimage.label(f[:, :, 3] > 0)
+        if n > 1:
+            sizes = ndimage.sum(f[:, :, 3] > 0, lab, range(1, n + 1))
+            for i, z in enumerate(sizes):
+                if z < 6:
+                    f[lab == i + 1] = 0
     save_strip(frames, sid)
 
 
