@@ -50,7 +50,9 @@
     return m + '분';
   }
   // 캔버스 가운데에 정수 배율로 크게 그린다
+  var pictures = [];
   function picture(c, id, o) {
+    pictures = pictures.filter(function (p) { return p[0] !== c; }).concat([[c, id, o]]);
     var x = c.getContext('2d'), m = Sprite.measure(id);
     var sc = Math.max(1, Math.floor((c.width - 8) / Math.max(m.w, m.h)));
     x.clearRect(0, 0, c.width, c.height);
@@ -679,7 +681,12 @@
   setInterval(loop, 5000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) loop(); });
   requestAnimationFrame(drawLcd);
-  Sprite.onload(function () { if (openScreen === 'dex') renderDex(); });
+  // 시트를 처음 불러오면 그 그림이 들어간 화면을 다시 그린다
+  Sprite.onload(function () {
+    if (openScreen === 'dex') renderDex();
+    pictures.forEach(function (p) { picture(p[0], p[1], p[2]); });
+    if (battle) drawArena();
+  });
 
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
     navigator.serviceWorker.register('sw.js').catch(function () { });

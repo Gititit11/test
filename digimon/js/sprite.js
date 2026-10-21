@@ -1,7 +1,8 @@
 /* 디지몬 그리기
  *
- * sprites/<id>.png 시트가 있으면 그걸 쓴다 (tools/extract-sprites.py 로 만든 12프레임 시트).
+ * sprites/<id>.png 시트가 있으면 그걸 쓴다 (tools/import-sheets.py 로 만든 12프레임 시트).
  * 없는 종은 id 를 씨앗으로 만든 임시 도트로 그린다. 시트가 생기면 저절로 바뀐다.
+ * 시트는 처음 그릴 때 불러온다 (200장을 한꺼번에 받지 않도록).
  *
  * 시트의 프레임 순서 (왼쪽을 보는 그림):
  *   0-1 서 있기  2-3 걷기  4-5 달리기  6-7 훈련  8 기쁨  9 잠  10 공격  11 먹기
@@ -10,7 +11,7 @@
  *   Sprite.draw(ctx, id, x, y, scale, { flip, dark, silhouette, frame, anim })
  *   Sprite.egg(ctx, lineId, x, y, cell, wobble)
  *   Sprite.canvas(id, px, opts)         → 도감·아이콘용 작은 캔버스
- *   Sprite.onload(fn)                   → 시트 그림이 다 불러와지면 한 번 부른다
+ *   Sprite.onload(fn)                   → 시트 그림이 하나 불러와질 때마다 부른다 (다시 그리기용)
  */
 var Sprite = (function (D, SHEETS) {
   'use strict';
@@ -20,21 +21,19 @@ var Sprite = (function (D, SHEETS) {
     idle: [0, 1], walk: [2, 3], run: [4, 5], train: [6, 7],
     happy: [8, 0], sleep: [9], attack: [10, 4], eat: [11, 0]
   };
-  var imgs = {}, tinted = {}, pending = 0, waiters = [];
-  if (typeof Image !== 'undefined') {
-    Object.keys(SHEETS).forEach(function (id) {
-      var im = new Image();
-      pending++;
-      im.onload = im.onerror = function () {
-        if (--pending === 0) waiters.splice(0).forEach(function (f) { f(); });
-      };
-      im.src = 'sprites/' + id + '.png';
-      imgs[id] = im;
-    });
-  }
-  function onload(fn) { if (pending === 0) fn(); else waiters.push(fn); }
+  var imgs = {}, tinted = {}, listeners = [], notify = 0;
+  function onload(fn) { listeners.push(fn); }
   function sheet(id) {
     var im = imgs[id];
+    if (!im && typeof Image !== 'undefined') {
+      im = imgs[id] = new Image();
+      im.onload = function () {
+        // 여러 장이 잇달아 들어오면 한 번만 다시 그리게 모은다
+        clearTimeout(notify);
+        notify = setTimeout(function () { listeners.forEach(function (f) { f(); }); }, 30);
+      };
+      im.src = 'sprites/' + id + '.png';
+    }
     return im && im.complete && im.naturalWidth ? im : null;
   }
   function frameOf(id, anim, frame) {
@@ -169,7 +168,7 @@ var Sprite = (function (D, SHEETS) {
 
   function draw(ctx, id, x0, y0, scale, o) {
     o = o || {};
-    if (SHEETS[id] && sheet(id)) return drawSheet(ctx, id, x0, y0, scale, o);
+    if (SHEETS[id]) { if (sheet(id)) drawSheet(ctx, id, x0, y0, scale, o); return; } // 불러오는 중엔 비워 둔다
     var cell = CELL * scale;
     var s = build(id), pal = palette(id, o.dark), n = s.n;
     for (var y = 0; y < n; y++) {
