@@ -530,38 +530,182 @@
   function gradeTag(g) { return g === 'normal' ? '' : ' (' + D.GRADE_NAMES[g] + ')'; }
 
   /* ---------- 배틀 ---------- */
-  var battle = null, arena = $('arena'), ax = arena.getContext('2d'), shake = { p: 0, e: 0, f: 0 };
+  var battle = null, arena = $('arena'), ax = arena.getContext('2d');
   var CMD_NAMES = { attack: '공격', special: '필살기', guard: '방어' };
+  var view = null; // 화면에 그리는 두 디지몬 (배틀이 끝나도 결과 화면에 남는다)
+  var turn = null; // 지금 재생 중인 한 턴의 연출
 
   function startBattle(w) {
     E.tick(state, now());
     battle = E.startBattle(state, w);
+    view = { me: battle.me, foe: w.id, meAttr: D.SPECIES[battle.me].attr, foeAttr: w.attr, php: 100, ehp: 100 };
+    turn = null;
     $('pName').textContent = name(battle.me);
     $('eName').textContent = w.name + gradeTag(w.grade);
     $('blog').textContent = josa('야생 ' + w.name, '이', '가') + ' 나타났다!' + (battle.hungry ? ' (배가 고파 힘이 빠져 있다)' : '');
     $('cmds').hidden = false; $('battleDone').hidden = true;
     setCmds(true);
-    drawArena(); hpBars();
+    hpBars();
     show('battle', true);
+    requestAnimationFrame(arenaLoop);
   }
   function hpBars() {
-    $('pHp').style.width = battle.php + '%';
-    $('eHp').style.width = battle.ehp + '%';
+    $('pHp').style.width = view.php + '%';
+    $('eHp').style.width = view.ehp + '%';
   }
-  function drawArena() {
-    if (!battle) return;
+
+  /* ----- 배틀 연출 -----
+   * 한 턴 = 내 행동 → 상대 행동. 공격은 상대 쪽으로 튀어나갔다 돌아오고, 필살기는 속성 색 탄을 쏜다.
+   * 맞으면 깜빡이며 흔들리고, 머리 위로 피해 숫자가 떠오른다. 방어는 앞에 방패를 세운다.
+   */
+  var T = { pGo: 0, pHit: 280, pBack: 460, eGo: 600, eHit: 880, eBack: 1060, end: 1500 };
+  var SHOT = { vaccine: ['#fff4b0', '#ffb43a', '#e0602a'], data: ['#e6f6ff', '#5ab4ff', '#2a5fd0'],
+    virus: ['#ffe0ff', '#c46aff', '#6a2aa8'], free: ['#f0ffe0', '#7ad05a', '#2f8a3a'] };
+  // 3x5 도트 글꼴 (피해 숫자용)
+  var FONT = {
+    0: ['111', '101', '101', '101', '111'], 1: ['010', '110', '010', '010', '111'], 2: ['111', '001', '111', '100', '111'],
+    3: ['111', '001', '111', '001', '111'], 4: ['101', '101', '111', '001', '001'], 5: ['111', '100', '111', '001', '111'],
+    6: ['111', '100', '111', '101', '111'], 7: ['111', '001', '010', '010', '010'], 8: ['111', '101', '111', '101', '111'],
+    9: ['111', '101', '111', '001', '111'], M: ['10001', '11011', '10101', '10001', '10001'], I: ['111', '010', '010', '010', '111'],
+    S: ['011', '100', '010', '001', '110'], '?': ['111', '001', '011', '000', '010'], '!': ['1', '1', '1', '0', '1']
+  };
+  function textWidth(str, px) {
+    var w = 0;
+    for (var i = 0; i < str.length; i++) w += (FONT[str[i]][0].length + 1) * px;
+    return w - px;
+  }
+  function pixelText(str, cx, y, px, color) {
+    var x = Math.round(cx - textWidth(str, px) / 2);
+    for (var i = 0; i < str.length; i++) {
+      var g = FONT[str[i]];
+      [['#1b1f17', 1], [color, 0]].forEach(function (pass) { // 테두리 먼저, 그 위에 글자
+        ax.fillStyle = pass[0];
+        g.forEach(function (row, ry) {
+          for (var rx = 0; rx < row.length; rx++) if (row[rx] === '1') {
+            if (pass[1]) {
+              for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) ax.fillRect(x + rx * px + dx, y + ry * px + dy, px, px);
+            } else ax.fillRect(x + rx * px, y + ry * px, px, px);
+          }
+        });
+      });
+      x += (g[0].length + 1) * px;
+    }
+  }
+  function ease(t) { return t < 0 ? 0 : t > 1 ? 1 : 1 - (1 - t) * (1 - t); }
+  // 튀어나간 정도 (0..1)
+  function lunge(t, go, hit, back) {
+    if (t < go || t >= back) return 0;
+    return t < hit ? ease((t - go) / (hit - go)) : 1 - ease((t - hit) / (back - hit));
+  }
+  function burst(cx, cy, k, cols) { // 맞은 자리의 별 모양 불꽃
+    var r = 4 + k * 10;
+    for (var i = 0; i < 8; i++) {
+      var a = i * Math.PI / 4, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+      ax.fillStyle = cols[i % 2 ? 1 : 0]; ax.fillRect(Math.round(x) - 2, Math.round(y) - 2, 4, 4);
+    }
+    ax.fillStyle = cols[0]; ax.fillRect(cx - 3, cy - 3, 6, 6);
+  }
+  function shot(x, y, dir, cols, big) { // 필살기 탄: 가운데가 밝은 도트 공 + 꼬리
+    for (var i = 3; i >= 1; i--) {
+      ax.fillStyle = cols[2]; var s = (big ? 3 : 2) * (4 - i) / 2 + 1;
+      ax.fillRect(Math.round(x - dir * i * 6 - s / 2), Math.round(y - s / 2), s, s);
+    }
+    var R = big ? 6 : 4;
+    ax.fillStyle = cols[2]; ax.fillRect(x - R, y - R + 2, R * 2, R * 2 - 4); ax.fillRect(x - R + 2, y - R, R * 2 - 4, R * 2);
+    ax.fillStyle = cols[1]; ax.fillRect(x - R + 2, y - R + 2, R * 2 - 4, R * 2 - 4);
+    ax.fillStyle = cols[0]; ax.fillRect(x - 2, y - 2, 4, 4);
+  }
+  function shield(x, y, h, dir, hit) { // 방어: 앞쪽에 세운 도트 방패
+    ax.fillStyle = hit ? '#ffffff' : 'rgba(120,200,255,.85)';
+    ax.fillRect(x, y + 4, 3, h - 8);
+    ax.fillRect(x + dir * 3, y, 3, 6); ax.fillRect(x + dir * 3, y + h - 6, 3, 6);
+    ax.fillStyle = 'rgba(200,240,255,.9)'; ax.fillRect(x + (dir > 0 ? 0 : 1), y + 6, 2, 6);
+  }
+
+  function arenaLoop(ts) {
+    if ($('battle').hidden || !view) return;
+    drawArena(ts);
+    requestAnimationFrame(arenaLoop);
+  }
+  function drawArena(ts) {
+    if (!view) return;
+    ts = ts || performance.now();
     ax.fillStyle = '#d7e8c4'; ax.fillRect(0, 0, 200, 96);
-    var a = battle.me, b = battle.wild.id, ma = Sprite.measure(a), mb = Sprite.measure(b);
+    ax.fillStyle = 'rgba(0,0,0,.05)'; ax.fillRect(0, 88, 200, 8); // 바닥
+    var a = view.me, b = view.foe, ma = Sprite.measure(a), mb = Sprite.measure(b);
+    var px0 = 10, ex0 = 190 - mb.w, floor = 90;
+    var gap = Math.max(0, ex0 - (px0 + ma.w)), reach = Math.min(gap - 4, 70);
+    var idleF = Math.floor(ts / 420);
+    var P = { x: px0, anim: 'idle', frame: idleF, hide: false }, Q = { x: ex0, anim: 'idle', frame: idleF, hide: false };
+    var fx = [];
+
+    if (turn) {
+      var t = ts - turn.t0, r = turn.r;
+      // 내 차례
+      act(t, r.pCmd, r.pDmg, P, Q, 1, T.pGo, T.pHit, T.pBack, view.meAttr, '#ffd23f');
+      // 상대 차례
+      act(t, r.eCmd, r.eDmg, Q, P, -1, T.eGo, T.eHit, T.eBack, view.foeAttr, '#ff5f6d');
+      if (r.ignored && t < 700) fx.push(function () { pixelText('?!', P.x + ma.w / 2, floor - ma.h - 14 - (t < 150 ? (150 - t) / 30 : 0), 2, '#ff9d3a'); });
+      // HP 는 맞는 순간 줄인다
+      if (t >= T.pHit && !turn.eDone) { turn.eDone = true; view.ehp = battle ? battle.ehp : turn.ehp; hpBars(); }
+      if (t >= T.eHit && !turn.pDone) { turn.pDone = true; view.php = battle ? battle.php : turn.php; hpBars(); if (r.eDmg) vibrate(40); }
+      if (t >= T.end) { var done = turn.done; turn = null; done(); }
+    }
+
+    function act(t, cmd, dmg, me, foe, dir, go, hit, back, attr, numCol) {
+      var mm = dir > 0 ? ma : mb, fm = dir > 0 ? mb : ma, cols = SHOT[attr] || SHOT.free;
+      var fy = floor - fm.h, cy = fy + fm.h / 2;
+      if (cmd === 'guard') {
+        // 방어는 자기 차례와 상관없이 턴 내내 방패를 든다
+        var hitNow = t > (dir > 0 ? T.eHit : T.pHit) && t < (dir > 0 ? T.eHit : T.pHit) + 120;
+        fx.push(function () { shield(dir > 0 ? me.x + mm.w + 2 : me.x - 5, floor - mm.h + 2, mm.h - 4, dir, hitNow); });
+        return;
+      }
+      var k = lunge(t, go, hit, back);
+      if (cmd === 'attack') {
+        me.x += dir * reach * k;
+        if (t >= go && t < back) { me.anim = t < hit ? 'run' : 'attack'; me.frame = Math.floor(t / 90); }
+      } else { // 필살기: 살짝 물러섰다 쏜다
+        me.x -= dir * 6 * k;
+        if (t >= go && t < back) { me.anim = 'attack'; me.frame = 0; }
+        if (t >= go + 80 && t < hit) {
+          var p = ease((t - go - 80) / (hit - go - 80));
+          var sx = dir > 0 ? px0 + ma.w : ex0, tx = dir > 0 ? ex0 + mb.w / 2 : px0 + ma.w / 2;
+          fx.push(function () { shot(Math.round(sx + (tx - sx) * p), Math.round(floor - mm.h * 0.55), dir, cols, true); });
+        }
+      }
+      // 맞는 순간
+      if (t >= hit && t < hit + 260) {
+        var e = (t - hit) / 260;
+        if (dmg) {
+          foe.x += (Math.floor(t / 40) % 2 ? 2 : -2) + dir * 3 * (1 - e);
+          foe.hide = Math.floor(t / 70) % 2 === 1;
+          foe.anim = 'idle';
+          if (e < 0.6) fx.push(function () { burst(Math.round(foe.x + fm.w / 2), Math.round(cy), e, cmd === 'special' ? cols : ['#ffffff', '#ffd23f']); });
+        }
+      }
+      // 피해 숫자는 머리 위로 떠오르며 사라진다
+      if (t >= hit && t < hit + 620) {
+        var u = (t - hit) / 620, big = cmd === 'special' && dmg;
+        fx.push(function () {
+          ax.globalAlpha = u < 0.7 ? 1 : 1 - (u - 0.7) / 0.3;
+          pixelText(dmg ? String(dmg) : 'MISS', foe.x + fm.w / 2, Math.max(2, fy - 12 - u * 14), big ? 3 : 2, dmg ? (big ? '#ffffff' : numCol) : '#93a0b4');
+          ax.globalAlpha = 1;
+        });
+      }
+    }
+
     // 내 디지몬은 왼쪽에서 오른쪽을 본다 (그림은 왼쪽을 보므로 뒤집는다)
-    Sprite.draw(ax, a, 10 + shake.p, 92 - ma.h, 1, { flip: true, anim: shake.pa || 'idle', frame: shake.f });
-    Sprite.draw(ax, b, 190 - mb.w + shake.e, 92 - mb.h, 1, { anim: shake.ea || 'idle', frame: shake.f });
+    if (!P.hide) Sprite.draw(ax, a, Math.round(P.x), floor - ma.h, 1, { flip: true, anim: P.anim, frame: P.frame });
+    if (!Q.hide) Sprite.draw(ax, b, Math.round(Q.x), floor - mb.h, 1, { anim: Q.anim, frame: Q.frame });
+    fx.forEach(function (f) { f(); });
   }
   function setCmds(on) {
     Array.prototype.forEach.call(document.querySelectorAll('[data-cmd]'), function (b) { b.disabled = !on; });
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-cmd]'), function (btn) {
     btn.addEventListener('click', function () {
-      if (!battle || battle.over) return;
+      if (!battle || battle.over || turn) return;
       var r = E.battleTurn(battle, btn.getAttribute('data-cmd'));
       var me = name(battle.me), en = battle.wild.name, lines = [];
       if (r.ignored) lines.push(josa(me, '이', '가') + ' 명령을 무시했다!');
@@ -569,14 +713,10 @@
       lines.push(en + ' ' + CMD_NAMES[r.eCmd] + (r.eCmd === 'guard' ? '' : r.eDmg ? ' → ' + r.eDmg : ' → 빗나감'));
       $('blog').textContent = lines.join(' · ');
       setCmds(false);
-      shake.e = r.pDmg ? 4 : 0; shake.p = r.eDmg ? -4 : 0;
-      shake.pa = r.pCmd === 'guard' ? 'idle' : 'attack'; shake.ea = r.eCmd === 'guard' ? 'idle' : 'attack';
-      drawArena(); hpBars();
-      vibrate(r.eDmg ? 40 : 0);
-      setTimeout(function () {
-        shake.p = shake.e = 0; shake.pa = shake.ea = null; shake.f++; drawArena();
-        if (battle.over) finishBattle(false); else setCmds(true);
-      }, 380);
+      turn = {
+        t0: performance.now(), r: r, php: battle.php, ehp: battle.ehp,
+        done: function () { if (battle && battle.over) finishBattle(false); else setCmds(true); }
+      };
     });
   });
 
@@ -880,7 +1020,6 @@
     if (top() === 'box') renderBox();
     if (!stack.length && !$('eggs').hidden) renderEggs();
     pictures.forEach(function (p) { picture(p[0], p[1], p[2]); });
-    if (battle) drawArena();
   });
 
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
