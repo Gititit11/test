@@ -157,20 +157,26 @@ test('완전체 → 궁극체', function () {
   assert.equal(E.judge(at('agumon', 'perfect', 'skullgreymon', ok).mon).kind, 'terminal');
 });
 
-test('진화 실패: 성숙기는 수명이 줄고, 완전체는 그대로', function () {
+test('진화 실패: 성숙기는 다음 판정이 하루 늦어지고, 완전체는 그대로', function () {
   var s = at('agumon', 'adult', 'greymon', {});
-  var death = s.mon.deathAt;
   s.mon.stageEnd = MORNING + M;
   E.tick(s, MORNING + M);
   assert.equal(s.mon.species, 'greymon');
-  assert.equal(s.mon.deathAt, death - 24 * H);
-  assert.equal(s.mon.stageEnd, MORNING + M + 96 * H);
+  assert.equal(s.mon.stageEnd, MORNING + M + 96 * H + 24 * H);
 
   s = at('agumon', 'perfect', 'metalgreymon', {});
-  death = s.mon.deathAt;
   s.mon.stageEnd = MORNING + M;
   E.tick(s, MORNING + M);
-  assert.equal(s.mon.deathAt, death);
+  assert.equal(s.mon.stageEnd, MORNING + M + 120 * H);
+});
+
+test('수명은 없다: 궁극체는 아무리 지나도 사라지지 않는다', function () {
+  var s = at('agumon', 'ultimate', 'wargreymon');
+  s.mon.stageEnd = null;
+  s.mon.hunger = 4; s.mon.strength = 4;
+  E.tick(s, MORNING + 60 * 24 * H);
+  assert.equal(s.mon.dead, false);
+  assert.equal(s.mon.species, 'wargreymon');
 });
 
 test('⑩ 오메가몬: 짝을 키워 본 적 있고 보스 3번 격파 / ⑲ 파이터 모드', function () {
@@ -232,7 +238,7 @@ test('보관함: 여러 마리를 두고, 보관한 동안은 시간이 멈춘�
   assert.equal(s.box[0], a, '키우던 디지몬은 사라지지 않고 보관함으로');
 
   // 보관한 3일 동안 아구몬의 시간은 멈춰 있다
-  var stageLeft = a.stageEnd - (MORNING + 2 * H), lifeLeft = a.deathAt - (MORNING + 2 * H);
+  var stageLeft = a.stageEnd - (MORNING + 2 * H);
   var later = MORNING + 74 * H;
   quiet(g);
   E.tick(s, later);
@@ -241,7 +247,6 @@ test('보관함: 여러 마리를 두고, 보관한 동안은 시간이 멈춘�
   assert.equal(s.box[0], g);
   assert.equal(a.species, 'koromon');
   assert.equal(a.stageEnd - later, stageLeft);
-  assert.equal(a.deathAt - later, lifeLeft);
   assert.equal(a.lastTick, later);
 
   // 슬롯은 6칸
@@ -255,14 +260,9 @@ test('보관함: 여러 마리를 두고, 보관한 동안은 시간이 멈춘�
   assert.equal(E.slotsLeft(s), 1);
 });
 
-test('수명이 다한 디지몬이 있어도 새 알을 받을 수 있다', function () {
+test('예전 저장에서 수명이 다한 디지몬이 있어도 새 알을 받을 수 있다', function () {
   var s = at('agumon', 'ultimate', 'wargreymon');
-  s.mon.stageEnd = null;
-  s.mon.deathAt = MORNING + 5 * M;
-  E.tick(s, MORNING + 10 * M);
-  assert.equal(s.mon.dead, true);
-  assert.equal(s.meta.history[0].species, 'wargreymon');
-  assert.equal(s.meta.history[0].how, 'died');
+  s.mon.dead = true;
   assert.ok(E.hatch(s, 'veemon', MORNING + 10 * M));
   assert.equal(s.box.length, 0);
 });

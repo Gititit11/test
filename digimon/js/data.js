@@ -19,8 +19,8 @@ var DigiData = (function () {
   var RULES = {
     eggMinutes: 5,             // 디지타마가 흔들리다가 부화할 때까지 (마지막 1분은 금이 간다)
     stageHours: { baby1: 1, baby2: 24, child: 72, adult: 96, perfect: 120 },
-    lifespanHours: 480,        // 20일. 궁극체는 이때까지 산다
-    failLifespanCutHours: 24,  // 성숙기 → 완전체 진화 실패 때 줄어드는 수명
+    // 수명은 없다. 한 번 키운 디지몬은 사라지지 않는다.
+    failDelayHours: 24,        // 성숙기 → 완전체 진화 실패 때 다음 판정이 이만큼 늦어진다
     callMinutes: 15,           // 배고픔·힘 호출을 이만큼 넘게 두면 케어 실수
     poopLimitMinutes: 180,     // 배변을 이만큼 넘게 두면 위생 실수
     sleepLightsMinutes: 30,    // 잠든 뒤 불을 이만큼 넘게 안 끄면 수면 방해

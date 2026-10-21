@@ -1,7 +1,7 @@
 /* 디지몬 육성 화면 흐름
  *
  *   알 고르기 → 육성 화면 ─ 훈련 / 바코드 스캔 → 배틀 / 도감 / 정보 / 보관함
- *                    └ 진화·수명 연출은 엔진이 남긴 사건(events)을 보고 띄운다
+ *                    └ 진화 연출은 엔진이 남긴 사건(events)을 보고 띄운다
  *
  * 상태는 localStorage 한 칸에 둔다. 앱을 닫아 둔 사이의 시간은 열 때 엔진이 따라잡는다.
  * 보관함의 디지몬은 시간이 멈춰 있어서 따라잡을 것이 없다.
@@ -143,12 +143,12 @@
       var li = document.createElement('li'); li.className = 'mon-row' + (on ? ' on' : '');
       li.appendChild(Sprite.canvas(id, 56, { anim: 'idle' }));
       var tx = document.createElement('div'); tx.className = 'txt';
-      var age = (on ? t : mon.pausedAt) - mon.born, life = mon.deathAt - (on ? t : mon.pausedAt);
+      var age = (on ? t : mon.pausedAt) - mon.born;
       tx.innerHTML = '<div class="n"></div><div class="t"></div><div class="t"></div>';
       tx.children[0].textContent = name(id);
       tx.children[1].textContent = (mon.armor ? '아머체' : D.STAGE_NAMES[mon.stage]) + ' · ' +
         D.LINES[mon.line].name + ' 라인 · ' + dur(age) + '째';
-      tx.children[2].textContent = on ? '키우는 중' : '보관 중 · 남은 수명 ' + dur(life);
+      tx.children[2].textContent = on ? '키우는 중' : '보관 중 · 시간이 멈춰 있어요';
       li.appendChild(tx);
       if (!on) {
         var acts = document.createElement('div'); acts.className = 'acts2';
@@ -237,7 +237,7 @@
     var next;
     if (egg) next = '부화까지 ' + clock(mon.stageEnd - t);
     else if (mon.stageEnd) next = '다음 진화까지 ' + dur(mon.stageEnd - t);
-    else if (mon.stage === 'ultimate') next = '궁극체 · 수명이 다할 때까지 함께해요' + (specialHint(mon) || '');
+    else if (mon.stage === 'ultimate') next = '궁극체 · 최종 단계예요' + (specialHint(mon) || '');
     else next = '더 진화하지 않아요';
     $('next').textContent = next;
 
@@ -995,7 +995,6 @@
       ['디지몬', S.name + ' (' + D.LINES[mon.line].name + ' 라인)'],
       ['단계 · 속성', (mon.armor ? '아머체' : D.STAGE_NAMES[mon.stage]) + ' · ' + D.ATTR_NAMES[S.attr]],
       ['나이', dur(t - mon.born)],
-      ['남은 수명', dur(mon.deathAt - t)],
       ['다음 진화', mon.stageEnd ? dur(mon.stageEnd - t) + ' 뒤' : '없음'],
       ['전투력', mon.stage === 'egg' ? '-' : Math.round(E.myPower(mon))]
     ]));
@@ -1069,7 +1068,7 @@
     if (e.type === 'fail') {
       $('evoKind').textContent = '진화 실패';
       $('evoName').textContent = josa(name(id), '은', '는') + ' 그대로예요';
-      $('evoNote').textContent = e.cut ? '조건이 모자랐어요. 수명이 하루 줄었어요' : '조건이 모자랐어요. 다음 판정까지 다시 키워 봐요';
+      $('evoNote').textContent = e.delay ? '조건이 모자랐어요. 다음 판정이 하루 늦어져요' : '조건이 모자랐어요. 다음 판정까지 다시 키워 봐요';
     } else {
       $('evoKind').textContent = KIND[e.kind] || '진화!';
       $('evoName').textContent = name(e.from) + ' → ' + name(id);
@@ -1089,7 +1088,7 @@
     $('home').hidden = true;
     picture($('deadPic'), mon.species, { dark: true, anim: 'sleep' });
     $('deadName').textContent = josa(name(mon.species), '이', '가') + ' 디지타마로 돌아갔어요';
-    $('deadNote').textContent = dur(mon.deathAt - mon.born) + ' 동안 함께했어요. 도감, 아이템, 보관함의 디지몬은 그대로 남아요.';
+    $('deadNote').textContent = dur((mon.deathAt || mon.lastTick) - mon.born) + ' 동안 함께했어요. 도감, 아이템, 보관함의 디지몬은 그대로 남아요.';
     $('dead').hidden = false;
   }
   $('newEgg').addEventListener('click', function () {

@@ -83,7 +83,6 @@ var Engine = (function (D) {
       uid: ++state.meta.uid,
       line: lineId, species: 'egg_' + lineId, stage: 'egg',
       born: t, stageStart: t, stageEnd: t + R.eggMinutes * MIN,
-      deathAt: t + R.lifespanHours * HOUR,
       hunger: 2, strength: 2, poops: [],
       lights: true, sleeping: false, woken: 0, lightMin: 0, sleepPenalized: false,
       callH: 0, callS: 0, hungerT: 0, strengthT: 0, poopT: 0,
@@ -100,7 +99,7 @@ var Engine = (function (D) {
     var mon = state.mon;
     if (!mon || mon.dead) return false;
     tick(state, now);
-    if (mon.dead) return false; // 보관하기 전에 수명이 다했다
+    if (mon.dead) return false; // 예전 저장(수명이 있던 시절)에 남은 디지몬
     state.mon = null;
     mon.pausedAt = floorMin(now);
     state.box.push(mon);
@@ -114,7 +113,7 @@ var Engine = (function (D) {
     var mon = state.box.splice(i, 1)[0];
     store(state, now);
     var d = floorMin(now) - mon.pausedAt;
-    ['born', 'stageStart', 'stageEnd', 'deathAt', 'armor', 'lastTick'].forEach(function (k) {
+    ['born', 'stageStart', 'stageEnd', 'armor', 'lastTick'].forEach(function (k) {
       if (mon[k]) mon[k] += d;
     });
     delete mon.pausedAt;
@@ -157,8 +156,6 @@ var Engine = (function (D) {
   }
 
   function step(state, mon, t) {
-    if (t >= mon.deathAt) { die(state, mon, t); return; }
-
     if (mon.stage === 'egg') { // 디지타마는 흔들리기만 한다
       if (t >= mon.stageEnd) evolveNow(state, mon, t);
       return;
@@ -209,12 +206,6 @@ var Engine = (function (D) {
     if (mon.stageEnd && t >= mon.stageEnd) evolveNow(state, mon, t);
   }
 
-  function die(state, mon, t) {
-    mon.dead = true; mon.armor = null;
-    remember(state, mon, t, 'died');
-    emit(state, 'death', t, { to: mon.species });
-  }
-
   /* ---------- 진화 판정 ----------
    * 결과 { to, kind, rule }
    *   rule: 기획안 번호 (data.js 의 RULE_HINTS)
@@ -255,8 +246,8 @@ var Engine = (function (D) {
       var r = list[i][0];
       if (passes(r, mon.c)) return { to: list[i][1], kind: D.RULE_KIND[r], rule: r };
     }
-    // 성숙기는 실패하면 수명이 하루 준다, 완전체는 그대로
-    return { to: null, kind: 'fail', cut: mon.stage === 'adult' };
+    // 성숙기는 실패하면 다음 판정이 하루 늦어진다, 완전체는 그대로
+    return { to: null, kind: 'fail', delay: mon.stage === 'adult' };
   }
 
   function evolveNow(state, mon, t) {
@@ -266,8 +257,8 @@ var Engine = (function (D) {
       mon.c = freshCounters();
       mon.stageStart = t;
       mon.stageEnd = t + R.stageHours[mon.stage] * HOUR;
-      if (r.cut) mon.deathAt -= R.failLifespanCutHours * HOUR;
-      emit(state, 'fail', t, { to: mon.species, cut: !!r.cut });
+      if (r.delay) mon.stageEnd += R.failDelayHours * HOUR;
+      emit(state, 'fail', t, { to: mon.species, delay: !!r.delay });
       return;
     }
     if (!r.to) { mon.stageEnd = null; return; }
