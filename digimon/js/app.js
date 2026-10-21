@@ -1,16 +1,17 @@
 /* 디지몬 육성 화면 흐름
  *
- *   알 고르기 → 육성 화면 ─ 훈련 / 바코드 스캔 → 배틀 / 도감 / 정보
+ *   알 고르기 → 육성 화면 ─ 훈련 / 바코드 스캔 → 배틀 / 도감 / 정보 / 보관함
  *                    └ 진화·수명 연출은 엔진이 남긴 사건(events)을 보고 띄운다
  *
  * 상태는 localStorage 한 칸에 둔다. 앱을 닫아 둔 사이의 시간은 열 때 엔진이 따라잡는다.
+ * 보관함의 디지몬은 시간이 멈춰 있어서 따라잡을 것이 없다.
  * 주소에 ?dev=1 을 붙이면 정보 화면에 시간 건너뛰기 버튼이 생긴다 (시험용).
  */
 (function () {
   'use strict';
 
   var $ = function (id) { return document.getElementById(id); };
-  var KEY = 'digimon:v1';
+  var KEY = 'digimon:v2'; // v1(스타터 6종 시절) 저장은 규칙이 달라 이어 쓰지 않는다
   var D = DigiData, E = Engine, R = D.RULES, H = E.HOUR, M = E.MIN;
   var DEV = /[?&]dev=1/.test(location.search);
 
@@ -20,7 +21,7 @@
   function load() {
     try {
       var s = JSON.parse(localStorage.getItem(KEY));
-      if (s && s.v === 1) return s;
+      if (s && s.v === 2) return s;
     } catch (e) { }
     return E.newState();
   }
@@ -61,20 +62,23 @@
   function vibrate(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { } }
 
   /* ---------- 화면 전환 (안드로이드 뒤로가기로 닫히게 history 를 쓴다) ---------- */
-  var SCREENS = ['train', 'scan', 'battle', 'dex', 'info'];
-  var openScreen = null;
-  function show(name) {
-    SCREENS.forEach(function (s) { $(s).hidden = s !== name; });
-    if (!openScreen) history.pushState({ scr: name }, '');
-    else history.replaceState({ scr: name }, '');
-    openScreen = name;
+  // 화면은 위로 쌓인다 (도감 위에 도감 한 칸). replace 면 맨 위 화면을 바꿔 끼운다 (스캔 → 배틀).
+  var stack = [];
+  function top() { return stack[stack.length - 1] || null; }
+  function show(name, replace) {
+    if (replace && stack.length) {
+      $(stack.pop()).hidden = true;
+      history.replaceState({ scr: name }, '');
+    } else history.pushState({ scr: name }, '');
+    stack.push(name);
+    $(name).hidden = false;
   }
-  function closeScreen() { if (openScreen) history.back(); }
+  function closeScreen() { if (stack.length) history.back(); }
   window.addEventListener('popstate', function () {
-    if (!openScreen) return;
-    var was = openScreen;
-    SCREENS.forEach(function (s) { $(s).hidden = true; });
-    openScreen = null;
+    if (ignorePops > 0) { ignorePops--; return; }
+    if (!stack.length) return;
+    var was = stack.pop();
+    $(was).hidden = true;
     onClosed(was);
   });
   Array.prototype.forEach.call(document.querySelectorAll('[data-close]'), function (b) {
@@ -84,11 +88,20 @@
     if (was === 'train') stopTrain();
     if (was === 'scan') stopCam();
     if (was === 'battle' && battle && !battle.over) finishBattle(true); // 도망쳐도 패배로 친다
-    render();
+    if (!stack.length) render();
   }
 
   /* ---------- 알 고르기 ---------- */
+  var choosing = false; // 키우던 디지몬이 있는데 새 알을 고르는 중
+  function alive() { return state.mon && !state.mon.dead ? state.mon : null; }
   function renderEggs() {
+    var cur = alive(), left = E.slotsLeft(state);
+    $('eggsBack').hidden = !cur;
+    $('eggsNote').textContent = cur
+      ? '고른 알은 바로 부화해요. 키우던 ' + josa(name(E.form(cur)), '은', '는') + ' 보관함으로 가요 (남은 칸 ' + left + ').'
+      : '고른 알은 바로 부화해요. 시간은 실제 시간으로 흘러요.';
+    $('eggBox').hidden = !state.box.length || !!cur;
+    if (!cur) monList($('eggBoxList'), false);
     var ul = $('eggList');
     ul.innerHTML = '';
     D.LINE_ORDER.forEach(function (id) {
@@ -101,17 +114,86 @@
       var tx = document.createElement('span');
       tx.innerHTML = '<span class="n"></span><br><span class="t"></span>';
       tx.querySelector('.n').textContent = L.name + '의 디지타마';
-      tx.querySelector('.t').textContent = L.from + ' · ' + L.trait;
+      tx.querySelector('.t').textContent = L.trait;
       b.appendChild(c); b.appendChild(tx);
+      b.disabled = left <= 0;
       b.addEventListener('click', function () {
         if (!confirm(L.name + '의 디지타마를 고를까요?')) return;
-        E.hatch(state, id, now());
-        state.events = [];
+        if (!E.hatch(state, id, now())) { toast('보관함이 가득 찼어요. 한 마리를 떠나보내 주세요'); return; }
+        state.events = []; choosing = false;
         save(); render();
         toast(josa(name(D.LINES[id].baby1), '이', '가') + ' 태어났어요!');
       });
       li.appendChild(b); ul.appendChild(li);
     });
+  }
+  $('eggsBack').addEventListener('click', function () { choosing = false; render(); });
+
+  /* ---------- 보관함 ---------- */
+  // 키우는 디지몬과 보관함의 디지몬을 줄로 그린다. withActive 면 키우는 디지몬도 맨 위에.
+  function monList(ul, withActive) {
+    ul.innerHTML = '';
+    var t = now(), rows = [];
+    if (withActive && alive()) rows.push(state.mon);
+    rows = rows.concat(state.box);
+    rows.forEach(function (mon) {
+      var on = mon === state.mon, id = E.form(mon);
+      var li = document.createElement('li'); li.className = 'mon-row' + (on ? ' on' : '');
+      li.appendChild(Sprite.canvas(id, 56, { anim: 'idle' }));
+      var tx = document.createElement('div'); tx.className = 'txt';
+      var age = (on ? t : mon.pausedAt) - mon.born, life = mon.deathAt - (on ? t : mon.pausedAt);
+      tx.innerHTML = '<div class="n"></div><div class="t"></div><div class="t"></div>';
+      tx.children[0].textContent = name(id);
+      tx.children[1].textContent = (mon.armor ? '아머체' : D.STAGE_NAMES[mon.stage]) + ' · ' +
+        D.LINES[mon.line].name + ' 라인 · ' + dur(age) + '째';
+      tx.children[2].textContent = on ? '키우는 중' : '보관 중 · 남은 수명 ' + dur(life);
+      li.appendChild(tx);
+      if (!on) {
+        var acts = document.createElement('div'); acts.className = 'acts2';
+        var go = document.createElement('button'); go.className = 'btn primary'; go.textContent = '데려오기';
+        go.addEventListener('click', function () {
+          var cur = alive();
+          if (cur && !confirm(josa(name(E.form(cur)), '을', '를') + ' 보관함에 넣고 ' + josa(name(id), '을', '를') + ' 데려올까요?')) return;
+          E.resume(state, mon.uid, now());
+          choosing = false;
+          save(); closeAll(); render(); drainEvents();
+          toast(josa(name(id), '이', '가') + ' 돌아왔어요');
+        });
+        var bye = document.createElement('button'); bye.className = 'btn ghost'; bye.textContent = '떠나보내기';
+        bye.addEventListener('click', function () {
+          if (!confirm(josa(name(id), '을', '를') + ' 떠나보낼까요? 되돌릴 수 없어요. (도감 기록은 남아요)')) return;
+          E.release(state, mon.uid, now());
+          save(); renderBox(); renderEggs();
+        });
+        acts.appendChild(go); acts.appendChild(bye); li.appendChild(acts);
+      }
+      ul.appendChild(li);
+    });
+  }
+  function renderBox() {
+    monList($('boxList'), true);
+    var n = R.slots - E.slotsLeft(state);
+    $('boxCount').textContent = n + ' / ' + R.slots;
+    $('boxNew').disabled = E.slotsLeft(state) <= 0;
+    $('boxNew').textContent = E.slotsLeft(state) > 0 ? '새 디지타마 받기' : '칸이 가득 찼어요';
+  }
+  $('boxNew').addEventListener('click', function () {
+    choosing = true;
+    closeAll(); render();
+    window.scrollTo(0, 0);
+  });
+  // 열린 화면을 모두 닫는다 (history 는 한꺼번에 되돌린다)
+  function closeAll() {
+    if (!stack.length) return;
+    var n = stack.length;
+    while (stack.length) { var w = stack.pop(); $(w).hidden = true; onClosedQuiet(w); }
+    history.go(-n);
+    ignorePops = 1; // go(-n) 은 popstate 를 한 번만 부른다
+  }
+  var ignorePops = 0;
+  function onClosedQuiet(was) {
+    if (was === 'train') stopTrain();
+    if (was === 'scan') stopCam();
   }
 
   /* ---------- 육성 화면 ---------- */
@@ -122,10 +204,11 @@
 
   function render() {
     var mon = state.mon, t = now();
-    $('eggs').hidden = !!mon;
-    $('home').hidden = !mon;
-    if (!mon) { renderEggs(); return; }
-    if (mon.dead) { showDead(); return; }
+    if (mon && mon.dead) { $('eggs').hidden = true; showDead(); return; }
+    var eggs = !mon || choosing;
+    $('eggs').hidden = !eggs;
+    $('home').hidden = eggs;
+    if (eggs) { renderEggs(); return; }
 
     var id = E.form(mon), S = D.SPECIES[id];
     $('monName').textContent = S.name;
@@ -148,9 +231,8 @@
     msg.textContent = text; msg.className = 'msg' + (bad ? ' warn' : '');
 
     var next;
-    if (mon.rescueUntil) next = '구제 판정까지 ' + dur(mon.rescueUntil - t) + ' (위생 실수·과식 0 을 지켜요)';
-    else if (mon.stageEnd) next = '다음 진화까지 ' + dur(mon.stageEnd - t);
-    else if (mon.stage === 'ultimate') next = '궁극체 · 수명이 다할 때까지 함께해요';
+    if (mon.stageEnd) next = '다음 진화까지 ' + dur(mon.stageEnd - t);
+    else if (mon.stage === 'ultimate') next = '궁극체 · 수명이 다할 때까지 함께해요' + (specialHint(mon) || '');
     else next = '더 진화하지 않아요';
     $('next').textContent = next;
 
@@ -172,7 +254,7 @@
     if (ts - lastFrame < 220) return;
     lastFrame = ts;
     var mon = state.mon;
-    if (!mon || mon.dead || $('home').hidden) return;
+    if (!mon || mon.dead || $('home').hidden || stack.length) return;
     var W = 160, Hh = 112, dark = !mon.lights;
     lx.fillStyle = dark ? '#1a1f2a' : '#d7e8c4';
     lx.fillRect(0, 0, W, Hh);
@@ -265,9 +347,16 @@
     battle: function () { openScan(); },
     dex: function () { renderDex(); show('dex'); },
     info: function () { renderInfo(); show('info'); },
+    box: function () { renderBox(); show('box'); },
     armor: function () {
-      if (!confirm('디지멘탈로 아머진화할까요? 48시간 동안 플레이드라몬이 돼요.')) return;
-      E.armor(state, now());
+      var A = D.LINES[state.mon.line].armor;
+      openPick('아머진화', '디지멘탈의 힘으로 48시간 동안 아머체가 돼요. 하루 한 번, 디지멘탈은 닳지 않아요.',
+        E.armorKinds(state, now()).map(function (k) {
+          return {
+            label: D.RULE_HINTS[k] + ' → ' + name(A[k]) + ' (' + D.STAGE_NAMES[D.SPECIES[A[k]].stage] + ')',
+            fn: function () { E.armor(state, now(), k); }
+          };
+        }));
     },
     chip: function () {
       if (E.useChip(state).ok) toast('디지 칩을 썼어요. 배고픔과 힘이 가득!');
@@ -279,9 +368,34 @@
       if (!state.mon || state.mon.dead) return;
       E.tick(state, now());
       ACTS[b.getAttribute('data-act')]();
-      save(); render(); drainEvents();
+      save(); if (!stack.length) render(); drainEvents();
     });
   });
+
+  /* ---------- 고르기 ---------- */
+  function openPick(title, note, options) {
+    $('pickTitle').textContent = title;
+    $('pickNote').textContent = note;
+    var box = $('pickList');
+    box.innerHTML = '';
+    options.forEach(function (o) {
+      var b = document.createElement('button'); b.className = 'btn'; b.textContent = o.label;
+      b.addEventListener('click', function () {
+        closeScreen();
+        E.tick(state, now()); o.fn(); save(); drainEvents();
+      });
+      box.appendChild(b);
+    });
+    show('pick');
+  }
+
+  // 궁극체에서 보스 격파로 일어나는 진화의 진행 상황
+  function specialHint(mon) {
+    var s = (D.LINES[mon.line].special || {})[mon.species];
+    if (!s) return '';
+    if (s.partner && !(state.meta.dex[s.partner] && state.meta.dex[s.partner].raised)) return '';
+    return ' · 보스 격파 ' + Math.min(mon.c.bossWins, R.jogressBossWins) + '/' + R.jogressBossWins;
+  }
 
   /* ---------- 훈련 미니게임 ---------- */
   var tr = null;
@@ -344,7 +458,7 @@
   }
   function updateScanLeft() {
     $('scanLeft').textContent = '오늘 남은 스캔 ' + E.scansLeft(state, now()) + ' / ' + R.scansPerDay +
-      ' · 같은 바코드는 하루 한 번만 배틀해요';
+      ' · 어떤 바코드든 찍을 때마다 다른 디지몬이 나와요';
   }
   $('camStart').addEventListener('click', function () {
     $('camStart').hidden = true;
@@ -383,7 +497,7 @@
   });
 
   var REASON = {
-    empty: '바코드 숫자를 넣어 주세요', today: '이 바코드와는 오늘 이미 싸웠어요. 내일 다시!',
+    empty: '바코드 숫자를 넣어 주세요',
     limit: '오늘 스캔을 다 썼어요. 내일 다시!', sleep: '자고 있어요', baby: '성장기부터 배틀할 수 있어요'
   };
   function lookUp(code) {
@@ -398,11 +512,11 @@
     nm.textContent = '야생 ' + S.name;
     if (w.grade !== 'normal') {
       var g = document.createElement('span');
-      g.className = 'grade ' + w.grade; g.textContent = w.grade === 'boss' ? '보스' : '희귀';
+      g.className = 'grade ' + w.grade; g.textContent = D.GRADE_NAMES[w.grade];
       nm.appendChild(g);
     }
     $('wildInfo').textContent = D.STAGE_NAMES[D.STAGES[w.level]] + ' · ' + D.ATTR_NAMES[w.attr] +
-      (state.meta.dex[w.id] && state.meta.dex[w.id].beaten ? ' · 도감 등록됨' : ' · 처음 보는 디지몬');
+      (state.meta.dex[w.id].beaten ? ' · 이긴 적 있음' : ' · 아직 못 이긴 디지몬');
     var me = D.SPECIES[E.form(state.mon)], adv = E.advantage(me.attr, w.attr);
     $('wildAdv').textContent = adv > 1 ? '상성 유리!' : adv < 1 ? '상성 불리…' : '상성 보통';
     $('wildCard').hidden = false; $('fight').hidden = false;
@@ -413,6 +527,7 @@
     var w = found; found = null;
     startBattle(w);
   });
+  function gradeTag(g) { return g === 'normal' ? '' : ' (' + D.GRADE_NAMES[g] + ')'; }
 
   /* ---------- 배틀 ---------- */
   var battle = null, arena = $('arena'), ax = arena.getContext('2d'), shake = { p: 0, e: 0, f: 0 };
@@ -422,12 +537,12 @@
     E.tick(state, now());
     battle = E.startBattle(state, w);
     $('pName').textContent = name(battle.me);
-    $('eName').textContent = w.name + (w.grade === 'boss' ? ' (보스)' : w.grade === 'rare' ? ' (희귀)' : '');
+    $('eName').textContent = w.name + gradeTag(w.grade);
     $('blog').textContent = josa('야생 ' + w.name, '이', '가') + ' 나타났다!' + (battle.hungry ? ' (배가 고파 힘이 빠져 있다)' : '');
     $('cmds').hidden = false; $('battleDone').hidden = true;
     setCmds(true);
     drawArena(); hpBars();
-    show('battle');
+    show('battle', true);
   }
   function hpBars() {
     $('pHp').style.width = battle.php + '%';
@@ -474,58 +589,138 @@
     save();
     if (fled) { toast('도망쳤어요. 패배로 기록돼요'); return; }
     var text = r.won ? '승리! ' + josa(b.wild.name, '이', '가') + ' 도감에 등록됐어요' : '패배… 다음엔 이길 거예요';
-    if (r.reward === 'digimental') text += ' · 디지멘탈을 얻었어요!';
     if (r.reward === 'chip') text += ' · 디지 칩을 얻었어요!';
+    else if (r.reward) text += ' · ' + josa(D.RULE_HINTS[r.reward], '을', '를') + ' 얻었어요!';
     $('blog').textContent = text;
     $('cmds').hidden = true; $('battleDone').hidden = false;
     vibrate(r.won ? [40, 60, 40] : 120);
     battle = null;
   }
 
-  /* ---------- 도감 ---------- */
+  /* ---------- 도감 ----------
+   * 칸은 세 가지: 키웠거나 이긴 디지몬(그림), 만나기만 한 디지몬(실루엣 + 이름), 모르는 디지몬(???)
+   * 칸을 누르면 진화 전후와 조건을 보여 준다.
+   */
+  function lineSpecies(k) {
+    var L = D.LINES[k], seen = {}, out = [], q = [L.baby1, L.baby2, L.child];
+    while (q.length) {
+      var id = q.shift();
+      if (seen[id]) continue;
+      seen[id] = 1; out.push(id);
+      (L.evo[id] || []).forEach(function (e) { q.push(e[1]); });
+      if (L.special && L.special[id]) q.push(L.special[id].to);
+      if (id === L.child && L.armor) D.DIGIMENTALS.forEach(function (d) { q.push(L.armor[d]); });
+    }
+    return out.sort(function (a, b) { return E.STAGE_IDX[D.SPECIES[a].stage] - E.STAGE_IDX[D.SPECIES[b].stage]; });
+  }
   function dexSections() {
     var secs = [], used = {};
     function add(title, ids) {
       ids = ids.filter(function (id) { if (used[id]) return false; used[id] = 1; return true; });
       if (ids.length) secs.push({ title: title, ids: ids });
     }
-    D.LINE_ORDER.forEach(function (k) {
-      var L = D.LINES[k], ids = [L.baby1, L.baby2, L.child];
-      if (L.armor) ids.push(L.armor);
-      ids.push(L.adult, L.mid); if (L.dark) ids.push(L.dark);
-      ids.push(L.perfect, L.ultimate);
-      if (k === 'agumon') ids.push('skullgreymon');
-      if (k === 'patamon') ids.push('devimon');
-      if (k === 'guilmon') ids.push('megidramon');
-      add(L.name + ' 라인', ids);
-    });
-    add('실패·숨은 루트', ['numemon', 'monzaemon', 'sukamon']);
-    ['child', 'adult', 'perfect'].forEach(function (st) {
+    D.LINE_ORDER.forEach(function (k) { add(D.LINES[k].name + ' 라인', lineSpecies(k)); });
+    ['child', 'adult', 'perfect', 'ultimate'].forEach(function (st) {
       var ids = [];
       Object.keys(D.WILD[st]).forEach(function (a) { ids = ids.concat(D.WILD[st][a]); });
       add('야생 ' + D.STAGE_NAMES[st], ids);
     });
     add('보스', D.BOSSES.perfect.concat(D.BOSSES.ultimate));
+    add('전설', D.LEGENDS);
     return secs;
   }
+  function known(id) { var e = state.meta.dex[id]; return !!(e && (e.raised || e.beaten)); }
+  function met(id) { return !!state.meta.dex[id]; }
   function renderDex() {
-    var body = $('dexBody'), total = 0, have = 0;
+    var body = $('dexBody'), total = 0, have = 0, top0 = body.scrollTop;
     body.innerHTML = '';
     dexSections().forEach(function (sec) {
       var div = document.createElement('div'); div.className = 'dex-sec';
-      var h = document.createElement('h3'); h.textContent = sec.title; div.appendChild(h);
+      var h = document.createElement('h3'), n = sec.ids.filter(known).length;
+      h.textContent = sec.title + ' · ' + n + '/' + sec.ids.length;
+      div.appendChild(h);
       var grid = document.createElement('div'); grid.className = 'dex-grid';
       sec.ids.forEach(function (id) {
-        var got = !!state.meta.dex[id]; total++; if (got) have++;
-        var cell = document.createElement('div'); cell.className = 'dex-cell' + (got ? '' : ' no');
+        var got = known(id); total++; if (got) have++;
+        var cell = document.createElement('button'); cell.type = 'button';
+        cell.className = 'dex-cell' + (got ? '' : ' no');
         cell.appendChild(Sprite.canvas(id, 48, { silhouette: !got }));
         var s = document.createElement('span');
-        s.textContent = got ? name(id) : '???';
+        s.textContent = got || met(id) ? name(id) : '???';
         cell.appendChild(s); grid.appendChild(cell);
+        cell.addEventListener('click', function () { openDexCard(id); });
       });
       div.appendChild(grid); body.appendChild(div);
     });
     $('dexCount').textContent = have + ' / ' + total;
+    body.scrollTop = top0;
+  }
+
+  function openDexCard(id) {
+    var S = D.SPECIES[id], e = state.meta.dex[id], got = known(id);
+    picture($('dcPic'), id, { silhouette: !got, anim: 'idle' });
+    var nm = $('dcName');
+    nm.textContent = got || e ? S.name : '???';
+    if (S.boss || S.legend) {
+      var g = document.createElement('span');
+      g.className = 'grade ' + (S.boss ? 'boss' : 'legend'); g.textContent = S.boss ? '보스' : '전설';
+      nm.appendChild(g);
+    }
+    $('dcInfo').textContent = D.STAGE_NAMES[S.stage] + ' · ' + D.ATTR_NAMES[S.attr] + (S.armor ? ' · 아머체' : '') +
+      (S.terminal ? ' · 막다른 진화 (전투력 높음)' : '');
+    var st = [];
+    if (e && e.raised) st.push('키워 봤어요');
+    if (e && e.wins) st.push(e.wins + '번 이겼어요');
+    if (e && !st.length) st.push('만나 봤지만 아직 못 이겼어요');
+    if (!e) st.push('아직 못 만났어요');
+    $('dcState').textContent = st.join(' · ');
+
+    var box = $('dcEvo');
+    box.innerHTML = '';
+    function section(title, rows) {
+      if (!rows.length) return;
+      var h = document.createElement('h4'); h.textContent = title; box.appendChild(h);
+      rows.forEach(function (r) {
+        var d = document.createElement('div'); d.className = 'evo-row';
+        var b = document.createElement('b'); b.textContent = known(r[0]) || met(r[0]) ? name(r[0]) : '???';
+        var sp = document.createElement('span'); sp.textContent = r[1];
+        d.appendChild(b); d.appendChild(sp); box.appendChild(d);
+      });
+    }
+    var from = [], to = [];
+    D.LINE_ORDER.forEach(function (k) {
+      var L = D.LINES[k], babies = [L.baby1, L.baby2, L.child];
+      var bi = babies.indexOf(id);
+      if (bi > 0) from.push([babies[bi - 1], '시간이 지나면']);
+      if (bi >= 0 && bi < 2) to.push([babies[bi + 1], '시간이 지나면 (' + R.stageHours[D.SPECIES[id].stage] + '시간)']);
+      Object.keys(L.evo).forEach(function (f) {
+        L.evo[f].forEach(function (x) {
+          if (x[1] === id) from.push([f, D.RULE_HINTS[x[0]]]);
+          if (f === id) to.push([x[1], D.RULE_HINTS[x[0]]]);
+        });
+      });
+      if (L.armor) D.DIGIMENTALS.forEach(function (dk) {
+        if (L.armor[dk] === id) from.push([L.child, D.RULE_HINTS[dk] + ' (48시간)']);
+        if (id === L.child) to.push([L.armor[dk], D.RULE_HINTS[dk] + ' · 아머진화 48시간']);
+      });
+      Object.keys(L.special || {}).forEach(function (f) {
+        var x = L.special[f];
+        if (x.to === id) from.push([f, D.RULE_HINTS[x.rule]]);
+        if (f === id) to.push([x.to, D.RULE_HINTS[x.rule]]);
+      });
+    });
+    var dedupe = function (rows) {
+      var k = {}; return rows.filter(function (r) { var key = r[0] + r[1]; if (k[key]) return false; k[key] = 1; return true; });
+    };
+    section('진화 전', dedupe(from));
+    section('진화 후', dedupe(to));
+    if (!from.length && !to.length) {
+      var where = S.legend ? '궁극체로 스캔하면 아주 드물게 (0.3%)' : S.boss
+        ? D.STAGE_NAMES[S.stage] + ' 상대 중 ' + Math.round(R.gradeOdds[S.stage].boss * 100) + '% 확률로'
+        : D.STAGE_NAMES[S.stage] + ' 상대로 바코드 배틀에서';
+      section('만나는 곳', [[id, where]]);
+    }
+    show('dexCard');
   }
 
   /* ---------- 정보 ---------- */
@@ -573,23 +768,23 @@
       ['배틀', c.battles + '전 ' + c.wins + '승 ' + c.losses + '패' +
         (c.battles ? ' (승률 ' + Math.round(E.winRate(c) * 100) + '%)' : '')],
       ['최다 연패', c.maxStreak], ['보스 격파', c.bossWins], ['배고픈 채 배틀', c.hungryBattles]
-    ].concat(mon.line === 'patamon' && mon.stage === 'child' ? [['성장기 연장', mon.extensions + ' / 2']] : [])));
-    body.appendChild(heading('아이템'));
-    body.appendChild(table([
-      ['디지멘탈', state.meta.items.digimental + (mon.line === 'veemon' ? ' (성장기 브이몬이 아머진화)' : '')],
-      ['디지 칩', state.meta.items.chip + ' (배고픔·힘 가득)']
     ]));
+    var it = state.meta.items;
+    body.appendChild(heading('아이템 (모든 디지몬이 함께 써요)'));
+    body.appendChild(table(D.DIGIMENTALS.map(function (k) {
+      return [D.RULE_HINTS[k], it[k] ? '있음 → ' + name(D.LINES.veemon.armor[k]) : '없음'];
+    }).concat([['디지 칩', it.chip + '개 (배고픔·힘 가득)']])));
     if (state.meta.history.length) {
       body.appendChild(heading('지난 디지몬'));
       body.appendChild(table(state.meta.history.map(function (h) {
-        return [name(h.species), D.LINES[h.line].name + ' 라인 · ' + dur(h.died - h.born)];
+        return [name(h.species), D.LINES[h.line].name + ' 라인 · ' + dur(h.died - h.born) + (h.how === 'released' ? ' · 떠나보냄' : '')];
       })));
     }
     var reset = document.createElement('button');
-    reset.className = 'btn ghost'; reset.textContent = '처음부터 다시 (도감까지 모두 지우기)';
+    reset.className = 'btn ghost'; reset.textContent = '처음부터 다시 (보관함·도감까지 모두 지우기)';
     reset.addEventListener('click', function () {
-      if (!confirm('정말 모두 지울까요? 도감과 아이템도 사라져요.')) return;
-      state = E.newState(); save(); closeScreen(); render();
+      if (!confirm('정말 모두 지울까요? 보관함의 디지몬, 도감, 아이템도 사라져요.')) return;
+      state = E.newState(); choosing = false; save(); closeAll(); render();
     });
     body.appendChild(reset);
   }
@@ -597,17 +792,17 @@
   /* ---------- 진화·사건 ---------- */
   var queue = [], evoOpen = false;
   var KIND = {
-    normal: '진화!', mid: '진화!', dark: '폭주 진화!', purify: '정화 진화!', hidden: '숨은 진화!',
-    numemon: '진화…?', sukamon: '진화…?', rescue: '구제 진화!', armor: '아머진화!'
+    normal: '진화!', mid: '진화!', bad: '진화…?', dark: '폭주 진화!', purify: '정화 진화!', hidden: '숨은 진화!',
+    jogress: '조그레스 진화!', mode: '모드 체인지!', armor: '아머진화!'
   };
   var NOTE = {
     dark: '돌보는 방식이 진화를 비틀었어요',
     purify: '어둠을 털어내고 정상 루트로 돌아왔어요',
-    hidden: '실패 루트에 숨어 있던 진화예요',
-    numemon: '케어 실수가 너무 많았어요',
-    sukamon: '하루 동안 위생 실수·과식 없이 지내면 다시 기회가 있어요',
-    rescue: '깨끗하게 지낸 덕분에 정상 성숙기가 됐어요',
-    armor: '48시간 동안 플레이드라몬이 돼요. 보스전에 강해요'
+    hidden: '조건을 넘치게 채워서 숨은 진화가 열렸어요',
+    bad: '돌보기가 많이 서툴렀어요',
+    jogress: '두 영웅의 힘이 하나가 됐어요',
+    mode: '보스를 이겨 낸 힘으로 모습이 바뀌었어요',
+    armor: '48시간 동안 아머체가 돼요. 보스전에 강해요'
   };
   function drainEvents() {
     var evs = state.events.splice(0);
@@ -616,8 +811,6 @@
     evs.forEach(function (e) {
       if (e.type === 'evolve' || e.type === 'death') queue.push(e);
       else if (e.type === 'fail') queue.push(e);
-      else if (e.type === 'extend') toast('파닥몬의 성장기가 하루 늘었어요 (' + e.n + '/2). 훈련을 더 해 주세요');
-      else if (e.type === 'rescueFail') toast('구제에 실패했어요. 스카몬으로 남아요');
       else if (e.type === 'armorEnd') toast('아머진화가 풀렸어요');
       else if (e.type === 'mistake' && e.kind !== 'wake') mistakes++;
       else if (e.type === 'call' && t - e.t < 2 * M) recentCall = true;
@@ -657,11 +850,11 @@
     $('home').hidden = true;
     picture($('deadPic'), mon.species, { dark: true, anim: 'sleep' });
     $('deadName').textContent = josa(name(mon.species), '이', '가') + ' 디지타마로 돌아갔어요';
-    $('deadNote').textContent = dur(mon.deathAt - mon.born) + ' 동안 함께했어요. 도감과 아이템은 그대로 남아요.';
+    $('deadNote').textContent = dur(mon.deathAt - mon.born) + ' 동안 함께했어요. 도감, 아이템, 보관함의 디지몬은 그대로 남아요.';
     $('dead').hidden = false;
   }
   $('newEgg').addEventListener('click', function () {
-    state.mon = null; state.events = []; save();
+    state.mon = null; state.events = []; choosing = false; save();
     $('dead').hidden = true; queue = []; render();
   });
 
@@ -670,7 +863,7 @@
     if (state.mon && !state.mon.dead) {
       E.tick(state, now());
       drainEvents();
-      if (!openScreen && !evoOpen) render();
+      if (!stack.length && !evoOpen) render();
       save();
     }
   }
@@ -683,7 +876,9 @@
   requestAnimationFrame(drawLcd);
   // 시트를 처음 불러오면 그 그림이 들어간 화면을 다시 그린다
   Sprite.onload(function () {
-    if (openScreen === 'dex') renderDex();
+    if (stack.indexOf('dex') >= 0) renderDex();
+    if (top() === 'box') renderBox();
+    if (!stack.length && !$('eggs').hidden) renderEggs();
     pictures.forEach(function (p) { picture(p[0], p[1], p[2]); });
     if (battle) drawArena();
   });

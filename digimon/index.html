@@ -18,9 +18,14 @@
 <body>
   <!-- 알 고르기: 디지몬이 없을 때 -->
   <main id="eggs" class="eggs" hidden>
+    <button class="btn ghost back" id="eggsBack" hidden>← 돌아가기</button>
     <h1>디지타마를 골라 주세요</h1>
-    <p class="dim">고른 알은 바로 부화해요. 시간은 실제 시간으로 흘러요.</p>
+    <p class="dim" id="eggsNote">고른 알은 바로 부화해요. 시간은 실제 시간으로 흘러요.</p>
     <ul id="eggList" class="egg-list"></ul>
+    <div id="eggBox" hidden>
+      <h2 class="sub">보관함</h2>
+      <ul class="mon-list" id="eggBoxList"></ul>
+    </div>
   </main>
 
   <!-- 육성 화면 -->
@@ -55,6 +60,7 @@
       <button class="act accent" data-act="battle"><b>📷</b>바코드 배틀</button>
       <button class="act" data-act="dex"><b>📖</b>도감</button>
       <button class="act" data-act="info"><b>📋</b>정보</button>
+      <button class="act" data-act="box"><b>📦</b>보관함</button>
       <button class="act gold" data-act="armor" hidden><b>✨</b>아머진화</button>
       <button class="act gold" data-act="chip" hidden><b>💾</b>디지 칩</button>
     </nav>
@@ -144,6 +150,50 @@
     <div class="scroll" id="infoBody"></div>
   </section>
 
+  <!-- 보관함 -->
+  <section id="box" class="screen" hidden>
+    <div class="screen-top">
+      <button class="btn ghost" data-close>닫기</button>
+      <span class="screen-title">보관함 <span class="dim" id="boxCount"></span></span>
+      <span class="spacer"></span>
+    </div>
+    <div class="scroll">
+      <p class="dim">키우는 디지몬 하나만 시간이 흘러요. 보관함에 둔 디지몬은 시간이 멈춰서 배고파지지도, 나이를 먹지도 않아요.</p>
+      <ul class="mon-list" id="boxList"></ul>
+      <button class="btn primary wide" id="boxNew">새 디지타마 받기</button>
+    </div>
+  </section>
+
+  <!-- 도감 한 칸 -->
+  <section id="dexCard" class="screen sheet-wrap" hidden>
+    <div class="sheet">
+      <div class="dex-head">
+        <canvas id="dcPic" width="96" height="96"></canvas>
+        <div>
+          <div class="wild-name" id="dcName"></div>
+          <div class="dim" id="dcInfo"></div>
+          <div class="dim" id="dcState"></div>
+        </div>
+      </div>
+      <div id="dcEvo" class="dc-evo"></div>
+      <div class="sheet-actions">
+        <button class="btn primary grow" data-close>닫기</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 고르기 (아머진화 등) -->
+  <section id="pick" class="screen sheet-wrap" hidden>
+    <div class="sheet">
+      <h2 id="pickTitle"></h2>
+      <p class="dim" id="pickNote"></p>
+      <div class="pick-list" id="pickList"></div>
+      <div class="sheet-actions">
+        <button class="btn ghost grow" data-close>그만두기</button>
+      </div>
+    </div>
+  </section>
+
   <!-- 진화 연출 -->
   <section id="evo" class="screen evo" hidden>
     <p class="evo-kind" id="evoKind"></p>
@@ -159,7 +209,7 @@
     <canvas id="deadPic" width="128" height="128"></canvas>
     <p class="evo-name" id="deadName"></p>
     <p class="dim center" id="deadNote"></p>
-    <button class="btn primary" id="newEgg">새 디지타마 고르기</button>
+    <button class="btn primary" id="newEgg">확인</button>
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

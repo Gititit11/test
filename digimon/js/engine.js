@@ -3,11 +3,12 @@
  * 화면(DOM)에 손대지 않는 순수 로직이라 node 에서 그대로 시험한다 (test/engine.test.js).
  *
  *   newState()                  → 빈 저장 상태
- *   hatch(state, line, now)     → 디지타마를 골라 부화
+ *   hatch(state, line, now)     → 디지타마를 골라 부화 (키우던 디지몬은 보관함으로)
+ *   store / resume / release    → 보관함. 보관한 디지몬은 시간이 멈춘다
  *   tick(state, now)            → 마지막으로 본 때부터 now 까지 1분씩 흘려 보낸다
  *   feed / snack / train / clean / toggleLights / wake / armor / useChip
  *   judge(mon)                  → 지금 진화하면 어떻게 되는지 (상태를 바꾸지 않음)
- *   wildFor(code, stageIdx)     → 바코드 → 야생 디지몬 (같은 바코드면 늘 같다)
+ *   wildFor(stageIdx, rnd)      → 야생 디지몬 하나 (스캔할 때마다 새로 뽑는다)
  *   scan / startBattle / battleTurn / endBattle
  *
  * 앱을 닫아 둔 동안의 일은 다시 열 때 tick 이 한꺼번에 따라잡는다.
@@ -37,11 +38,15 @@ var Engine = (function (D) {
 
   function newState() {
     return {
-      v: 1,
+      v: 2,
       // 세대를 넘어 남는 것: 도감, 아이템, 지난 디지몬
-      meta: { dex: {}, items: { digimental: 0, chip: 0 }, bossEver: false, history: [] },
-      mon: null,
-      daily: { date: '', scans: 0, codes: [] },
+      meta: {
+        dex: {}, history: [], uid: 0,
+        items: { flame: false, thunder: false, archer: false, miracle: false, chip: 0 }
+      },
+      mon: null,   // 지금 키우는 디지몬
+      box: [],     // 보관함 (시간이 멈춰 있다)
+      daily: { date: '', scans: 0 },
       events: []
     };
   }
@@ -53,37 +58,86 @@ var Engine = (function (D) {
     if (state.events.length > 60) state.events.splice(0, state.events.length - 60);
   }
 
-  function register(state, id, how) {
-    var e = state.meta.dex[id] || (state.meta.dex[id] = {});
+  /* 도감: seen(만남) · raised(키움) · beaten(이김, wins 번) */
+  function register(state, id, how, t) {
+    var e = state.meta.dex[id] || (state.meta.dex[id] = { first: t || 0 });
     e[how] = true;
+    if (how === 'beaten') e.wins = (e.wins || 0) + 1;
   }
 
   function line(mon) { return D.LINES[mon.line]; }
-  function form(mon) { return mon.armor ? line(mon).armor : mon.species; }
-  function stageHours(mon) {
-    if (mon.stage === 'child' && mon.line === 'patamon') return R.patamonChildHours;
-    return R.stageHours[mon.stage];
-  }
+  function form(mon) { return mon.armor ? mon.armorTo : mon.species; }
+  function evoList(mon) { return line(mon).evo[mon.species] || null; }
   function winRate(c) { return c.battles ? c.wins / c.battles : 0; }
 
-  /* ---------- 부화 ---------- */
+  /* ---------- 부화 · 보관함 ---------- */
+  function count(state) { return (state.mon && !state.mon.dead ? 1 : 0) + state.box.length; }
+  function slotsLeft(state) { return R.slots - count(state); }
+
   function hatch(state, lineId, now) {
+    if (slotsLeft(state) <= 0) return null;
+    store(state, now);
+    if (state.mon && !state.mon.dead) return null;
     var L = D.LINES[lineId], t = floorMin(now);
     state.mon = {
+      uid: ++state.meta.uid,
       line: lineId, species: L.baby1, stage: 'baby1',
       born: t, stageStart: t, stageEnd: t + R.stageHours.baby1 * HOUR,
       deathAt: t + R.lifespanHours * HOUR,
-      extensions: 0,
       hunger: 2, strength: 2, poops: [],
       lights: true, sleeping: false, woken: 0, lightMin: 0, sleepPenalized: false,
       callH: 0, callS: 0, hungerT: 0, strengthT: 0, poopT: 0,
       c: freshCounters(),
-      armor: null, armorDay: '', rescueUntil: null,
+      armor: null, armorTo: null, armorDay: '',
       dead: false, lastTick: t
     };
-    register(state, L.baby1, 'raised');
+    register(state, L.baby1, 'raised', t);
     emit(state, 'hatch', t, { to: L.baby1 });
     return state.mon;
+  }
+
+  // 키우던 디지몬을 보관함에 넣는다. 그 순간 시간이 멈춘다.
+  function store(state, now) {
+    var mon = state.mon;
+    if (!mon || mon.dead) return false;
+    tick(state, now);
+    if (mon.dead) return false; // 보관하기 전에 수명이 다했다
+    state.mon = null;
+    mon.pausedAt = floorMin(now);
+    state.box.push(mon);
+    return true;
+  }
+
+  // 보관함에서 꺼낸다. 멈춰 있던 만큼 모든 시각을 뒤로 민다.
+  function resume(state, uid, now) {
+    var i = indexOf(state, uid);
+    if (i < 0) return false;
+    var mon = state.box.splice(i, 1)[0];
+    store(state, now);
+    var d = floorMin(now) - mon.pausedAt;
+    ['born', 'stageStart', 'stageEnd', 'deathAt', 'armor', 'lastTick'].forEach(function (k) {
+      if (mon[k]) mon[k] += d;
+    });
+    delete mon.pausedAt;
+    state.mon = mon;
+    return true;
+  }
+
+  // 보관함의 디지몬을 떠나보낸다 (지난 디지몬 기록에 남는다)
+  function release(state, uid, now) {
+    var i = indexOf(state, uid);
+    if (i < 0) return false;
+    var mon = state.box.splice(i, 1)[0];
+    remember(state, mon, now, 'released');
+    return true;
+  }
+  function indexOf(state, uid) {
+    for (var i = 0; i < state.box.length; i++) if (state.box[i].uid === uid) return i;
+    return -1;
+  }
+  function remember(state, mon, t, how) {
+    state.meta.history.unshift({ line: mon.line, species: mon.species, born: mon.born, died: t, how: how });
+    if (state.meta.history.length > 30) state.meta.history.length = 30;
   }
 
   /* ---------- 시간 흐름 ---------- */
@@ -106,10 +160,7 @@ var Engine = (function (D) {
   function step(state, mon, t) {
     if (t >= mon.deathAt) { die(state, mon, t); return; }
 
-    if (mon.armor && t >= mon.armor) {
-      mon.armor = null;
-      emit(state, 'armorEnd', t, { to: mon.species });
-    }
+    if (mon.armor && t >= mon.armor) endArmor(state, mon, t);
 
     // 잠 — 취침 시간이 되면 잠들고, 깨우면 잠깐 깨어 있다가 다시 잔다
     if (!sleepNow(mon.stage, t)) {
@@ -152,92 +203,64 @@ var Engine = (function (D) {
       if (mon.callS === R.callMinutes) { mon.c.mistakes++; emit(state, 'mistake', t, { kind: 'strength' }); }
     }
 
-    if (mon.rescueUntil && t >= mon.rescueUntil) rescue(state, mon, t);
     if (mon.stageEnd && t >= mon.stageEnd) evolveNow(state, mon, t);
   }
 
   function die(state, mon, t) {
     mon.dead = true; mon.armor = null;
-    state.meta.history.unshift({ line: mon.line, species: mon.species, born: mon.born, died: t });
-    if (state.meta.history.length > 30) state.meta.history.length = 30;
+    remember(state, mon, t, 'died');
     emit(state, 'death', t, { to: mon.species });
   }
 
   /* ---------- 진화 판정 ----------
-   * 결과 { to, kind }
-   *   kind: normal | mid | dark | purify | hidden | numemon | sukamon | rescue
-   *         extend (파닥몬 성장기 연장) | fail (현 단계 유지) | terminal (더 진화 없음)
-   * 겹치면 스카몬 > 누메몬 > 다크·폭주 > 정상 순서.
+   * 결과 { to, kind, rule }
+   *   rule: 기획안 번호 (data.js 의 RULE_HINTS)
+   *   kind: normal | mid | bad | dark | purify | hidden | jogress | mode | armor
+   *         fail (조건 미달, 현 단계 유지) | terminal (더 진화 없음)
+   * 라인 표에 적힌 순서대로 보고, 처음 맞는 조건으로 진화한다.
    */
+  function passes(rule, c) {
+    var wr = winRate(c), bat = c.battles >= 15;
+    switch (rule) {
+      case 'r1': return c.mistakes <= 3 && c.training >= 16 && c.training <= 47; // 훈련도 너무 많으면 안 된다
+      case 'r2': case 'r14': case 'r18': return true;
+      case 'r3': return c.mistakes >= 6;
+      case 'r4': return c.hygiene >= 4 || c.overfeed >= 6;
+      case 'r34': return c.mistakes >= 6 || c.hygiene >= 4 || c.overfeed >= 6;
+      case 'r12': return c.sleep >= 4;
+      case 'r5': case 'r13': return c.mistakes <= 2 && bat && wr >= 0.6;
+      case 'r6': return c.training >= 48 && c.hungryBattles >= 5;
+      case 'r7': return c.mistakes <= 2 && bat && wr >= 0.8;
+      case 'r8': return c.mistakes === 0 && bat && wr >= 0.4;
+      case 'r20': return c.mistakes >= 3 && c.mistakes <= 5 && bat && wr >= 0.6;
+      case 'r9': return c.mistakes <= 1 && c.battles > 0 && wr >= 0.7 && c.bossWins >= 1;
+      case 'r11': return c.maxStreak >= 5 && c.mistakes >= 3;
+      case 'r15': return passes('r9', c) && c.sleep === 0;
+    }
+    return false;
+  }
+
   function judge(mon) {
     var L = line(mon);
-    switch (mon.stage) {
-      case 'baby1': return { to: L.baby2, kind: 'normal' };
-      case 'baby2': return { to: L.child, kind: 'normal' };
-      case 'child': return judgeChild(mon, L);
-      case 'adult': return judgeAdult(mon, L);
-      case 'perfect': return judgePerfect(mon, L);
-      default: return { to: null, kind: 'terminal' };
+    if (mon.stage === 'baby1') return { to: L.baby2, kind: 'normal' };
+    if (mon.stage === 'baby2') return { to: L.child, kind: 'normal' };
+    var list = evoList(mon);
+    if (!list) return { to: null, kind: 'terminal' };
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i][0];
+      if (passes(r, mon.c)) return { to: list[i][1], kind: D.RULE_KIND[r], rule: r };
     }
-  }
-
-  function judgeChild(mon, L) {
-    var c = mon.c;
-    if (c.hygiene >= 4 || c.overfeed >= 6) return { to: 'sukamon', kind: 'sukamon' };
-    if (c.mistakes >= 6) return { to: 'numemon', kind: 'numemon' };
-    if (L.dark && c.sleep >= 4) return { to: L.dark, kind: 'dark' };
-    if (mon.line === 'patamon') {
-      // 대기만성: 훈련이 모자라면 성장기를 하루씩, 두 번까지 늘린다
-      if (c.training < R.patamonTraining) {
-        return mon.extensions < R.patamonMaxExtend ? { to: null, kind: 'extend' } : { to: 'numemon', kind: 'numemon' };
-      }
-      return c.mistakes <= 3 ? { to: L.adult, kind: 'normal' } : { to: L.mid, kind: 'mid' };
-    }
-    // 훈련 상한 47 — 많이 할수록 좋은 게 아니다
-    if (c.mistakes <= 3 && c.training >= 16 && c.training <= 47) return { to: L.adult, kind: 'normal' };
-    return { to: L.mid, kind: 'mid' };
-  }
-
-  function judgeAdult(mon, L) {
-    var c = mon.c, s = mon.species;
-    var normalOk = c.mistakes <= 2 && c.battles >= 15 && winRate(c) >= 0.6;
-    var fail = { to: null, kind: 'fail', cut: true };
-    if (s === 'numemon') {
-      return c.mistakes === 0 && c.battles >= 15 && winRate(c) >= 0.4 ? { to: 'monzaemon', kind: 'hidden' } : fail;
-    }
-    if (s === 'greymon' && c.training >= 48 && c.hungryBattles >= 5) return { to: 'skullgreymon', kind: 'dark' };
-    if (s === 'angemon') {
-      if (c.mistakes >= 4) return { to: 'devimon', kind: 'dark' };
-      return c.mistakes <= 1 && c.battles >= 10 ? { to: L.perfect, kind: 'normal' } : fail;
-    }
-    if (L.dark && s === L.dark) return normalOk ? { to: L.perfect, kind: 'purify' } : fail;
-    if (s === L.adult) return normalOk ? { to: L.perfect, kind: 'normal' } : fail;
-    return { to: null, kind: 'terminal' };
-  }
-
-  function judgePerfect(mon, L) {
-    var c = mon.c, s = mon.species;
-    if (s === 'megalogrowlmon' && c.maxStreak >= 5 && c.mistakes >= 3) return { to: 'megidramon', kind: 'dark' };
-    if (s === L.perfect) {
-      var ok = c.mistakes <= 1 && c.battles > 0 && winRate(c) >= 0.7 && c.bossWins >= 1;
-      return ok ? { to: L.ultimate, kind: 'normal' } : { to: null, kind: 'fail', cut: false };
-    }
-    return { to: null, kind: 'terminal' };
+    // 성숙기는 실패하면 수명이 하루 준다, 완전체는 그대로
+    return { to: null, kind: 'fail', cut: mon.stage === 'adult' };
   }
 
   function evolveNow(state, mon, t) {
     var r = judge(mon);
-    if (mon.armor) { mon.armor = null; emit(state, 'armorEnd', t, { to: mon.species }); }
-    if (r.kind === 'extend') {
-      mon.extensions++;
-      mon.stageEnd = t + R.patamonExtendHours * HOUR; // 수치는 그대로 이어서 쌓는다
-      emit(state, 'extend', t, { to: mon.species, n: mon.extensions });
-      return;
-    }
+    if (mon.armor) endArmor(state, mon, t);
     if (r.kind === 'fail') {
       mon.c = freshCounters();
       mon.stageStart = t;
-      mon.stageEnd = t + stageHours(mon) * HOUR;
+      mon.stageEnd = t + R.stageHours[mon.stage] * HOUR;
       if (r.cut) mon.deathAt -= R.failLifespanCutHours * HOUR;
       emit(state, 'fail', t, { to: mon.species, cut: !!r.cut });
       return;
@@ -249,36 +272,36 @@ var Engine = (function (D) {
   function evolveTo(state, mon, to, kind, t) {
     var from = form(mon), S = D.SPECIES[to];
     mon.species = to; mon.stage = S.stage;
-    mon.stageStart = t; mon.c = freshCounters(); mon.extensions = 0;
-    mon.armor = null; mon.rescueUntil = null;
-    mon.stageEnd = (S.terminal || S.stage === 'ultimate') ? null : t + stageHours(mon) * HOUR;
-    if (kind === 'sukamon') mon.rescueUntil = t + R.rescueHours * HOUR;
-    register(state, to, 'raised');
+    mon.stageStart = t; mon.c = freshCounters();
+    mon.armor = null; mon.armorTo = null;
+    mon.stageEnd = evoList(mon) || S.stage === 'baby2' || S.stage === 'child'
+      ? t + R.stageHours[S.stage] * HOUR : null;
+    register(state, to, 'raised', t);
     emit(state, 'evolve', t, { from: from, to: to, kind: kind });
   }
 
-  // 스카몬이 된 뒤 하루 동안 위생 실수·과식 0 이면 정상 성숙기로 한 번 더 기회를 준다
-  function rescue(state, mon, t) {
-    mon.rescueUntil = null;
-    if (mon.c.hygiene === 0 && mon.c.overfeed === 0) evolveTo(state, mon, line(mon).adult, 'rescue', t);
-    else emit(state, 'rescueFail', t, { to: mon.species });
+  /* ⑩ ⑲ — 궁극체가 보스를 이긴 뒤에 본다 */
+  function special(state, mon) {
+    var sp = line(mon).special, s = sp && sp[mon.species];
+    if (!s || mon.c.bossWins < R.jogressBossWins) return null;
+    if (s.partner && !(state.meta.dex[s.partner] && state.meta.dex[s.partner].raised)) return null;
+    return { to: s.to, kind: D.RULE_KIND[s.rule], rule: s.rule };
   }
 
   /* 잘못된 진화가 하루 안에 올 것 같으면 true — 화면이 디지몬을 어둡게 그린다 */
-  var BAD = { sukamon: 1, numemon: 1, dark: 1, fail: 1, extend: 1 };
+  var BAD = { bad: 1, dark: 1, fail: 1 };
   function warning(mon, now) {
     if (!mon || mon.dead) return false;
-    if (mon.rescueUntil) return mon.c.hygiene > 0 || mon.c.overfeed > 0;
     if (!mon.stageEnd || mon.stageEnd - now > R.previewHours * HOUR) return false;
     return !!BAD[judge(mon).kind];
   }
 
   /* ---------- 돌보기 ---------- */
-  function asleep(mon) { return { ok: false, reason: 'sleep' }; }
+  function asleep() { return { ok: false, reason: 'sleep' }; }
 
   function feed(state) {
     var mon = state.mon;
-    if (mon.sleeping) return asleep(mon);
+    if (mon.sleeping) return asleep();
     if (mon.hunger >= 4) { mon.c.overfeed++; return { ok: true, over: true }; }
     mon.hunger++;
     return { ok: true };
@@ -286,7 +309,7 @@ var Engine = (function (D) {
 
   function snack(state) {
     var mon = state.mon;
-    if (mon.sleeping) return asleep(mon);
+    if (mon.sleeping) return asleep();
     var over = mon.hunger >= 4;
     if (over) mon.c.overfeed++;
     if (mon.strength < 4) mon.strength++;
@@ -296,7 +319,7 @@ var Engine = (function (D) {
   // 훈련 미니게임 한 판 = 훈련 1회. 세 번 중 두 번 맞히면 힘이 오른다.
   function train(state, hits) {
     var mon = state.mon;
-    if (mon.sleeping) return asleep(mon);
+    if (mon.sleeping) return asleep();
     mon.c.training++;
     var good = hits >= 2;
     if (good && mon.strength < 4) mon.strength++;
@@ -324,24 +347,29 @@ var Engine = (function (D) {
     return { ok: true };
   }
 
-  /* 아머진화 — 성장기 브이몬 + 디지멘탈 보유, 하루 1회, 48시간 */
-  function canArmor(state, now) {
-    var mon = state.mon;
-    if (!mon || mon.dead) return false;
-    return mon.line === 'veemon' && mon.stage === 'child' && !mon.armor &&
-      state.meta.items.digimental > 0 && mon.armorDay !== dateKey(now) && !mon.sleeping;
+  /* 아머진화 — 성장기 브이몬 + 디지멘탈, 하루 1회, 48시간. 디지멘탈은 닳지 않는다. */
+  function armorKinds(state, now) {
+    var mon = state.mon, A = mon && !mon.dead && line(mon).armor;
+    if (!A || mon.stage !== 'child' || mon.armor || mon.sleeping || mon.armorDay === dateKey(now)) return [];
+    return D.DIGIMENTALS.filter(function (k) { return state.meta.items[k] && A[k]; });
   }
-  function armor(state, now) {
-    if (!canArmor(state, now)) return { ok: false };
-    var mon = state.mon, to = line(mon).armor;
+  function canArmor(state, now) { return armorKinds(state, now).length > 0; }
+  function armor(state, now, kind) {
+    if (armorKinds(state, now).indexOf(kind) < 0) return { ok: false };
+    var mon = state.mon, to = line(mon).armor[kind];
     mon.armor = now + R.armorHours * HOUR;
+    mon.armorTo = to;
     mon.armorDay = dateKey(now);
-    register(state, to, 'raised');
-    emit(state, 'evolve', now, { from: mon.species, to: to, kind: 'armor' });
-    return { ok: true };
+    register(state, to, 'raised', now);
+    emit(state, 'evolve', now, { from: mon.species, to: to, kind: 'armor', item: kind });
+    return { ok: true, to: to };
+  }
+  function endArmor(state, mon, t) {
+    mon.armor = null; mon.armorTo = null;
+    emit(state, 'armorEnd', t, { to: mon.species });
   }
 
-  // 특수 아이템(디지 칩): 배고픔과 힘을 가득 채운다. 과식으로 치지 않는다.
+  // 디지 칩: 배고픔과 힘을 가득 채운다. 과식으로 치지 않는다.
   function useChip(state) {
     var mon = state.mon, it = state.meta.items;
     if (!it.chip || mon.sleeping) return { ok: false };
@@ -350,65 +378,34 @@ var Engine = (function (D) {
     return { ok: true };
   }
 
-  /* ---------- 바코드 → 야생 디지몬 ---------- */
-  // FNV-1a 로 섞은 뒤 mulberry32 로 수열을 뽑는다. 같은 바코드면 늘 같은 수열.
-  function hash(str) {
-    var h = 0x811c9dc5;
-    for (var i = 0; i < str.length; i++) {
-      h ^= str.charCodeAt(i);
-      h = Math.imul(h, 0x01000193);
+  /* ---------- 야생 디지몬 ---------- */
+  // 배틀에서 쓰는 단계 번호. 아머체는 그 아머체의 단계로 친다.
+  function battleStage(mon) { return STAGE_IDX[D.SPECIES[form(mon)].stage]; }
+
+  function pickOdds(odds, x) {
+    var keys = Object.keys(odds), acc = 0;
+    for (var i = 0; i < keys.length; i++) { acc += odds[keys[i]]; if (x < acc) return keys[i]; }
+    return keys[0]; // 남는 확률은 첫 항목 (궁극체 일반 73.7%)
+  }
+  function pick(list, x) { return list[Math.floor(x * list.length)]; }
+
+  /* 단계 → 등급 → (속성) → 디지몬. 스캔할 때마다 새로 뽑는다. */
+  function wildFor(myStage, rnd) {
+    rnd = rnd || Math.random;
+    var lo = Math.max(myStage, STAGE_IDX.child), top = STAGE_IDX.ultimate;
+    var level = lo >= top ? top : rnd() < R.upChance ? lo + 1 : lo;
+    var st = D.STAGES[level];
+    var grade = pickOdds(R.gradeOdds[st], rnd());
+    var id;
+    if (grade === 'boss') id = pick(D.BOSSES[st], rnd());
+    else if (grade === 'legend') id = pick(D.LEGENDS, rnd());
+    else {
+      var pool = D.WILD[st], attr = pickOdds(R.attrOdds, rnd());
+      if (!pool[attr]) attr = pick(Object.keys(pool), rnd()); // 그 단계엔 그 속성이 없다
+      id = pick(pool[attr], rnd());
     }
-    h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b);
-    h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35);
-    h ^= h >>> 16;
-    return h >>> 0;
-  }
-  function rng(seed) {
-    var a = seed >>> 0;
-    return function () {
-      a = (a + 0x6D2B79F5) >>> 0;
-      var t = a;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-  function normalizeCode(code) { return String(code || '').replace(/\s+/g, '').trim(); }
-
-  // 배틀에서 쓰는 단계 번호. 아머진화 중인 플레이드라몬은 성숙기로 친다.
-  function battleStage(mon) { return mon.armor ? STAGE_IDX.adult : STAGE_IDX[mon.stage]; }
-
-  /* 속성 → 등급 → 디지몬 순서로 정한다. 단계는 내 단계와 같거나 한 단계 위. */
-  function wildFor(code, myStage) {
-    var r = rng(hash(normalizeCode(code)));
-    var a = r(), g = r(), s = r(), p = r(), q = r();
-    var attr = a < 0.3 ? 'vaccine' : a < 0.6 ? 'data' : a < 0.9 ? 'virus' : 'free';
-    var O = R.gradeOdds;
-    var grade = g < O.normal ? 'normal' : g < O.normal + O.rare ? 'rare' : 'boss';
-    var lo = Math.max(myStage, STAGE_IDX.child), hi = Math.min(lo + 1, STAGE_IDX.ultimate);
-    var level = s < 0.5 ? lo : hi;
-
-    if (grade === 'boss') {
-      var cands = [];
-      [lo, hi].forEach(function (i) {
-        (D.BOSSES[D.STAGES[i]] || []).forEach(function (id) { if (cands.indexOf(id) < 0) cands.push(id); });
-      });
-      if (cands.length) {
-        var id = cands[Math.floor(p * cands.length)];
-        return mk(id, 'boss', STAGE_IDX[D.SPECIES[id].stage], code);
-      }
-      grade = 'rare'; // 이 단계엔 보스가 없다
-    }
-    // 궁극체 야생 풀은 없으니 완전체 풀에서 궁극체 수준으로 강하게 나온다
-    var poolStage = D.STAGES[Math.min(level, STAGE_IDX.perfect)];
-    var pool = D.WILD[poolStage];
-    if (!pool[attr]) attr = ['vaccine', 'data', 'virus'][Math.floor(q * 3)];
-    var list = pool[attr];
-    return mk(list[Math.floor(p * list.length)], grade, level, code);
-  }
-  function mk(id, grade, level, code) {
     var S = D.SPECIES[id];
-    return { id: id, name: S.name, attr: S.attr, grade: grade, level: level, code: normalizeCode(code) };
+    return { id: id, name: S.name, attr: S.attr, grade: grade, level: level };
   }
 
   /* ---------- 배틀 ---------- */
@@ -422,20 +419,20 @@ var Engine = (function (D) {
 
   function rollDaily(state, now) {
     var k = dateKey(now);
-    if (state.daily.date !== k) state.daily = { date: k, scans: 0, codes: [] };
+    if (state.daily.date !== k) state.daily = { date: k, scans: 0 };
   }
 
-  // 하루 5회, 같은 바코드는 하루 1번만 배틀
-  function scan(state, code, now) {
+  // 하루 5회 (모든 디지몬이 함께 쓴다). 바코드는 스캔 신호일 뿐, 무엇이 나올지는 매번 다르다.
+  function scan(state, code, now, rnd) {
     var can = canBattle(state);
     if (!can.ok) return can;
-    code = normalizeCode(code);
-    if (!code) return { ok: false, reason: 'empty' };
+    if (!String(code || '').replace(/\s+/g, '')) return { ok: false, reason: 'empty' };
     rollDaily(state, now);
-    if (state.daily.codes.indexOf(code) >= 0) return { ok: false, reason: 'today' };
     if (state.daily.scans >= R.scansPerDay) return { ok: false, reason: 'limit' };
     state.daily.scans++;
-    return { ok: true, wild: wildFor(code, battleStage(state.mon)), left: R.scansPerDay - state.daily.scans };
+    var w = wildFor(battleStage(state.mon), rnd);
+    register(state, w.id, 'seen', now);
+    return { ok: true, wild: w, left: R.scansPerDay - state.daily.scans };
   }
   function scansLeft(state, now) {
     rollDaily(state, now);
@@ -451,7 +448,7 @@ var Engine = (function (D) {
   }
 
   function myPower(mon) {
-    var id = form(mon), S = D.SPECIES[id];
+    var S = D.SPECIES[form(mon)];
     var base = R.stagePower[D.STAGES[battleStage(mon)]] * S.mult;
     return base * (0.85 + 0.05 * mon.strength) * (mon.hunger === 0 ? 0.8 : 1);
   }
@@ -462,7 +459,7 @@ var Engine = (function (D) {
   function startBattle(state, wild) {
     var mon = state.mon, me = D.SPECIES[form(mon)];
     var pPow = myPower(mon), ePow = wildPower(wild);
-    if (wild.grade === 'boss' && me.bossMult) pPow *= me.bossMult;
+    if ((wild.grade === 'boss' || wild.grade === 'legend') && me.bossMult) pPow *= me.bossMult;
     return {
       wild: wild, me: me.id,
       php: R.hpMax, ehp: R.hpMax, turn: 0, over: false, won: false,
@@ -505,36 +502,49 @@ var Engine = (function (D) {
     return Math.max(1, Math.round(dmg));
   }
 
+  /* 보스 보상: 완전체 보스 → 아직 없는 디지멘탈(용기·우정·사랑) 중 하나,
+   * 궁극체 보스·전설 → 기적의 디지멘탈. 이미 다 있으면 디지 칩. */
+  function bossReward(state, w, rnd) {
+    var it = state.meta.items;
+    if (D.STAGES[w.level] === 'perfect') {
+      var missing = ['flame', 'thunder', 'archer'].filter(function (k) { return !it[k]; });
+      if (missing.length) { var k = pick(missing, rnd()); it[k] = true; return k; }
+    } else if (!it.miracle) { it.miracle = true; return 'miracle'; }
+    it.chip++;
+    return 'chip';
+  }
+
   /* 배틀 결과를 진화 수치·도감·아이템에 반영한다 */
-  function endBattle(state, b, now) {
-    var mon = state.mon, c = mon.c, it = state.meta.items, reward = null;
-    rollDaily(state, now);
-    if (state.daily.codes.indexOf(b.wild.code) < 0) state.daily.codes.push(b.wild.code);
+  function endBattle(state, b, now, rnd) {
+    rnd = rnd || Math.random;
+    var mon = state.mon, c = mon.c, reward = null;
     c.battles++;
     if (b.hungry) c.hungryBattles++;
     if (b.won) {
       c.wins++; c.streak = 0;
-      register(state, b.wild.id, 'beaten');
-      if (b.wild.grade === 'boss') {
+      register(state, b.wild.id, 'beaten', now);
+      if (b.wild.grade === 'boss' || b.wild.grade === 'legend') {
         c.bossWins++;
-        if (!state.meta.bossEver) { state.meta.bossEver = true; it.digimental++; reward = 'digimental'; }
-        else { it.chip++; reward = 'chip'; }
+        reward = bossReward(state, b.wild, rnd);
       }
     } else {
       c.losses++; c.streak++;
       if (c.streak > c.maxStreak) c.maxStreak = c.streak;
     }
     if (mon.hunger > 0) mon.hunger--; // 배틀하면 배가 고파진다
+    var sp = special(state, mon);
+    if (sp) evolveTo(state, mon, sp.to, sp.kind, now);
     return { won: b.won, reward: reward };
   }
 
   return {
     MIN: MIN, HOUR: HOUR, STAGE_IDX: STAGE_IDX,
-    newState: newState, hatch: hatch, tick: tick, sleepNow: sleepNow,
-    judge: judge, warning: warning, form: form, winRate: winRate, dateKey: dateKey,
+    newState: newState, hatch: hatch, store: store, resume: resume, release: release,
+    slotsLeft: slotsLeft, tick: tick, sleepNow: sleepNow,
+    judge: judge, passes: passes, warning: warning, form: form, winRate: winRate, dateKey: dateKey,
     feed: feed, snack: snack, train: train, clean: clean, toggleLights: toggleLights, wake: wake,
-    canArmor: canArmor, armor: armor, useChip: useChip,
-    hash: hash, rng: rng, wildFor: wildFor, battleStage: battleStage, advantage: advantage,
+    armorKinds: armorKinds, canArmor: canArmor, armor: armor, useChip: useChip,
+    wildFor: wildFor, battleStage: battleStage, advantage: advantage,
     canBattle: canBattle, scan: scan, scansLeft: scansLeft,
     startBattle: startBattle, battleTurn: battleTurn, endBattle: endBattle,
     myPower: myPower, wildPower: wildPower

@@ -203,7 +203,7 @@ var Sprite = (function (D, SHEETS) {
     'XAAAAAAX', 'XABAABAX', 'XAAAAAAX', '.XAAAAX.', '..XXXX..'
   ];
   function egg(ctx, lineId, x0, y0, cell, wobble) {
-    var L = D.LINES[lineId], c = hex(D.SPECIES[L.child].color);
+    var c = hex(D.LINES[lineId].egg);
     var pal = { X: OUTLINE, A: rgb(mix(c, [255, 255, 255], 0.55)), B: rgb(c) };
     EGG.forEach(function (row, y) {
       var dx = wobble && y < 5 ? wobble : 0;
