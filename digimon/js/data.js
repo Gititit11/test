@@ -265,13 +265,14 @@ var DigiData = (function () {
   };
 
   /* 스타터 라인
+   *   egg      디지타마 무늬 (바탕색, 무늬색, 무늬 모양)
    *   evo[종] = [[조건, 다음 종], ...] — 앞에 있는 것부터 본다 (우선순위)
    *   special  궁극체에서 보스 격파로 일어나는 진화 (⑩ ⑲)
    *   armor    디지멘탈 → 아머체 (성장기 브이몬)
    */
   var LINES = {
     agumon: {
-      name: '아구몬', egg: '#f2a33a', trait: '밸런스형, 진화 분기가 가장 많음',
+      name: '아구몬', egg: { base: '#fff3dc', mark: '#f08a24', pattern: 'zigzag' }, trait: '밸런스형, 진화 분기가 가장 많음',
       baby1: 'botamon', baby2: 'koromon', child: 'agumon',
       evo: {
         agumon: [['r4', 'coelamon'], ['r3', 'algomon_adult'], ['r1', 'greymon'], ['r2', 'ogremon']],
@@ -286,7 +287,7 @@ var DigiData = (function () {
       special: { wargreymon: { rule: 'r10', to: 'omegamon', partner: 'metalgarurumon' } }
     },
     gabumon: {
-      name: '파피몬', egg: '#6fa8dc', trait: '수면 관리가 중요, 정화 루트 있음',
+      name: '파피몬', egg: { base: '#eef6ff', mark: '#4f8fd8', pattern: 'stripes' }, trait: '수면 관리가 중요, 정화 루트 있음',
       baby1: 'punimon', baby2: 'tsunomon', child: 'gabumon',
       evo: {
         gabumon: [['r34', 'algomon_adult'], ['r12', 'dokugumon'], ['r1', 'garurumon'], ['r2', 'gorimon']],
@@ -300,7 +301,7 @@ var DigiData = (function () {
       special: { metalgarurumon: { rule: 'r10', to: 'omegamon', partner: 'wargreymon' } }
     },
     veemon: {
-      name: '브이몬', egg: '#3b6fd8', trait: '아이템 활용형, 디지멘탈로 아머진화',
+      name: '브이몬', egg: { base: '#f4f6ff', mark: '#2f5fd0', pattern: 'spots' }, trait: '아이템 활용형, 디지멘탈로 아머진화',
       baby1: 'chicomon', baby2: 'chibimon', child: 'veemon',
       evo: {
         veemon: [['r34', 'digitamamon'], ['r1', 'exveemon'], ['r2', 'veedramon']],

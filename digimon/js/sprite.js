@@ -9,7 +9,7 @@
  *
  *   Sprite.measure(id)                  → { w, h } 배율 1 일 때 크기(px)
  *   Sprite.draw(ctx, id, x, y, scale, { flip, dark, silhouette, frame, anim })
- *   Sprite.egg(ctx, lineId, x, y, cell, wobble)
+ *   Sprite.egg(ctx, lineId, x, y, cell, wobble) → 24x30 칸 디지타마
  *   Sprite.canvas(id, px, opts)         → 도감·아이콘용 작은 캔버스
  *   Sprite.onload(fn)                   → 시트 그림이 하나 불러와질 때마다 부른다 (다시 그리기용)
  */
@@ -198,22 +198,74 @@ var Sprite = (function (D, SHEETS) {
     ctx.restore();
   }
 
-  var EGG = [
-    '..XXXX..', '.XAAAAX.', 'XAABBAAX', 'XABBBBAX', 'XAABBAAX',
-    'XAAAAAAX', 'XABAABAX', 'XAAAAAAX', '.XAAAAX.', '..XXXX..'
-  ];
+  /* 디지타마: 24x30 칸. 위가 뾰족한 알 모양에 왼쪽 위에서 빛을 받는 음영과 라인별 무늬를 입힌다. */
+  var EGG_W = 24, EGG_H = 30;
+  var LIGHT = (function () { var v = [-0.55, -0.65, 0.55], n = Math.hypot(v[0], v[1], v[2]); return v.map(function (x) { return x / n; }); })();
+  // u, v 는 알 안의 좌표 (-1..1, v 는 위가 -1). 무늬 위면 true
+  var PATTERN = {
+    zigzag: function (u, v) { // 가운데를 두르는 톱니 띠 + 아래 가는 띠
+      var tri = Math.abs(((u * 1.6 + 10.25) % 1) - 0.5) * 2;
+      return Math.abs(v - 0.05 - (tri - 0.5) * 0.36) < 0.17 || Math.abs(v - 0.5) < 0.06;
+    },
+    stripes: function (u, v) { // 물결 줄무늬 세 줄
+      return [-0.45, 0.05, 0.52].some(function (c) { return Math.abs(v - c - 0.07 * Math.sin(u * 5)) < 0.09; });
+    },
+    spots: function (u, v) { // 크고 작은 반점
+      return dot(u, v, -0.42, -0.18, 0.24) || dot(u, v, 0.4, 0.16, 0.3) || dot(u, v, -0.15, 0.6, 0.22) ||
+        dot(u, v, 0.12, -0.62, 0.17) || dot(u, v, 0.55, -0.35, 0.12);
+    }
+  };
+  function dot(u, v, cu, cv, r) { var a = u - cu, b = (v - cv) * 0.85; return a * a + b * b < r * r; }
+
+  function eggGrid(lineId) {
+    var key = 'egg:' + lineId;
+    if (cache[key]) return cache[key];
+    var E = D.LINES[lineId].egg, base = hex(E.base), mark = hex(E.mark);
+    var out = rgb(mix(mark, [16, 18, 40], 0.6)); // 어두운 바탕에서도 보이게 무늬색으로 테두리
+    var g = [], inside = [];
+    for (var y = 0; y < EGG_H; y++) {
+      inside.push([]);
+      for (var x = 0; x < EGG_W; x++) {
+        var u = (x + 0.5 - EGG_W / 2) / (EGG_W / 2 - 1.2);
+        var cy = EGG_H * 0.6, v = (y + 0.5 - cy) / (y + 0.5 < cy ? cy : EGG_H - cy); // 위쪽 반지름이 길어 뾰족하다
+        inside[y].push(u * u + v * v <= 1 ? [u, v] : null);
+      }
+    }
+    for (y = 0; y < EGG_H; y++) {
+      g.push([]);
+      for (x = 0; x < EGG_W; x++) {
+        var p = inside[y][x];
+        if (!p) { g[y].push(null); continue; }
+        var edge = [[0, 1], [0, -1], [1, 0], [-1, 0]].some(function (d) {
+          var yy = y + d[0], xx = x + d[1];
+          return yy < 0 || yy >= EGG_H || xx < 0 || xx >= EGG_W || !inside[yy][xx];
+        });
+        if (edge) { g[y].push(out); continue; }
+        var nz = Math.sqrt(Math.max(0, 1 - p[0] * p[0] - p[1] * p[1]));
+        var lam = p[0] * LIGHT[0] + p[1] * LIGHT[1] + nz * LIGHT[2];
+        var c = PATTERN[E.pattern](p[0], p[1]) ? mark : base;
+        // 4단계 음영 (도트답게 계단으로 끊는다)
+        var col = lam > 0.96 ? mix(c, [255, 255, 255], 0.85)
+          : lam > 0.5 ? c
+          : lam > 0.18 ? mix(c, [70, 80, 150], 0.16)
+          : mix(c, [50, 55, 120], 0.32);
+        g[y].push(rgb(col));
+      }
+    }
+    return (cache[key] = g);
+  }
+
+  // cell = 한 칸 크기(px). 알 전체는 24x30 칸. wobble 이면 위쪽을 살짝 흔든다.
   function egg(ctx, lineId, x0, y0, cell, wobble) {
-    var c = hex(D.LINES[lineId].egg);
-    var pal = { X: OUTLINE, A: rgb(mix(c, [255, 255, 255], 0.55)), B: rgb(c) };
-    EGG.forEach(function (row, y) {
-      var dx = wobble && y < 5 ? wobble : 0;
-      for (var x = 0; x < row.length; x++) {
-        var ch = row[x];
-        if (ch === '.') continue;
-        ctx.fillStyle = pal[ch];
+    var g = eggGrid(lineId);
+    for (var y = 0; y < EGG_H; y++) {
+      var dx = wobble && y < EGG_H / 2 ? wobble : 0;
+      for (var x = 0; x < EGG_W; x++) {
+        if (!g[y][x]) continue;
+        ctx.fillStyle = g[y][x];
         ctx.fillRect(x0 + (x + dx) * cell, y0 + y * cell, cell, cell);
       }
-    });
+    }
   }
 
   // 정사각 캔버스 가운데 바닥에 맞춰 그린다
@@ -224,7 +276,7 @@ var Sprite = (function (D, SHEETS) {
     return c;
   }
 
-  return { measure: measure, draw: draw, egg: egg, canvas: canvas, onload: onload, ANIM: ANIM };
+  return { measure: measure, draw: draw, egg: egg, EGG_W: EGG_W, EGG_H: EGG_H, canvas: canvas, onload: onload, ANIM: ANIM };
 })(typeof DigiData !== 'undefined' ? DigiData : require('./data.js'),
    typeof SHEETS !== 'undefined' ? SHEETS : require('./sheets.js'));
 

@@ -109,8 +109,8 @@
       var li = document.createElement('li'), b = document.createElement('button');
       b.type = 'button';
       var c = document.createElement('canvas');
-      c.width = 8 * 6; c.height = 10 * 6;
-      Sprite.egg(c.getContext('2d'), id, 0, 0, 6);
+      c.width = Sprite.EGG_W * 2; c.height = Sprite.EGG_H * 2;
+      Sprite.egg(c.getContext('2d'), id, 0, 0, 2);
       var tx = document.createElement('span');
       tx.innerHTML = '<span class="n"></span><br><span class="t"></span>';
       tx.querySelector('.n').textContent = L.name + '의 디지타마';
