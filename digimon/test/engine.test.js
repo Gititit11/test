@@ -278,6 +278,10 @@ test('배고픔 호출을 15분 넘게 두면 실수 1, 한 번만 센다', func
   assert.equal(s.mon.c.mistakes, 1);
   E.feed(s);
   assert.equal(s.mon.hunger, 1);
+  assert.equal(s.mon.callH, 0, '먹이를 주면 호출이 바로 끝난다');
+  s.mon.strength = 0; s.mon.callS = 3;
+  E.snack(s);
+  assert.equal(s.mon.callS, 0, '간식으로 힘을 채워도 바로 끝난다');
 });
 
 test('과식: 배부를 때 먹이나 간식을 주면 센다', function () {

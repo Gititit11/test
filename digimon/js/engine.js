@@ -294,6 +294,11 @@ var Engine = (function (D) {
 
   /* ---------- 돌보기 ---------- */
   function asleep() { return { ok: false, reason: 'sleep' }; }
+  // 채워 주면 호출(!)은 그 자리에서 끝난다 (1분 단위 시간 흐름을 기다리지 않는다)
+  function answered(mon) {
+    if (mon.hunger > 0) mon.callH = 0;
+    if (mon.strength > 0) mon.callS = 0;
+  }
   function isEgg(state) { return state.mon.stage === 'egg'; }
 
   function feed(state) {
@@ -302,6 +307,7 @@ var Engine = (function (D) {
     if (mon.sleeping) return asleep();
     if (mon.hunger >= 4) { mon.c.overfeed++; return { ok: true, over: true }; }
     mon.hunger++;
+    answered(mon);
     return { ok: true };
   }
 
@@ -312,6 +318,7 @@ var Engine = (function (D) {
     var over = mon.hunger >= 4;
     if (over) mon.c.overfeed++;
     if (mon.strength < 4) mon.strength++;
+    answered(mon);
     return { ok: true, over: over };
   }
 
@@ -323,6 +330,7 @@ var Engine = (function (D) {
     mon.c.training++;
     var good = hits >= 2;
     if (good && mon.strength < 4) mon.strength++;
+    answered(mon);
     return { ok: true, good: good };
   }
 
@@ -375,6 +383,7 @@ var Engine = (function (D) {
     if (!it.chip || mon.sleeping || isEgg(state)) return { ok: false };
     it.chip--;
     mon.hunger = 4; mon.strength = 4;
+    answered(mon);
     return { ok: true };
   }
 

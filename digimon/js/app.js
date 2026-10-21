@@ -225,8 +225,8 @@
     var msg = $('msg'), warn = E.warning(mon, t), text = '', bad = false;
     if (egg) text = mon.stageEnd - t > 60000 ? '흔들흔들… 안에서 뭔가 움직여요' : '금이 가고 있어요! 곧 깨어나요';
     else if (mon.sleeping) { text = mon.lights ? '잠들었어요. 불을 꺼 주세요!' : '쿨쿨…'; bad = mon.lights; }
-    else if (mon.callH > 0) { text = '배고파해요!'; bad = true; }
-    else if (mon.callS > 0) { text = '힘이 없어요. 간식이나 훈련을!'; bad = true; }
+    else if (mon.callH > 0 && mon.hunger === 0) { text = '배고파해요!'; bad = true; }
+    else if (mon.callS > 0 && mon.strength === 0) { text = '힘이 없어요. 간식이나 훈련을!'; bad = true; }
     else if (mon.poops.length) { text = '똥을 치워 주세요'; }
     else if (warn) { text = '몸 색이 어두워졌어요… 뭔가 잘못되고 있어요'; bad = true; }
     else if (mon.armor) { text = '아머진화 중 · ' + dur(mon.armor - t) + ' 남음'; }
@@ -357,7 +357,7 @@
       lx.fillStyle = dark ? '#c9d4ff' : '#1b1f17';
       lx.fillText(walk.frame & 2 ? 'Z z' : 'z Z', (W + sw) / 2 - 8, y + 4);
     }
-    if (!mon.sleeping && (mon.callH > 0 || mon.callS > 0)) {
+    if (!mon.sleeping && ((mon.callH > 0 && mon.hunger === 0) || (mon.callS > 0 && mon.strength === 0))) {
       lx.fillStyle = '#d6332f';
       lx.fillRect(6, 6, 14, 16);
       lx.fillStyle = '#fff'; lx.fillText('!', 10, 18);
