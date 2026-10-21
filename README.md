@@ -7,7 +7,7 @@
 | `gymmate/` | **짐메이트** — 헬스 루틴 & 세트 체크 · [문서](gymmate/README.md) | 웹앱 · `/test/gymmate/` |
 | `gyeopsajin/` | **겹사진** — 갤러리에서 같은 사진 묶기 · [문서](gyeopsajin/README.md) | 안드로이드 앱 (APK) |
 | `scanner/` | **스캔메이트** — 문서 사진을 스캔본 PDF 로 · [문서](scanner/README.md) | 웹앱 · `/test/scanner/` |
-| `digimon/` | **디지몬** — 준비 중 · [문서](digimon/README.md) | 미정 |
+| `digimon/` | **디지타마** — 디지몬 육성 & 바코드 배틀 · [문서](digimon/README.md) | 웹앱 · `/test/digimon/` |
 
 `/test/` 는 앱으로 들어가는 안내 페이지입니다.
 
@@ -16,6 +16,7 @@ npx http-server . -p 8080 --silent
 # → http://localhost:8080/          안내 페이지
 # → http://localhost:8080/gymmate/  짐메이트
 # → http://localhost:8080/scanner/  스캔메이트
+# → http://localhost:8080/digimon/  디지타마
 ```
 
 ## `gyeopsajin/` 은 무엇인가
@@ -51,7 +52,7 @@ GitHub Pages 와는 상관이 없습니다.
 
 페이지가 직접 띄우는 설치(`beforeinstallprompt` → `prompt()`)는 앱 범위(scope)로
 판단해서 이 문제가 없습니다. 그래서 각 앱의 `js/install.js` 가 설치할 수 있을 때
-화면 위에 **"앱 설치"** 버튼을 띄웁니다. 두 앱의 `install.js` 는 같은 파일입니다.
+화면 위에 **"앱 설치"** 버튼을 띄웁니다. 웹앱들의 `install.js` 는 모두 같은 파일입니다.
 
 > 짐메이트 주소가 `/test/` 에서 `/test/gymmate/` 로 바뀐 적이 있습니다.
 > 예전 아이콘은 안내 페이지로 열리며, 거기서 다시 설치하면 됩니다. 기록은 그대로 남습니다.

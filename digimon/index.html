@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<meta name="description" content="실시간으로 디지몬을 돌보고, 바코드를 스캔해 야생 디지몬과 배틀하는 다마고치형 육성 웹앱">
+<title>디지몬 육성 · 디지타마</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="디지타마">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- 알 고르기: 디지몬이 없을 때 -->
+  <main id="eggs" class="eggs" hidden>
+    <h1>디지타마를 골라 주세요</h1>
+    <p class="dim">고른 알은 바로 부화해요. 시간은 실제 시간으로 흘러요.</p>
+    <ul id="eggList" class="egg-list"></ul>
+  </main>
+
+  <!-- 육성 화면 -->
+  <main id="home" class="home" hidden>
+    <header class="topbar">
+      <div class="who">
+        <h1 id="monName"></h1>
+        <span class="chip" id="monStage"></span>
+        <span class="chip attr" id="monAttr"></span>
+      </div>
+      <span class="dim" id="monAge"></span>
+    </header>
+
+    <div class="device">
+      <canvas id="lcd" width="160" height="112" aria-label="디지몬 화면"></canvas>
+    </div>
+
+    <div class="meters">
+      <div class="meter"><span class="lbl">배고픔</span><span class="pips" id="hunger"></span></div>
+      <div class="meter"><span class="lbl">힘</span><span class="pips" id="strength"></span></div>
+    </div>
+    <p class="msg" id="msg"></p>
+    <p class="dim center" id="next"></p>
+
+    <nav class="acts">
+      <button class="act" data-act="feed"><b>🍖</b>먹이</button>
+      <button class="act" data-act="snack"><b>🍬</b>간식</button>
+      <button class="act" data-act="train"><b>🥊</b>훈련</button>
+      <button class="act" data-act="clean"><b>🧹</b>청소</button>
+      <button class="act" data-act="lights"><b>💡</b><span id="lightsLabel">불 끄기</span></button>
+      <button class="act" data-act="wake"><b>⏰</b>깨우기</button>
+      <button class="act accent" data-act="battle"><b>📷</b>바코드 배틀</button>
+      <button class="act" data-act="dex"><b>📖</b>도감</button>
+      <button class="act" data-act="info"><b>📋</b>정보</button>
+      <button class="act gold" data-act="armor" hidden><b>✨</b>아머진화</button>
+      <button class="act gold" data-act="chip" hidden><b>💾</b>디지 칩</button>
+    </nav>
+  </main>
+
+  <!-- 훈련 미니게임 -->
+  <section id="train" class="screen sheet-wrap" hidden>
+    <div class="sheet">
+      <h2>훈련</h2>
+      <p class="dim">막대가 초록 칸에 들어왔을 때 누르세요. 세 번 중 두 번 맞히면 힘이 올라요.</p>
+      <div class="gauge"><div class="zone" id="zone"></div><div class="marker" id="marker"></div></div>
+      <p class="center tries" id="tries"></p>
+      <div class="sheet-actions">
+        <button class="btn ghost" data-close>그만두기</button>
+        <button class="btn primary grow" id="trainHit">지금!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 바코드 스캔 -->
+  <section id="scan" class="screen sheet-wrap" hidden>
+    <div class="sheet">
+      <h2>바코드 스캔</h2>
+      <p class="dim" id="scanLeft"></p>
+      <div id="camBox" class="cam" hidden>
+        <video id="cam" playsinline muted></video>
+        <div class="cam-line"></div>
+      </div>
+      <button class="btn" id="camStart" hidden>카메라로 찍기</button>
+      <p class="dim" id="camNote" hidden>이 브라우저는 카메라 바코드 인식을 지원하지 않아요. 바코드 아래 숫자를 직접 넣어 주세요.</p>
+      <form id="codeForm" class="code-form">
+        <input type="text" id="codeIn" inputmode="numeric" autocomplete="off" placeholder="바코드 숫자 (예: 8801234567890)">
+        <button class="btn primary" type="submit">찾기</button>
+      </form>
+      <div id="wildCard" class="wild" hidden>
+        <canvas id="wildPic" width="72" height="72"></canvas>
+        <div>
+          <div class="wild-name" id="wildName"></div>
+          <div class="dim" id="wildInfo"></div>
+          <div class="dim" id="wildAdv"></div>
+        </div>
+      </div>
+      <div class="sheet-actions">
+        <button class="btn ghost" data-close>닫기</button>
+        <button class="btn accent grow" id="fight" hidden>배틀!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 배틀 -->
+  <section id="battle" class="screen sheet-wrap" hidden>
+    <div class="sheet">
+      <div class="hp-row">
+        <div class="hp"><span id="pName"></span><div class="bar"><i id="pHp"></i></div></div>
+        <div class="hp right"><span id="eName"></span><div class="bar"><i id="eHp"></i></div></div>
+      </div>
+      <canvas id="arena" width="200" height="96"></canvas>
+      <p class="center blog" id="blog"></p>
+      <div class="cmds" id="cmds">
+        <button class="btn" data-cmd="attack">공격</button>
+        <button class="btn accent" data-cmd="special">필살기</button>
+        <button class="btn" data-cmd="guard">방어</button>
+      </div>
+      <div class="sheet-actions" id="battleDone" hidden>
+        <button class="btn primary grow" data-close>확인</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 도감 -->
+  <section id="dex" class="screen" hidden>
+    <div class="screen-top">
+      <button class="btn ghost" data-close>닫기</button>
+      <span class="screen-title">도감 <span class="dim" id="dexCount"></span></span>
+      <span class="spacer"></span>
+    </div>
+    <div class="scroll" id="dexBody"></div>
+  </section>
+
+  <!-- 정보 -->
+  <section id="info" class="screen" hidden>
+    <div class="screen-top">
+      <button class="btn ghost" data-close>닫기</button>
+      <span class="screen-title">정보</span>
+      <span class="spacer"></span>
+    </div>
+    <div class="scroll" id="infoBody"></div>
+  </section>
+
+  <!-- 진화 연출 -->
+  <section id="evo" class="screen evo" hidden>
+    <p class="evo-kind" id="evoKind"></p>
+    <canvas id="evoPic" width="128" height="128"></canvas>
+    <p class="evo-name" id="evoName"></p>
+    <p class="dim center" id="evoNote"></p>
+    <button class="btn primary" id="evoOk">확인</button>
+  </section>
+
+  <!-- 수명이 다했을 때 -->
+  <section id="dead" class="screen evo" hidden>
+    <p class="evo-kind">안녕</p>
+    <canvas id="deadPic" width="128" height="128"></canvas>
+    <p class="evo-name" id="deadName"></p>
+    <p class="dim center" id="deadNote"></p>
+    <button class="btn primary" id="newEgg">새 디지타마 고르기</button>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/install.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/sprite.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
