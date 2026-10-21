@@ -1,6 +1,6 @@
 """바브 도트를 앱 시트(sprites/<id>.png)로 옮긴다.
 
-두 가지 원본을 받는다.
+세 가지 원본을 받는다.
 
   1) 256x256 PNG (가로 4 x 세로 3 칸, 칸 64px) — 손실 없이 그대로 옮긴다
      python3 digimon/tools/import-sheets.py png 원본.png --id agumon
@@ -9,6 +9,9 @@
      python3 digimon/tools/import-sheets.py grid 사진.jpg --ids vorvomon,lavorvomon,...
      칸 너비 64px 로 줄여서 되돌리고, 검은 배경을 지운 뒤 1px 검은 테두리를 다시 두르고
      색을 정리한다. 원본이 줄어들거나 JPEG 이면 PNG 보다 조금 흐리다.
+
+  3) 배경을 지운 그림 한 장 (포즈가 하나뿐일 때) — 12프레임을 모두 그 그림으로 채운다
+     python3 digimon/tools/import-sheets.py single 잘라낸.png --id guilmon
 
 시트는 12프레임을 가로로 이은 PNG 이다. 모든 프레임을 덮는 상자 하나로 잘라서
 프레임끼리의 위치 차이(뛰기, 눕기)는 그대로 남는다. 끝나면 js/sheets.js 를 다시 쓴다.
@@ -95,6 +98,11 @@ def from_grid(src, ids, cols, colors):
         save_strip(frames, sid)
 
 
+def from_single(src, sid):
+    a = np.asarray(Image.open(src).convert('RGBA'))
+    save_strip([a] * 12, sid)
+
+
 def is_silhouette(fr):
     rgb = fr[fr[:, :, 3] > 0][:, :3].astype(int)
     if not len(rgb): return True
@@ -119,7 +127,7 @@ def write_index():
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('kind', nargs='?', choices=['png', 'grid'])
+    ap.add_argument('kind', nargs='?', choices=['png', 'grid', 'single'])
     ap.add_argument('src', nargs='?')
     ap.add_argument('--id')
     ap.add_argument('--ids')
@@ -128,6 +136,8 @@ if __name__ == '__main__':
     a = ap.parse_args()
     if a.kind == 'png':
         from_png(a.src, a.id)
+    elif a.kind == 'single':
+        from_single(a.src, a.id)
     elif a.kind == 'grid':
         from_grid(a.src, a.ids.split(','), a.cols, a.colors)
     write_index()
