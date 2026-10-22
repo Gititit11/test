@@ -266,45 +266,26 @@
   // 배변 도트 (24x24, 위쪽 검은 선은 냄새). 좌우로 번갈아 뒤집어 냄새가 일렁이게 한다.
   var poopImg = new Image();
   poopImg.src = 'img/poop.png';
-  /* 먹이(고기)는 받은 도트 img/meat.png (24x24 네 장: 그대로 · 한 입 · 두 입 · 뼈).
-   * 간식(사탕)은 아래 글자 도트 (W 포장지 · C c P 사탕 · O 테두리).
-   * 둘 다 디지몬이 오른쪽에서 먹는 그림이고, 디지몬이 왼쪽에 있으면 뒤집는다. */
-  var meatImg = new Image();
-  meatImg.src = 'img/meat.png';
-  var medImg = new Image();   // 약: 캡슐 그대로 · 한 입 · 두 입 (세 입째에 사라진다)
-  medImg.src = 'img/medicine.png';
-  var MEAT = 24;
-  var FOOD = { candy: ['OO..OOOO..OO', 'OWOOCPCCOOWO', 'OWWOCCCCOWWO', 'OWOOCCcCOOWO', 'OO..OOOO..OO'] };
-  var FOOD_COLOR = { O: '#1b1f17', W: '#ffd23f', C: '#ff6fa8', c: '#c84078', P: '#ffd0e4' };
-  var FOOD_PX = 3, FOOD_DROP = 450, FOOD_BITES = [800, 1150, 1500];
-  function foodSize(kind) {
-    if (kind === 'meat' || kind === 'pill') return { w: MEAT, h: MEAT };
-    return { w: FOOD[kind][0].length * FOOD_PX, h: FOOD[kind].length * FOOD_PX };
-  }
+  /* 음식 도트 (24x24 를 가로로 이은 그림). 디지몬이 오른쪽에서 먹는 그림이고, 디지몬이 왼쪽에 있으면 뒤집는다.
+   *   meat  먹이(고기): 그대로 · 한 입 · 두 입 · 뼈
+   *   snack 간식(딸기): 그대로 · 한 입 · 두 입 (세 입째에 사라진다)
+   *   pill  약(캡슐):   그대로 · 한 입 · 두 입 (세 입째에 사라진다) */
+  var FOOD_IMG = {};
+  ['meat', 'snack', 'pill'].forEach(function (k) {
+    FOOD_IMG[k] = new Image();
+    FOOD_IMG[k].src = 'img/' + (k === 'pill' ? 'medicine' : k) + '.png';
+  });
+  var FOOD_SIZE = 24, FOOD_DROP = 450, FOOD_BITES = [800, 1150, 1500];
+  function foodSize() { return { w: FOOD_SIZE, h: FOOD_SIZE }; }
 
-  // 바닥에 놓인 음식. bites 번 베어 문 만큼 디지몬 쪽부터 줄어든다.
+  // 바닥에 놓인 음식. bites 번 베어 문 만큼 줄어든 그림을 그린다.
   function drawFood(kind, x, y, flip, bites) {
-    if (kind === 'meat' || kind === 'pill') {
-      var im = kind === 'meat' ? meatImg : medImg;
-      if (!im.complete || !im.naturalWidth) return;
-      lx.save();
-      if (flip) { lx.translate(x + MEAT, y); lx.scale(-1, 1); x = 0; y = 0; }
-      lx.drawImage(im, Math.min(bites, 3) * MEAT, 0, MEAT, MEAT, x, y, MEAT, MEAT);
-      lx.restore();
-      return;
-    }
-    var g = FOOD[kind], w = g[0].length;
-    var cut = w - Math.round(bites * w / 3); // 이 칸부터 오른쪽(디지몬 쪽)은 먹혔다
-    g.forEach(function (row, ry) {
-      var c2 = cut + (ry % 2); // 이빨 자국처럼 들쭉날쭉
-      for (var rx = 0; rx < w; rx++) {
-        var ch = row[rx];
-        if (ch === '.') continue;
-        if (rx >= c2) continue; // 먹힌 자리
-        lx.fillStyle = FOOD_COLOR[ch];
-        lx.fillRect(x + (flip ? w - 1 - rx : rx) * FOOD_PX, y + ry * FOOD_PX, FOOD_PX, FOOD_PX);
-      }
-    });
+    var im = FOOD_IMG[kind], n = im.naturalWidth / FOOD_SIZE;
+    if (!im.complete || !n || bites >= n) return; // 다 먹었다
+    lx.save();
+    if (flip) { lx.translate(x + FOOD_SIZE, y); lx.scale(-1, 1); x = 0; y = 0; }
+    lx.drawImage(im, bites * FOOD_SIZE, 0, FOOD_SIZE, FOOD_SIZE, x, y, FOOD_SIZE, FOOD_SIZE);
+    lx.restore();
   }
 
   function drawLcd(ts) {
@@ -352,7 +333,7 @@
       var fx0 = left ? Math.round(walk.x) - fw - 2 : Math.round(walk.x) + sw + 2;
       var fy = et < FOOD_DROP ? Math.round(-fh + (floor - 2) * et / FOOD_DROP) : floor - fh - 2;
       var bites = effect.refuse ? 0 : FOOD_BITES.filter(function (b) { return et >= b; }).length;
-      if (bites < 3 || effect.food === 'meat') drawFood(effect.food, fx0, Math.min(fy, floor - fh - 2), !left, bites);
+      drawFood(effect.food, fx0, Math.min(fy, floor - fh - 2), !left, bites);
     }
     if (dark) { lx.fillStyle = 'rgba(10,12,20,.55)'; lx.fillRect(0, 0, W, Hh); }
 
@@ -437,7 +418,7 @@
       if (sleepingGuard()) return;
       var r = E.snack(state);
       if (r.over) toast('배부른데 간식까지… 과식했어요');
-      feedFx('candy', r.over);
+      feedFx('snack', r.over);
     },
     train: function () {
       if (sleepingGuard()) return;
