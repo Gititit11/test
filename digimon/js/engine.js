@@ -6,7 +6,7 @@
  *   hatch(state, line, now)     → 디지타마를 받는다. 5분 동안 흔들리다가 부화 (키우던 디지몬은 보관함으로)
  *   store / resume / release    → 보관함. 보관한 디지몬은 시간이 멈춘다
  *   tick(state, now)            → 마지막으로 본 때부터 now 까지 1분씩 흘려 보낸다
- *   feed / snack / train / clean / toggleLights / wake / armor / useChip
+ *   feed / snack / train / clean / toggleLights / wake / armor / useChip / medicine
  *   judge(mon)                  → 지금 진화하면 어떻게 되는지 (상태를 바꾸지 않음)
  *   wildFor(stageIdx, rnd)      → 야생 디지몬 하나 (스캔할 때마다 새로 뽑는다)
  *   scan / startBattle / battleTurn / endBattle
@@ -180,6 +180,12 @@ var Engine = (function (D) {
       }
     }
 
+    // 아픈 채로 두면 한 시간마다 케어 실수 (자는 동안에도)
+    if (mon.sick && ++mon.sickMin % R.sickMistakeMinutes === 0) {
+      mon.c.mistakes++;
+      emit(state, 'mistake', t, { kind: 'sick' });
+    }
+
     // 배변은 자는 동안에도 방치 시간이 흐른다
     mon.poops.forEach(function (p) {
       if (++p.age === R.poopLimitMinutes) {
@@ -194,8 +200,9 @@ var Engine = (function (D) {
       if (++mon.poopT >= R.poopEvery[mon.stage]) {
         mon.poopT = 0;
         if (mon.poops.length < R.maxPoops) { mon.poops.push({ age: 0 }); emit(state, 'poop', t); }
+        if (mon.poops.length >= R.sickPoops) getSick(state, mon, t, 'poop');
       }
-      // 호출: 0칸이 된 채로 15분이 지나면 실수 1. 채워 줄 때까지는 한 번만 센다.
+      // 호출: 0칸이 된 채로 20분이 지나면 실수 1. 채워 줄 때까지는 한 번만 센다.
       mon.callH = mon.hunger === 0 ? mon.callH + 1 : 0;
       mon.callS = mon.strength === 0 ? mon.callS + 1 : 0;
       if (mon.callH === 1 || mon.callS === 1) emit(state, 'call', t);
@@ -327,6 +334,7 @@ var Engine = (function (D) {
     var mon = state.mon;
     if (isEgg(state)) return { ok: false, reason: 'egg' };
     if (mon.sleeping) return asleep();
+    if (mon.sick) return { ok: false, reason: 'sick' };
     mon.c.training++;
     var good = hits >= 2;
     if (good && mon.strength < 4) mon.strength++;
@@ -423,6 +431,7 @@ var Engine = (function (D) {
     if (!mon || mon.dead) return { ok: false, reason: 'none' };
     if (STAGE_IDX[mon.stage] < STAGE_IDX.child) return { ok: false, reason: 'baby' };
     if (mon.sleeping) return { ok: false, reason: 'sleep' };
+    if (mon.sick) return { ok: false, reason: 'sick' };
     return { ok: true };
   }
 
@@ -523,10 +532,27 @@ var Engine = (function (D) {
     return 'chip';
   }
 
+  /* ---------- 병 ----------
+   * 똥이 4개 쌓이거나 배틀에서 지다 다치면 아프다. 아프면 훈련·배틀을 못 하고,
+   * 그대로 두면 한 시간마다 케어 실수가 쌓인다. 약 한 번이면 낫는다. */
+  function getSick(state, mon, t, why) {
+    if (mon.sick || mon.stage === 'egg') return false;
+    mon.sick = true; mon.sickMin = 0;
+    emit(state, 'sick', t, { why: why });
+    return true;
+  }
+  function medicine(state) {
+    var mon = state.mon;
+    if (!mon.sick) return { ok: false, reason: 'healthy' };
+    if (mon.sleeping) return asleep();
+    mon.sick = false; mon.sickMin = 0;
+    return { ok: true };
+  }
+
   /* 배틀 결과를 진화 수치·도감·아이템에 반영한다 */
   function endBattle(state, b, now, rnd) {
     rnd = rnd || Math.random;
-    var mon = state.mon, c = mon.c, reward = null;
+    var mon = state.mon, c = mon.c, reward = null, injured = false;
     c.battles++;
     if (b.hungry) c.hungryBattles++;
     if (b.won) {
@@ -539,11 +565,12 @@ var Engine = (function (D) {
     } else {
       c.losses++; c.streak++;
       if (c.streak > c.maxStreak) c.maxStreak = c.streak;
+      if (rnd() < R.injuryChance) injured = getSick(state, mon, now, 'injury');
     }
     if (mon.hunger > 0) mon.hunger--; // 배틀하면 배가 고파진다
     var sp = special(state, mon);
     if (sp) evolveTo(state, mon, sp.to, sp.kind, now);
-    return { won: b.won, reward: reward };
+    return { won: b.won, reward: reward, injured: injured };
   }
 
   return {
@@ -552,7 +579,7 @@ var Engine = (function (D) {
     slotsLeft: slotsLeft, tick: tick, sleepNow: sleepNow,
     judge: judge, passes: passes, warning: warning, form: form, winRate: winRate, dateKey: dateKey,
     feed: feed, snack: snack, train: train, clean: clean, toggleLights: toggleLights, wake: wake,
-    armorKinds: armorKinds, canArmor: canArmor, armor: armor, useChip: useChip,
+    armorKinds: armorKinds, canArmor: canArmor, armor: armor, useChip: useChip, medicine: medicine,
     wildFor: wildFor, battleStage: battleStage, advantage: advantage,
     canBattle: canBattle, scan: scan, scansLeft: scansLeft,
     startBattle: startBattle, battleTurn: battleTurn, endBattle: endBattle,

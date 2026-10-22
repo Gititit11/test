@@ -284,6 +284,35 @@ test('배고픔 호출을 20분 넘게 두면 실수 1, 한 번만 센다', func
   assert.equal(s.mon.callS, 0, '간식으로 힘을 채워도 바로 끝난다');
 });
 
+test('병: 똥 4개면 아프고, 배틀에서 지면 다칠 수 있고, 약 한 번이면 낫는다', function () {
+  var s = at('agumon', 'child', 'agumon');
+  quiet(s.mon);
+  s.mon.poops = [{ age: 0 }, { age: 0 }, { age: 0 }];
+  s.mon.poopT = D.RULES.poopEvery.child - 1;
+  E.tick(s, MORNING + M);
+  assert.equal(s.mon.poops.length, 4);
+  assert.equal(s.mon.sick, true);
+  assert.equal(E.canBattle(s).reason, 'sick');
+  assert.equal(E.train(s, 3).reason, 'sick');
+  // 아픈 채로 한 시간마다 케어 실수
+  E.clean(s); quiet(s.mon);
+  E.tick(s, MORNING + M + 60 * M);
+  assert.equal(s.mon.c.mistakes, 1);
+  assert.equal(E.medicine(s).ok, true);
+  assert.equal(s.mon.sick, false);
+  assert.equal(E.medicine(s).reason, 'healthy', '안 아프면 약을 먹지 않는다');
+  E.tick(s, MORNING + M + 3 * H);
+  assert.equal(s.mon.c.mistakes, 1, '나은 뒤에는 더 쌓이지 않는다');
+
+  var w = { id: 'palmon', name: '팔몬', attr: 'data', grade: 'normal', level: E.STAGE_IDX.child };
+  var b = E.startBattle(s, w); b.over = true; b.won = false;
+  assert.equal(E.endBattle(s, b, MORNING, function () { return 0.1; }).injured, true, '20% 확률로 다친다');
+  assert.equal(s.mon.sick, true);
+  s.mon.sick = false;
+  b = E.startBattle(s, w); b.over = true; b.won = false;
+  assert.equal(E.endBattle(s, b, MORNING, function () { return 0.5; }).injured, false);
+});
+
 test('과식: 배부를 때 먹이나 간식을 주면 센다', function () {
   var s = at('agumon', 'child', 'agumon');
   s.mon.hunger = 4;

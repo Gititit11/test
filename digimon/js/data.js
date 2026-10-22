@@ -30,6 +30,9 @@ var DigiData = (function () {
     strengthEvery: { baby1: 3, baby2: 30, child: 48, adult: 50, perfect: 60, ultimate: 60 },
     poopEvery: { baby1: 20, baby2: 120, child: 180, adult: 180, perfect: 200, ultimate: 220 },
     maxPoops: 8,
+    sickPoops: 4,              // 똥이 이만큼 쌓이면 병에 걸린다
+    injuryChance: 0.2,         // 배틀에서 지면 이 확률로 다친다 (아픈 것과 같다)
+    sickMistakeMinutes: 60,    // 아픈 채로 이만큼 둘 때마다 케어 실수 1 (약 한 번이면 낫는다)
     // [잠드는 시, 깨는 시] (기기 현지 시각). 유년기1 은 한 시간뿐이라 자지 않는다.
     sleep: { baby1: null, baby2: [20, 8], child: [21, 7], adult: [21, 7], perfect: [22, 7], ultimate: [22, 7] },
     armorHours: 48,

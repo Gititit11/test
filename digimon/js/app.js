@@ -225,6 +225,7 @@
     var msg = $('msg'), warn = E.warning(mon, t), text = '', bad = false;
     if (egg) text = mon.stageEnd - t > 60000 ? '흔들흔들… 안에서 뭔가 움직여요' : '금이 가고 있어요! 곧 깨어나요';
     else if (mon.sleeping) { text = mon.lights ? '잠들었어요. 불을 꺼 주세요!' : '쿨쿨…'; bad = mon.lights; }
+    else if (mon.sick) { text = '아파요… 💊 약을 주세요'; bad = true; }
     else if (mon.callH > 0 && mon.hunger === 0) { text = '배고파해요!'; bad = true; }
     else if (mon.callS > 0 && mon.strength === 0) { text = '힘이 없어요. 간식이나 훈련을!'; bad = true; }
     else if (mon.poops.length) { text = '똥을 치워 주세요'; }
@@ -252,6 +253,7 @@
       document.querySelector('[data-act="' + k + '"]').disabled = egg;
     });
     if (egg) document.querySelector('[data-act="chip"]').hidden = true;
+    document.querySelector('[data-act="medicine"]').hidden = !mon.sick;
   }
   function clock(ms) { // 분:초
     var sec = Math.max(0, Math.ceil(ms / 1000));
@@ -269,22 +271,25 @@
    * 둘 다 디지몬이 오른쪽에서 먹는 그림이고, 디지몬이 왼쪽에 있으면 뒤집는다. */
   var meatImg = new Image();
   meatImg.src = 'img/meat.png';
+  var medImg = new Image();   // 약: 캡슐 그대로 · 한 입 · 두 입 (세 입째에 사라진다)
+  medImg.src = 'img/medicine.png';
   var MEAT = 24;
   var FOOD = { candy: ['OO..OOOO..OO', 'OWOOCPCCOOWO', 'OWWOCCCCOWWO', 'OWOOCCcCOOWO', 'OO..OOOO..OO'] };
   var FOOD_COLOR = { O: '#1b1f17', W: '#ffd23f', C: '#ff6fa8', c: '#c84078', P: '#ffd0e4' };
   var FOOD_PX = 3, FOOD_DROP = 450, FOOD_BITES = [800, 1150, 1500];
   function foodSize(kind) {
-    if (kind === 'meat') return { w: MEAT, h: MEAT };
+    if (kind === 'meat' || kind === 'pill') return { w: MEAT, h: MEAT };
     return { w: FOOD[kind][0].length * FOOD_PX, h: FOOD[kind].length * FOOD_PX };
   }
 
   // 바닥에 놓인 음식. bites 번 베어 문 만큼 디지몬 쪽부터 줄어든다.
   function drawFood(kind, x, y, flip, bites) {
-    if (kind === 'meat') {
-      if (!meatImg.complete || !meatImg.naturalWidth) return;
+    if (kind === 'meat' || kind === 'pill') {
+      var im = kind === 'meat' ? meatImg : medImg;
+      if (!im.complete || !im.naturalWidth) return;
       lx.save();
       if (flip) { lx.translate(x + MEAT, y); lx.scale(-1, 1); x = 0; y = 0; }
-      lx.drawImage(meatImg, Math.min(bites, 3) * MEAT, 0, MEAT, MEAT, x, y, MEAT, MEAT);
+      lx.drawImage(im, Math.min(bites, 3) * MEAT, 0, MEAT, MEAT, x, y, MEAT, MEAT);
       lx.restore();
       return;
     }
@@ -321,7 +326,7 @@
     if (!eating || Math.floor(ts / 220) !== Math.floor(lastStep / 220)) { walk.frame++; lastStep = ts; }
     if (mon.sleeping) {
       walk.x = (W - sw) / 2 - 12;
-    } else if (!acting && !eating) {
+    } else if (!acting && !eating && !mon.sick) {
       // 걷다가 가끔 멈춰 선다
       if (walk.rest > 0) walk.rest--;
       else {
@@ -374,12 +379,24 @@
       lx.fillRect(6, 6, 14, 16);
       lx.fillStyle = '#fff'; lx.fillText('!', 10, 18);
     }
+    if (mon.sick && !mon.sleeping) drawSkull(W - 24, 6, (walk.frame >> 1) & 1);
     if (effect && ts < effect.until && effect.text) {
       lx.font = 'bold 14px sans-serif';
       lx.fillStyle = dark ? '#fff' : '#1b1f17';
       lx.fillText(effect.text, 8, 36);
     }
   }
+  // 아플 때 오른쪽 위에 깜빡이는 해골
+  var SKULL = ['.XXXXX.', 'XXXXXXX', 'X..X..X', 'XXXXXXX', '.XX.XX.', '.XXXXX.', '.X.X.X.'];
+  function drawSkull(x, y, blink) {
+    lx.fillStyle = '#5a3a7a'; lx.fillRect(x - 2, y, 18, 18);
+    if (blink) return;
+    lx.fillStyle = '#f4efe4';
+    SKULL.forEach(function (row, ry) {
+      for (var rx = 0; rx < row.length; rx++) if (row[rx] === 'X') lx.fillRect(x + rx * 2, y + 2 + ry * 2, 2, 2);
+    });
+  }
+
   // 디지타마: 흔들흔들하다가 마지막 1분 동안 금이 점점 커진다 (프레임 2-6)
   function drawEgg(mon, W, Hh) {
     var left = mon.stageEnd - now(), m = Sprite.measure('egg_' + mon.line), S = 2;
@@ -422,7 +439,15 @@
       if (r.over) toast('배부른데 간식까지… 과식했어요');
       feedFx('candy', r.over);
     },
-    train: function () { if (!sleepingGuard()) startTrain(); },
+    train: function () {
+      if (sleepingGuard()) return;
+      if (state.mon.sick) { toast('아파서 훈련할 수 없어요. 약을 먼저 주세요'); return; }
+      startTrain();
+    },
+    medicine: function () {
+      if (sleepingGuard()) return;
+      if (E.medicine(state).ok) { feedFx('pill', false); toast('약을 먹었어요. 이제 괜찮아요!'); }
+    },
     clean: function () {
       var r = E.clean(state);
       toast(r.n ? '깨끗해졌어요' : '치울 게 없어요');
@@ -537,7 +562,10 @@
 
   function openScan() {
     var can = E.canBattle(state);
-    if (!can.ok) { toast(can.reason === 'sleep' ? '자고 있어요' : '성장기부터 배틀할 수 있어요'); return; }
+    if (!can.ok) {
+      toast(can.reason === 'sleep' ? '자고 있어요' : can.reason === 'sick' ? '아파서 배틀할 수 없어요. 약을 먼저 주세요' : '성장기부터 배틀할 수 있어요');
+      return;
+    }
     found = null;
     $('wildCard').hidden = true; $('fight').hidden = true;
     $('codeIn').value = '';
@@ -846,6 +874,7 @@
     if (fled) { toast('도망쳤어요. 패배로 기록돼요'); return; }
     var text = r.won ? '승리! ' + josa(b.wild.name, '이', '가') + ' 도감에 등록됐어요' : '패배… 다음엔 이길 거예요';
     if (r.reward === 'chip') text += ' · 디지 칩을 얻었어요!';
+    if (r.injured) text += ' · 다쳤어요! 💊 약을 주세요';
     else if (r.reward) text += ' · ' + josa(D.RULE_HINTS[r.reward], '을', '를') + ' 얻었어요!';
     $('blog').textContent = text;
     $('cmds').hidden = true; $('battleDone').hidden = false;
@@ -1062,6 +1091,7 @@
       if (e.type === 'evolve' || e.type === 'death') queue.push(e);
       else if (e.type === 'fail') queue.push(e);
       else if (e.type === 'armorEnd') toast('아머진화가 풀렸어요');
+      else if (e.type === 'sick' && e.why === 'poop') toast('똥이 너무 쌓여서 병에 걸렸어요! 💊 약을 주세요');
       else if (e.type === 'mistake' && e.kind !== 'wake') mistakes++;
       else if (e.type === 'call' && t - e.t < 2 * M) recentCall = true;
     });
