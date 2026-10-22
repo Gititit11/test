@@ -267,12 +267,12 @@ test('예전 저장에서 수명이 다한 디지몬이 있어도 새 알을 받
   assert.equal(s.box.length, 0);
 });
 
-test('배고픔 호출을 15분 넘게 두면 실수 1, 한 번만 센다', function () {
+test('배고픔 호출을 20분 넘게 두면 실수 1, 한 번만 센다', function () {
   var s = at('agumon', 'child', 'agumon');
   s.mon.hunger = 0; s.mon.strength = 4;
-  E.tick(s, MORNING + 14 * M);
+  E.tick(s, MORNING + 19 * M);
   assert.equal(s.mon.c.mistakes, 0);
-  E.tick(s, MORNING + 15 * M);
+  E.tick(s, MORNING + 20 * M);
   assert.equal(s.mon.c.mistakes, 1);
   E.tick(s, MORNING + 50 * M);
   assert.equal(s.mon.c.mistakes, 1);

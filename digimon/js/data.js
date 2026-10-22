@@ -21,12 +21,13 @@ var DigiData = (function () {
     stageHours: { baby1: 1, baby2: 24, child: 72, adult: 96, perfect: 120 },
     // 수명은 없다. 한 번 키운 디지몬은 사라지지 않는다.
     failDelayHours: 24,        // 성숙기 → 완전체 진화 실패 때 다음 판정이 이만큼 늦어진다
-    callMinutes: 15,           // 배고픔·힘 호출을 이만큼 넘게 두면 케어 실수
+    callMinutes: 20,           // 배고픔·힘 호출을 이만큼 넘게 두면 케어 실수 (원조 기기와 같음)
     poopLimitMinutes: 180,     // 배변을 이만큼 넘게 두면 위생 실수
     sleepLightsMinutes: 30,    // 잠든 뒤 불을 이만큼 넘게 안 끄면 수면 방해
     wakeMinutes: 10,           // 깨우면 이만큼 깨어 있다가 다시 잔다
-    hungerEvery: { baby1: 10, baby2: 45, child: 60, adult: 75, perfect: 90, ultimate: 100 },
-    strengthEvery: { baby1: 12, baby2: 55, child: 70, adult: 90, perfect: 110, ultimate: 120 },
+    // 배고픔·힘이 1칸 줄어드는 간격(분). 원조 기기처럼 둘이 같은 간격으로 준다.
+    hungerEvery: { baby1: 3, baby2: 30, child: 48, adult: 50, perfect: 60, ultimate: 60 },
+    strengthEvery: { baby1: 3, baby2: 30, child: 48, adult: 50, perfect: 60, ultimate: 60 },
     poopEvery: { baby1: 20, baby2: 120, child: 180, adult: 180, perfect: 200, ultimate: 220 },
     maxPoops: 8,
     // [잠드는 시, 깨는 시] (기기 현지 시각). 유년기1 은 한 시간뿐이라 자지 않는다.
