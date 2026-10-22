@@ -1,14 +1,22 @@
-"""디지타마 아이콘 만들기: python3 digimon/tools/build-icons.py"""
+"""디지타마 아이콘 만들기: python3 digimon/tools/build-icons.py
+
+LCD 화면 안에 아구몬 도트(sprites/agumon.png 첫 프레임)를 정수배로 키워 넣는다.
+안드로이드 앱 아이콘(android/.../mipmap-*/ic_launcher.png)도 같이 만든다.
+"""
 import os
 from PIL import Image, ImageDraw
 
-OUT = os.path.join(os.path.dirname(__file__), '..', 'icons')
-BG, INK = (15, 17, 21), (27, 31, 23)
-SHELL, SPOT, LCD = (255, 214, 170), (255, 140, 50), (215, 232, 196)
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, '..', 'icons')
+RES = os.path.join(HERE, '..', 'android', 'app', 'src', 'main', 'res')
+BG, LCD = (15, 17, 21), (215, 232, 196)
 
-# 앱 화면의 알과 같은 도트 (X 테두리, A 껍질, B 무늬)
-EGG = ['..XXXX..', '.XAAAAX.', 'XAABBAAX', 'XABBBBAX', 'XAABBAAX',
-       'XAAAAAAX', 'XABAABAX', 'XAAAAAAX', '.XAAAAX.', '..XXXX..']
+
+def sprite():
+    sheet = Image.open(os.path.join(HERE, '..', 'sprites', 'agumon.png')).convert('RGBA')
+    w = sheet.width // 12
+    f = sheet.crop((0, 0, w, sheet.height))
+    return f.crop(f.getbbox())
 
 
 def draw(size, maskable=False):
@@ -22,15 +30,11 @@ def draw(size, maskable=False):
     # LCD 화면
     m = n * (1 - k) / 2
     d.rounded_rectangle([m, m, n - m, n - m], radius=int(n * 0.12 * k), fill=LCD)
-    cell = int(n * k * 0.075)
-    w, h = 8 * cell, 10 * cell
-    x0, y0 = (n - w) / 2, (n - h) / 2
-    pal = {'X': INK, 'A': SHELL, 'B': SPOT}
-    for y, row in enumerate(EGG):
-        for x, ch in enumerate(row):
-            if ch == '.':
-                continue
-            d.rectangle([x0 + x * cell, y0 + y * cell, x0 + (x + 1) * cell - 1, y0 + (y + 1) * cell - 1], fill=pal[ch])
+    # 아구몬 (도트가 뭉개지지 않게 정수배로)
+    f = sprite()
+    scale = max(1, int(n * k * 0.78 / max(f.width, f.height)))
+    big = f.resize((f.width * scale, f.height * scale), Image.NEAREST)
+    im.alpha_composite(big, ((n - big.width) // 2, (n - big.height) // 2))
     return im.resize((size, size), Image.NEAREST if size >= 180 else Image.LANCZOS)
 
 
@@ -39,4 +43,6 @@ draw(192).save(os.path.join(OUT, 'icon-192.png'))
 draw(512).save(os.path.join(OUT, 'icon-512.png'))
 draw(512, True).save(os.path.join(OUT, 'icon-maskable-512.png'))
 draw(180, True).convert('RGB').save(os.path.join(OUT, 'apple-touch-icon.png'))
+for d, px in (('mipmap-xxhdpi', 144), ('mipmap-xxxhdpi', 192)):
+    draw(px).save(os.path.join(RES, d, 'ic_launcher.png'))
 print('ok')
