@@ -264,31 +264,38 @@
   // 배변 도트 (24x24, 위쪽 검은 선은 냄새). 좌우로 번갈아 뒤집어 냄새가 일렁이게 한다.
   var poopImg = new Image();
   poopImg.src = 'img/poop.png';
-  /* 먹이(고기)와 간식(사탕) 도트. 디지몬이 오른쪽에서 먹는 그림이고, 반대편이면 뒤집는다.
-   * O 테두리 · B 뼈 · M m H 고기(밝기 셋) · W 포장지 · C c P 사탕 */
-  var FOOD = {
-    meat: ['OO.........', 'OBO........', '.OBOO......', '..OBBOOOO..', '...OOMHHMO.',
-      '....OMMHMMO', '....OMMMMmO', '.....OmmmmO', '......OOOO.'],
-    candy: ['OO..OOOO..OO', 'OWOOCPCCOOWO', 'OWWOCCCCOWWO', 'OWOOCCcCOOWO', 'OO..OOOO..OO']
-  };
-  var FOOD_COLOR = {
-    O: '#1b1f17', B: '#f4efe4', M: '#c0502a', m: '#8a3418', H: '#ec9a6a',
-    W: '#ffd23f', C: '#ff6fa8', c: '#c84078', P: '#ffd0e4'
-  };
-  var FOOD_BONE = { meat: 4, candy: 0 }; // 위에서 이만큼 줄은 뼈라서 먹지 않는다
-  var FOOD_FROM = { meat: 4, candy: 0 };  // 먹을 수 있는 부분이 시작하는 칸 (세 입에 나눠 먹는다)
+  /* 먹이(고기)는 받은 도트 img/meat.png (24x24 네 장: 그대로 · 한 입 · 두 입 · 뼈).
+   * 간식(사탕)은 아래 글자 도트 (W 포장지 · C c P 사탕 · O 테두리).
+   * 둘 다 디지몬이 오른쪽에서 먹는 그림이고, 디지몬이 왼쪽에 있으면 뒤집는다. */
+  var meatImg = new Image();
+  meatImg.src = 'img/meat.png';
+  var MEAT = 24;
+  var FOOD = { candy: ['OO..OOOO..OO', 'OWOOCPCCOOWO', 'OWWOCCCCOWWO', 'OWOOCCcCOOWO', 'OO..OOOO..OO'] };
+  var FOOD_COLOR = { O: '#1b1f17', W: '#ffd23f', C: '#ff6fa8', c: '#c84078', P: '#ffd0e4' };
   var FOOD_PX = 3, FOOD_DROP = 450, FOOD_BITES = [800, 1150, 1500];
+  function foodSize(kind) {
+    if (kind === 'meat') return { w: MEAT, h: MEAT };
+    return { w: FOOD[kind][0].length * FOOD_PX, h: FOOD[kind].length * FOOD_PX };
+  }
 
-  // 바닥에 놓인 음식. bites 번 베어 문 만큼 디지몬 쪽부터 지운다.
+  // 바닥에 놓인 음식. bites 번 베어 문 만큼 디지몬 쪽부터 줄어든다.
   function drawFood(kind, x, y, flip, bites) {
-    var g = FOOD[kind], w = g[0].length, bone = FOOD_BONE[kind];
-    var cut = w - Math.round(bites * (w - FOOD_FROM[kind]) / 3); // 이 칸부터 오른쪽(디지몬 쪽)은 먹혔다
+    if (kind === 'meat') {
+      if (!meatImg.complete || !meatImg.naturalWidth) return;
+      lx.save();
+      if (flip) { lx.translate(x + MEAT, y); lx.scale(-1, 1); x = 0; y = 0; }
+      lx.drawImage(meatImg, Math.min(bites, 3) * MEAT, 0, MEAT, MEAT, x, y, MEAT, MEAT);
+      lx.restore();
+      return;
+    }
+    var g = FOOD[kind], w = g[0].length;
+    var cut = w - Math.round(bites * w / 3); // 이 칸부터 오른쪽(디지몬 쪽)은 먹혔다
     g.forEach(function (row, ry) {
       var c2 = cut + (ry % 2); // 이빨 자국처럼 들쭉날쭉
       for (var rx = 0; rx < w; rx++) {
         var ch = row[rx];
         if (ch === '.') continue;
-        if (rx >= c2 && ry >= bone && ch !== 'B') continue; // 먹힌 자리
+        if (rx >= c2) continue; // 먹힌 자리
         lx.fillStyle = FOOD_COLOR[ch];
         lx.fillRect(x + (flip ? w - 1 - rx : rx) * FOOD_PX, y + ry * FOOD_PX, FOOD_PX, FOOD_PX);
       }
@@ -335,7 +342,7 @@
     });
     // 먹이·간식: 위에서 떨어진 뒤 세 입에 먹는다 (과식이면 먹지 않고 그대로 둔다)
     if (effect && effect.food && ts < effect.until) {
-      var et = ts - effect.t0, fg = FOOD[effect.food], fw = fg[0].length * FOOD_PX, fh = fg.length * FOOD_PX;
+      var et = ts - effect.t0, fz = foodSize(effect.food), fw = fz.w, fh = fz.h;
       var left = walk.dir < 0; // 왼쪽을 보고 있으면 음식은 왼쪽에
       var fx0 = left ? Math.round(walk.x) - fw - 2 : Math.round(walk.x) + sw + 2;
       var fy = et < FOOD_DROP ? Math.round(-fh + (floor - 2) * et / FOOD_DROP) : floor - fh - 2;
@@ -384,7 +391,7 @@
   function fx(text, anim) { effect = { text: text, anim: anim, until: performance.now() + 1600 }; }
   // 음식을 내려놓는다. 디지몬 앞에 자리가 없으면 반대쪽을 보게 돌려세운다.
   function feedFx(kind, refuse) {
-    var fw = FOOD[kind][0].length * FOOD_PX + 4, m = Sprite.measure(E.form(state.mon));
+    var fw = foodSize(kind).w + 4, m = Sprite.measure(E.form(state.mon));
     if (walk.dir < 0 && walk.x < fw) walk.dir = 1;
     else if (walk.dir > 0 && walk.x + m.w + fw > 160) walk.dir = -1;
     walk.rest = 0;
