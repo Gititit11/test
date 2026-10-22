@@ -231,7 +231,7 @@
     else if (mon.poops.length) { text = '똥을 치워 주세요'; }
     else if (warn) { text = '몸 색이 어두워졌어요… 뭔가 잘못되고 있어요'; bad = true; }
     else if (mon.armor) { text = '아머진화 중 · ' + dur(mon.armor - t) + ' 남음'; }
-    else text = '기분이 좋아 보여요';
+    else text = ''; // 기분이 좋으면 말 대신 화면에서 하트·음표로 보여 준다
     if (!mon.sleeping && warn && text !== '몸 색이 어두워졌어요… 뭔가 잘못되고 있어요') text += ' · 색이 어두워요';
     msg.textContent = text; msg.className = 'msg' + (bad ? ' warn' : '');
 
@@ -305,9 +305,14 @@
     var id = E.form(mon), m = Sprite.measure(id), sw = m.w;
     var floor = 104, y = floor - m.h, acting = effect && ts < effect.until && effect.anim;
     if (!eating || Math.floor(ts / 220) !== Math.floor(lastStep / 220)) { walk.frame++; lastStep = ts; }
+    // 기분이 좋으면 가끔 멈춰서 기뻐하고 머리 위로 하트나 음표를 띄운다
+    if (goodMood(mon) && !acting && !eating) {
+      if (!mood || ts > mood.next) mood = { t0: ts, kind: Math.random() < 0.5 ? 'heart' : 'note', next: ts + 6000 + Math.random() * 6000 };
+    } else mood = null;
+    var cheering = mood && ts - mood.t0 < MOOD_MS;
     if (mon.sleeping) {
       walk.x = (W - sw) / 2 - 12;
-    } else if (!acting && !eating && !mon.sick) {
+    } else if (!acting && !eating && !mon.sick && !cheering) {
       // 걷다가 가끔 멈춰 선다
       if (walk.rest > 0) walk.rest--;
       else {
@@ -321,11 +326,13 @@
     }
     var anim = mon.sleeping ? 'sleep' : acting ? effect.anim : walk.rest > 0 ? 'idle' : 'walk';
     if (eating && ts - effect.t0 < FOOD_DROP + 200) anim = 'idle'; // 음식이 놓인 뒤에 먹기 시작
+    if (cheering) anim = ts - mood.t0 < MOOD_MS / 2 ? 'happy' : 'idle';
     var bob = SHEETS[id] || mon.sleeping ? 0 : (walk.frame & 1) * 2; // 시트는 프레임에 움직임이 들어 있다
     // 시트는 왼쪽을 보는 그림이라 오른쪽으로 갈 때 뒤집는다
     Sprite.draw(lx, id, Math.round(walk.x), y + bob, 1, {
       flip: walk.dir > 0, frame: walk.frame, anim: anim, dark: E.warning(mon, now())
     });
+    if (cheering) drawMood(mood, ts, Math.round(walk.x + (walk.dir > 0 ? sw * 0.65 : sw * 0.35)), y);
     // 먹이·간식: 위에서 떨어진 뒤 세 입에 먹는다 (과식이면 먹지 않고 그대로 둔다)
     if (effect && effect.food && ts < effect.until) {
       var et = ts - effect.t0, fz = foodSize(effect.food), fw = fz.w, fh = fz.h;
@@ -367,6 +374,41 @@
       lx.fillText(effect.text, 8, 36);
     }
   }
+  /* 기분 표시: 돌볼 것이 하나도 없을 때(배고픔·힘 1칸 이상, 똥·병·경고 없음) 가끔 하트나 음표가 떠오른다 */
+  var mood = null, MOOD_MS = 1800;
+  var MOOD_ICON = {
+    heart: { color: '#ff5f8a', rows: ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'] },
+    note: { color: '#3b5bd8', rows: ['.XXXXX', '.X...X', '.X...X', '.X...X', 'XX..XX', 'XX..XX'] },
+    note1: { color: '#3b5bd8', rows: ['..XX.', '..X.X', '..X..', '..X..', 'XXX..', 'XXX..'] }
+  };
+  function goodMood(mon) {
+    return !mon.sleeping && !mon.sick && !mon.poops.length && mon.hunger > 0 && mon.strength > 0 &&
+      !E.warning(mon, now());
+  }
+  function drawIcon(kind, x, y) {
+    var ic = MOOD_ICON[kind];
+    ic.rows.forEach(function (row, ry) {
+      for (var rx = 0; rx < row.length; rx++) if (row[rx] === 'X') {
+        lx.fillStyle = '#1b1f17'; lx.fillRect(x + rx * 2 - 1, y + ry * 2 - 1, 4, 4); // 테두리
+      }
+    });
+    ic.rows.forEach(function (row, ry) {
+      for (var rx = 0; rx < row.length; rx++) if (row[rx] === 'X') {
+        lx.fillStyle = ic.color; lx.fillRect(x + rx * 2, y + ry * 2, 2, 2);
+      }
+    });
+  }
+  // 머리 위에서 흔들리며 떠오른다. 음표는 두 개가 번갈아 뜬다.
+  function drawMood(md, ts, hx, top) {
+    var k = (ts - md.t0) / MOOD_MS, rise = Math.round(k * 14), sway = Math.round(Math.sin(k * 9) * 3);
+    var y = Math.max(2, top - 16 - rise);
+    if (md.kind === 'heart') drawIcon('heart', hx - 7 + sway, y);
+    else {
+      drawIcon('note', hx - 12 + sway, y);
+      if (k > 0.3) drawIcon('note1', hx + 4 - sway, y + 6);
+    }
+  }
+
   // 아플 때 오른쪽 위에 깜빡이는 해골
   var SKULL = ['.XXXXX.', 'XXXXXXX', 'X..X..X', 'XXXXXXX', '.XX.XX.', '.XXXXX.', '.X.X.X.'];
   function drawSkull(x, y, blink) {
