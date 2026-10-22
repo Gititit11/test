@@ -261,7 +261,9 @@
   /* ---------- 화면(LCD) 그리기 ---------- */
   var lcd = $('lcd'), lx = lcd.getContext('2d');
   var walk = { x: 60, dir: -1, frame: 0, rest: 0 }, effect = null, lastFrame = 0, lastStep = 0;
-  var POOP = ['..X..', '.XXX.', 'XXXXX'];
+  // 배변 도트 (24x24, 위쪽 검은 선은 냄새). 좌우로 번갈아 뒤집어 냄새가 일렁이게 한다.
+  var poopImg = new Image();
+  poopImg.src = 'img/poop.png';
   /* 먹이(고기)와 간식(사탕) 도트. 디지몬이 오른쪽에서 먹는 그림이고, 반대편이면 뒤집는다.
    * O 테두리 · B 뼈 · M m H 고기(밝기 셋) · W 포장지 · C c P 사탕 */
   var FOOD = {
@@ -343,14 +345,17 @@
     if (dark) { lx.fillStyle = 'rgba(10,12,20,.55)'; lx.fillRect(0, 0, W, Hh); }
 
     // 배변
-    mon.poops.slice(0, 6).forEach(function (p, i) {
-      var px = W - 26 + (i % 2) * 12, py = floor - 8 - Math.floor(i / 2) * 12;
-      POOP.forEach(function (row, ry) {
-        for (var rx = 0; rx < row.length; rx++) if (row[rx] === 'X') {
-          lx.fillStyle = '#6a4a2a'; lx.fillRect(px + rx * 2, py + ry * 2, 2, 2);
-        }
+    // 오른쪽 아래부터 두 줄로 쌓는다. 아래 것을 먼저 그려야 위 똥이 아래 똥의 냄새 선을 덮는다.
+    if (poopImg.complete && poopImg.naturalWidth) {
+      var wave = (walk.frame >> 1) & 1;
+      mon.poops.slice(0, 6).forEach(function (p, i) {
+        var px = W - 24 - (i % 2) * 18, py = floor - 23 - Math.floor(i / 2) * 14;
+        lx.save();
+        if ((i + wave) & 1) { lx.translate(px + 24, py); lx.scale(-1, 1); lx.drawImage(poopImg, 0, 0); }
+        else lx.drawImage(poopImg, px, py);
+        lx.restore();
       });
-    });
+    }
 
     lx.font = 'bold 12px monospace';
     if (mon.sleeping) {
