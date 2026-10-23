@@ -252,6 +252,12 @@
     ['feed', 'snack', 'train', 'clean', 'lights'].forEach(function (k) {
       document.querySelector('[data-act="' + k + '"]').disabled = egg;
     });
+    // 먹는 중에는 다 먹을 때까지 더 줄 수 없다
+    var eating = isEating();
+    ['feed', 'snack', 'medicine'].forEach(function (k) {
+      var b = document.querySelector('[data-act="' + k + '"]');
+      b.disabled = b.disabled || eating;
+    });
     if (egg) document.querySelector('[data-act="chip"]').hidden = true;
     document.querySelector('[data-act="medicine"]').hidden = !mon.sick;
   }
@@ -429,6 +435,15 @@
     else Sprite.egg(lx, mon.line, x + ((walk.frame++ & 1) ? 1 : -1), y, S, frame);
   }
   function fx(text, anim) { effect = { text: text, anim: anim, until: performance.now() + 1600 }; }
+  // 먹는 연출이 끝나기 전까지는 먹는 중이다
+  function isEating() {
+    return !!(effect && effect.food && performance.now() < effect.until);
+  }
+  function eatingGuard() {
+    if (!isEating()) return false;
+    toast('아직 먹고 있어요');
+    return true;
+  }
   // 음식을 내려놓는다. 디지몬 앞에 자리가 없으면 반대쪽을 보게 돌려세운다.
   function feedFx(kind, refuse) {
     var fw = foodSize(kind).w + 4, m = Sprite.measure(E.form(state.mon));
@@ -440,6 +455,8 @@
       food: kind, refuse: refuse, t0: t0, until: t0 + (refuse ? 1500 : 2000),
       anim: refuse ? 'idle' : 'eat', text: refuse ? '윽…' : ''
     };
+    // 다 먹으면 버튼을 바로 다시 켠다
+    setTimeout(function () { if (!stack.length) render(); }, effect.until - t0 + 50);
   }
 
   /* ---------- 돌보기 ---------- */
@@ -451,13 +468,13 @@
 
   var ACTS = {
     feed: function () {
-      if (sleepingGuard()) return;
+      if (sleepingGuard() || eatingGuard()) return;
       var r = E.feed(state);
       if (r.over) toast('배가 불러요… 과식했어요');
       feedFx('meat', r.over);
     },
     snack: function () {
-      if (sleepingGuard()) return;
+      if (sleepingGuard() || eatingGuard()) return;
       var r = E.snack(state);
       if (r.over) toast('배부른데 간식까지… 과식했어요');
       feedFx('snack', r.over);
@@ -468,7 +485,7 @@
       startTrain();
     },
     medicine: function () {
-      if (sleepingGuard()) return;
+      if (sleepingGuard() || eatingGuard()) return;
       if (E.medicine(state).ok) { feedFx('pill', false); toast('약을 먹었어요. 이제 괜찮아요!'); }
     },
     clean: function () {
