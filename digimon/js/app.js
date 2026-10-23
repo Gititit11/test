@@ -148,12 +148,12 @@
       tx.children[0].textContent = name(id);
       tx.children[1].textContent = (mon.armor ? '아머체' : D.STAGE_NAMES[mon.stage]) + ' · ' +
         D.LINES[mon.line].name + ' 라인 · ' + dur(age) + '째';
-      tx.children[2].textContent = on ? '키우는 중' : '보관 중 · 시간이 멈춰 있어요';
+      tx.children[2].textContent = on ? '키우는 중' : '보관 중 · 눌러서 데려오기';
       li.appendChild(tx);
       if (!on) {
-        var acts = document.createElement('div'); acts.className = 'acts2';
-        var go = document.createElement('button'); go.className = 'btn primary'; go.textContent = '데려오기';
-        go.addEventListener('click', function () {
+        // 줄을 누르면 데려온다
+        li.classList.add('tap');
+        li.addEventListener('click', function () {
           var cur = alive();
           if (cur && !confirm(josa(name(E.form(cur)), '을', '를') + ' 보관함에 넣고 ' + josa(name(id), '을', '를') + ' 데려올까요?')) return;
           E.resume(state, mon.uid, now());
@@ -161,13 +161,14 @@
           save(); closeAll(); render(); drainEvents();
           toast(josa(name(id), '이', '가') + ' 돌아왔어요');
         });
-        var bye = document.createElement('button'); bye.className = 'btn ghost'; bye.textContent = '떠나보내기';
-        bye.addEventListener('click', function () {
+        var bye = document.createElement('button'); bye.className = 'btn danger'; bye.textContent = '떠나보내기';
+        bye.addEventListener('click', function (e) {
+          e.stopPropagation();
           if (!confirm(josa(name(id), '을', '를') + ' 떠나보낼까요? 되돌릴 수 없어요. (도감 기록은 남아요)')) return;
           E.release(state, mon.uid, now());
           save(); renderBox(); renderEggs();
         });
-        acts.appendChild(go); acts.appendChild(bye); li.appendChild(acts);
+        li.appendChild(bye);
       }
       ul.appendChild(li);
     });
