@@ -43,8 +43,8 @@ var DigiData = (function () {
     hpMax: 100,
     stagePower: { child: 10, adult: 20, perfect: 34, ultimate: 52 },
     gradePower: { normal: 1, rare: 1.2, boss: 1.45, legend: 1.8 },
-    // 스캔하면 내 단계와 같은 단계가 70%, 한 단계 위가 30%. 궁극체는 궁극체만.
-    upChance: 0.3,
+    // 바코드마다 나오는 디지몬이 정해져 있다. 바코드들에 단계가 이 비율로 퍼진다 (내 단계와 상관없음).
+    stageOdds: { child: 0.35, adult: 0.30, perfect: 0.22, ultimate: 0.13 },
     // 나온 디지몬의 단계별 등급 확률
     gradeOdds: {
       child: { normal: 0.75, rare: 0.25 },

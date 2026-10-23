@@ -177,6 +177,8 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
   flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--text);
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; min-height: 44px;
 }
+.encounter { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: #050608; }
+.encounter canvas { width: min(92vw, 420px); height: auto; aspect-ratio: 320 / 420; }
 .wild { display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
 .wild canvas { width: 72px; height: 72px; background: var(--lcd); border-radius: 10px; flex: none; }
 .wild-name { font-weight: 700; font-size: 17px; }

@@ -678,9 +678,129 @@
       (state.meta.dex[w.id].beaten ? ' · 이긴 적 있음' : ' · 아직 못 이긴 디지몬');
     var me = D.SPECIES[E.form(state.mon)], adv = E.advantage(me.attr, w.attr);
     $('wildAdv').textContent = adv > 1 ? '상성 유리!' : adv < 1 ? '상성 불리…' : '상성 보통';
-    $('wildCard').hidden = false; $('fight').hidden = false;
     stopCam(); $('camStart').hidden = true;
+    encounter(w, function () { $('wildCard').hidden = false; $('fight').hidden = false; });
   }
+
+  /* 상대 등장 연출: (보스·전설은 경고) → 느낌표 → 빛줄기 속에서 실루엣이 다가옴 → 번쩍! 정체 공개 → 이름 */
+  var ENC_COLOR = { normal: '#7fd3ff', rare: '#8ea6ff', boss: '#ff4d5e', legend: '#f5c242' };
+  function encounter(w, done) {
+    var el = $('encounter'), cv = $('encCv'), x = cv.getContext('2d'), W = cv.width, H = cv.height;
+    var big = w.grade === 'boss' || w.grade === 'legend', col = ENC_COLOR[w.grade];
+    var pre = big ? 1100 : 0, REVEAL = pre + 1300, END = pre + 2700;
+    var sp = D.SPECIES[w.id], m = Sprite.measure(w.id);
+    var fit = 190 / Math.max(m.w, m.h), sc = fit >= 1 ? Math.floor(fit) : fit;
+    var sparks = [];
+    for (var i = 0; i < 40; i++) sparks.push([Math.random() * W, Math.random() * H, 0.5 + Math.random() * 1.5, Math.random() * 6.28]);
+    var t0 = performance.now(), shook = false, fin = false;
+    el.hidden = false;
+    vibrate(big ? [80, 80, 80, 80, 80] : 40);
+    function finish() {
+      if (fin) return; fin = true;
+      el.hidden = true; el.onclick = null; done();
+    }
+    el.onclick = finish;
+    function ease(a) { a = Math.max(0, Math.min(1, a)); return 1 - Math.pow(1 - a, 3); }
+    function frame(ts) {
+      if (fin) return;
+      var t = ts - t0;
+      if (t >= END) { finish(); return; }
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      // 정체가 드러날 때 화면이 흔들린다
+      if (t > REVEAL && t < REVEAL + 450) {
+        var k = (1 - (t - REVEAL) / 450) * (big ? 9 : 5);
+        x.setTransform(1, 0, 0, 1, (Math.random() - .5) * k * 2, (Math.random() - .5) * k * 2);
+      }
+      var g = x.createRadialGradient(W / 2, 170, 10, W / 2, 170, 300);
+      g.addColorStop(0, t > pre ? col + '33' : '#000'); g.addColorStop(1, '#050608');
+      x.fillStyle = g; x.fillRect(-20, -20, W + 40, H + 40);
+
+      // 보스·전설: 경고 띠
+      if (big && t < pre + 300) {
+        var on = Math.floor(t / 180) % 2 === 0;
+        x.fillStyle = on ? col : '#1a0b0e';
+        x.globalAlpha = 0.25 + 0.2 * Math.sin(t / 60);
+        x.fillRect(0, 0, W, H);
+        x.globalAlpha = 1;
+        for (var b = 0; b < 2; b++) {
+          var y = b ? H - 70 : 40, off = (t / 6) % 40 * (b ? -1 : 1);
+          x.fillStyle = col; x.fillRect(0, y, W, 30);
+          x.fillStyle = '#111';
+          for (var s = -40; s < W + 40; s += 40) {
+            x.beginPath(); x.moveTo(s + off, y); x.lineTo(s + off + 18, y); x.lineTo(s + off + 6, y + 30); x.lineTo(s + off - 12, y + 30); x.fill();
+          }
+        }
+        x.fillStyle = on ? '#fff' : col;
+        x.font = '900 40px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.fillText('WARNING', W / 2, H / 2 - 14);
+        x.font = '700 16px system-ui, sans-serif';
+        x.fillText(w.grade === 'legend' ? '전설의 디지몬이 다가온다' : '강력한 보스가 다가온다', W / 2, H / 2 + 22);
+        if (t < pre) { requestAnimationFrame(frame); return; }
+      }
+      var u = t - pre;
+      // 회전하는 빛줄기
+      if (u > 200) {
+        x.save(); x.translate(W / 2, 170); x.rotate(u / (big ? 900 : 1400));
+        x.globalAlpha = Math.min(1, (u - 200) / 500) * (u > 1300 ? 0.55 : 0.35);
+        x.fillStyle = col;
+        for (var r = 0; r < 12; r++) {
+          x.rotate(Math.PI / 6);
+          x.beginPath(); x.moveTo(0, 0); x.lineTo(-18, -420); x.lineTo(18, -420); x.fill();
+        }
+        x.restore(); x.globalAlpha = 1;
+      }
+      // 반짝이 (등장 뒤에 떠오른다)
+      if (u > 1300) {
+        x.fillStyle = col;
+        sparks.forEach(function (p) {
+          var yy = (p[1] - (u - 1300) * 0.05 * p[2] + H) % H;
+          x.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(u / 200 + p[3]));
+          x.fillRect(p[0], yy, p[2] * 2, p[2] * 2);
+        });
+        x.globalAlpha = 1;
+      }
+      // 느낌표
+      if (u < 450) {
+        var a = ease(u / 150);
+        x.fillStyle = '#fff'; x.font = '900 ' + Math.round(40 + 60 * a) + 'px system-ui, sans-serif';
+        x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.globalAlpha = u > 300 ? 1 - (u - 300) / 150 : 1;
+        x.fillText('!', W / 2, 170); x.globalAlpha = 1;
+      }
+      // 디지몬: 실루엣으로 다가오다가 번쩍 하고 드러난다
+      if (u > 300) {
+        var z = u < 1300 ? 0.35 + 0.65 * ease((u - 300) / 1000) : 1 + 0.12 * Math.max(0, 1 - (u - 1300) / 250);
+        var s2 = sc * z, dw = m.w * s2, dh = m.h * s2;
+        Sprite.draw(x, w.id, Math.round(W / 2 - dw / 2), Math.round(170 - dh / 2), s2,
+          { anim: 'idle', silhouette: u < 1300, flip: false });
+      }
+      // 번쩍
+      if (u > 1250 && u < 1650) {
+        x.globalAlpha = u < 1300 ? (u - 1250) / 50 : 1 - (u - 1300) / 350;
+        x.fillStyle = '#fff'; x.fillRect(-20, -20, W + 40, H + 40); x.globalAlpha = 1;
+        if (!shook) { shook = true; vibrate(big ? 220 : 90); }
+      }
+      // 이름
+      if (u > 1400) {
+        var q = ease((u - 1400) / 260), zz = 1 + (1 - q) * 1.2;
+        x.save(); x.translate(W / 2, 320); x.scale(zz, zz); x.globalAlpha = q;
+        x.textAlign = 'center'; x.textBaseline = 'middle';
+        var head = (w.grade === 'normal' ? '' : D.GRADE_NAMES[w.grade] + ' ') + '야생 디지몬 출현!';
+        x.font = '800 15px system-ui, sans-serif'; x.lineWidth = 4; x.strokeStyle = '#000';
+        x.strokeText(head, 0, -26); x.fillStyle = col; x.fillText(head, 0, -26);
+        x.font = '900 30px system-ui, sans-serif';
+        x.lineWidth = 6; x.strokeStyle = '#000'; x.strokeText(sp.name, 0, 8);
+        x.fillStyle = '#fff'; x.fillText(sp.name, 0, 8);
+        var sub = D.STAGE_NAMES[D.STAGES[w.level]] + ' · ' + D.ATTR_NAMES[w.attr];
+        x.font = '700 13px system-ui, sans-serif'; x.lineWidth = 4; x.strokeStyle = '#000';
+        x.strokeText(sub, 0, 40); x.fillStyle = '#e6e9f0'; x.fillText(sub, 0, 40);
+        x.restore();
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
   $('fight').addEventListener('click', function () {
     if (!found) return;
     var w = found; found = null;

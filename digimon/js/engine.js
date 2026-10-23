@@ -8,7 +8,7 @@
  *   tick(state, now)            → 마지막으로 본 때부터 now 까지 1분씩 흘려 보낸다
  *   feed / snack / train / clean / toggleLights / wake / armor / useChip / medicine
  *   judge(mon)                  → 지금 진화하면 어떻게 되는지 (상태를 바꾸지 않음)
- *   wildFor(stageIdx, rnd)      → 야생 디지몬 하나 (스캔할 때마다 새로 뽑는다)
+ *   wildFor(rnd) / wildForCode(code) → 야생 디지몬 하나 (같은 바코드는 늘 같은 디지몬)
  *   scan / startBattle / battleTurn / endBattle
  *
  * 앱을 닫아 둔 동안의 일은 다시 열 때 tick 이 한꺼번에 따라잡는다.
@@ -406,12 +406,10 @@ var Engine = (function (D) {
   }
   function pick(list, x) { return list[Math.floor(x * list.length)]; }
 
-  /* 단계 → 등급 → (속성) → 디지몬. 스캔할 때마다 새로 뽑는다. */
-  function wildFor(myStage, rnd) {
+  /* 단계 → 등급 → (속성) → 디지몬 */
+  function wildFor(rnd) {
     rnd = rnd || Math.random;
-    var lo = Math.max(myStage, STAGE_IDX.child), top = STAGE_IDX.ultimate;
-    var level = lo >= top ? top : rnd() < R.upChance ? lo + 1 : lo;
-    var st = D.STAGES[level];
+    var st = pickOdds(R.stageOdds, rnd()), level = STAGE_IDX[st];
     var grade = pickOdds(R.gradeOdds[st], rnd());
     var id;
     if (grade === 'boss') id = pick(D.BOSSES[st], rnd());
@@ -423,6 +421,20 @@ var Engine = (function (D) {
     }
     var S = D.SPECIES[id];
     return { id: id, name: S.name, attr: S.attr, grade: grade, level: level };
+  }
+
+  // 바코드 숫자로 씨앗을 만들어 뽑으니, 같은 바코드는 언제 찍어도 같은 디지몬이 나온다
+  function codeKey(code) { return String(code || '').replace(/\s+/g, ''); }
+  function wildForCode(code) {
+    var h = 2166136261, k = codeKey(code);
+    for (var i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619); }
+    var a = h >>> 0;
+    return wildFor(function () { // mulberry32
+      a = (a + 0x6D2B79F5) | 0;
+      var x = Math.imul(a ^ (a >>> 15), 1 | a);
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    });
   }
 
   /* ---------- 배틀 ---------- */
@@ -440,15 +452,15 @@ var Engine = (function (D) {
     if (state.daily.date !== k) state.daily = { date: k, scans: 0 };
   }
 
-  // 하루 5회 (모든 디지몬이 함께 쓴다). 바코드는 스캔 신호일 뿐, 무엇이 나올지는 매번 다르다.
-  function scan(state, code, now, rnd) {
+  // 하루 5회 (모든 디지몬이 함께 쓴다). 바코드마다 나오는 디지몬이 정해져 있다.
+  function scan(state, code, now) {
     var can = canBattle(state);
     if (!can.ok) return can;
-    if (!String(code || '').replace(/\s+/g, '')) return { ok: false, reason: 'empty' };
+    if (!codeKey(code)) return { ok: false, reason: 'empty' };
     rollDaily(state, now);
     if (state.daily.scans >= R.scansPerDay) return { ok: false, reason: 'limit' };
     state.daily.scans++;
-    var w = wildFor(battleStage(state.mon), rnd);
+    var w = wildForCode(code);
     register(state, w.id, 'seen', now);
     return { ok: true, wild: w, left: R.scansPerDay - state.daily.scans };
   }
@@ -580,7 +592,7 @@ var Engine = (function (D) {
     judge: judge, passes: passes, warning: warning, form: form, winRate: winRate, dateKey: dateKey,
     feed: feed, snack: snack, train: train, clean: clean, toggleLights: toggleLights, wake: wake,
     armorKinds: armorKinds, canArmor: canArmor, armor: armor, useChip: useChip, medicine: medicine,
-    wildFor: wildFor, battleStage: battleStage, advantage: advantage,
+    wildFor: wildFor, wildForCode: wildForCode, battleStage: battleStage, advantage: advantage,
     canBattle: canBattle, scan: scan, scansLeft: scansLeft,
     startBattle: startBattle, battleTurn: battleTurn, endBattle: endBattle,
     myPower: myPower, wildPower: wildPower

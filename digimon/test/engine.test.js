@@ -388,43 +388,31 @@ test('아머진화: 가진 디지멘탈로 고르고, 하루 1회, 48시간', fu
   assert.equal(s.meta.items.thunder, true, '디지멘탈은 닳지 않는다');
 });
 
-test('야생: 같은 단계 70% · 한 단계 위 30%, 단계별 등급 확률', function () {
-  var r = seeded(7), N = 40000;
-  function tally(stage) {
-    var t = { up: 0, normal: 0, rare: 0, boss: 0, legend: 0 };
-    for (var i = 0; i < N; i++) {
-      var w = E.wildFor(stage, r);
-      assert.ok(D.SPECIES[w.id], w.id);
-      assert.equal(D.SPECIES[w.id].stage, D.STAGES[w.level], w.id);
-      if (w.level > stage) t.up++;
-      t[w.grade]++;
-    }
-    return t;
+test('야생: 바코드에 퍼지는 단계 비율과 단계별 등급 확률', function () {
+  var r = seeded(7), N = 40000, t = { child: 0, adult: 0, perfect: 0, ultimate: 0, boss: 0, legend: 0, rare: 0 };
+  for (var i = 0; i < N; i++) {
+    var w = E.wildFor(r);
+    assert.ok(D.SPECIES[w.id], w.id);
+    assert.equal(D.SPECIES[w.id].stage, D.STAGES[w.level], w.id);
+    t[D.STAGES[w.level]]++;
+    if (w.grade !== 'normal') t[w.grade]++;
   }
-  var c = tally(E.STAGE_IDX.child);
-  assert.ok(Math.abs(c.up / N - 0.3) < 0.01, JSON.stringify(c));
-  assert.equal(c.boss + c.legend, 0, '성장기·성숙기에는 보스가 없다');
-  assert.ok(Math.abs(c.rare / N - 0.25) < 0.01);
-
-  var p = tally(E.STAGE_IDX.perfect); // 완전체: 완전체 70% (보스 6%), 궁극체 30% (보스 2%, 전설 0.3%)
-  assert.ok(Math.abs(p.boss / N - (0.7 * 0.06 + 0.3 * 0.02)) < 0.005, JSON.stringify(p));
-
-  var u = tally(E.STAGE_IDX.ultimate);
-  assert.equal(u.up, 0, '궁극체는 궁극체만 만난다');
-  assert.ok(Math.abs(u.boss / N - 0.02) < 0.004, JSON.stringify(u));
-  assert.ok(u.legend > 40 && u.legend < 200, '전설 0.3%: ' + u.legend);
+  assert.ok(Math.abs(t.child / N - 0.35) < 0.01, JSON.stringify(t));
+  assert.ok(Math.abs(t.ultimate / N - 0.13) < 0.01, JSON.stringify(t));
+  assert.ok(Math.abs(t.boss / N - (0.22 * 0.06 + 0.13 * 0.02)) < 0.004, JSON.stringify(t));
+  assert.ok(t.legend > 0 && t.legend < 60, '전설: ' + t.legend);
 });
 
-test('스캔: 같은 바코드여도 매번 새로 뽑고, 하루 5회', function () {
+test('스캔: 같은 바코드는 늘 같은 디지몬, 하루 5회', function () {
   var s = at('agumon', 'child', 'agumon'), seen = {};
-  var r = seeded(3);
-  for (var i = 0; i < 5; i++) {
-    var x = E.scan(s, '8801234567893', MORNING, r);
-    assert.equal(x.ok, true);
-    seen[x.wild.id] = 1;
-    assert.ok(s.meta.dex[x.wild.id].seen, '만난 디지몬은 도감에 실루엣으로');
-  }
-  assert.ok(Object.keys(seen).length > 1, '같은 바코드라도 다른 디지몬');
+  var first = E.scan(s, '8801234567893', MORNING).wild;
+  assert.ok(s.meta.dex[first.id].seen, '만난 디지몬은 도감에 실루엣으로');
+  for (var i = 0; i < 2; i++) assert.deepEqual(E.scan(s, ' 8801234567893 ', MORNING).wild, first, '공백은 무시하고 같은 디지몬');
+  s.mon = at('agumon', 'ultimate', 'wargreymon').mon;
+  assert.deepEqual(E.scan(s, '8801234567893', MORNING).wild, first, '내 단계가 달라도 같은 디지몬');
+  for (var k = 0; k < 200; k++) seen[E.wildForCode('880' + k).id] = 1;
+  assert.ok(Object.keys(seen).length > 50, '바코드가 다르면 여러 디지몬');
+  assert.equal(E.scan(s, '1', MORNING).ok, true);
   assert.equal(E.scan(s, '1', MORNING).reason, 'limit');
   assert.equal(E.scan(s, '1', MORNING + 24 * H).ok, true, '다음 날 풀린다');
   assert.equal(E.scan(s, ' ', MORNING + 24 * H).reason, 'empty');
@@ -479,7 +467,7 @@ test('배틀 결과: 수치·도감·보상·배고픔', function () {
 test('배틀 턴이 끝까지 진행되고, 블리츠그레이몬은 가끔 명령을 무시한다', function () {
   var s = at('agumon', 'ultimate', 'blitzgreymon');
   var r = seeded(42);
-  var b = E.startBattle(s, E.wildFor(E.STAGE_IDX.ultimate, r)), n = 0;
+  var b = E.startBattle(s, { id: 'wargreymon', name: '워그레이몬', attr: 'vaccine', grade: 'normal', level: E.STAGE_IDX.ultimate }), n = 0;
   while (!b.over) { E.battleTurn(b, 'attack', r); n++; }
   assert.ok(n <= 20);
   assert.equal(b.ignores, true);
