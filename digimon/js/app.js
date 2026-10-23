@@ -1219,13 +1219,6 @@
         return [name(h.species), D.LINES[h.line].name + ' 라인 · ' + dur(h.died - h.born) + (h.how === 'released' ? ' · 떠나보냄' : '')];
       })));
     }
-    var reset = document.createElement('button');
-    reset.className = 'btn ghost'; reset.textContent = '처음부터 다시 (보관함·도감까지 모두 지우기)';
-    reset.addEventListener('click', function () {
-      if (!confirm('정말 모두 지울까요? 보관함의 디지몬, 도감, 아이템도 사라져요.')) return;
-      state = E.newState(); choosing = false; save(); closeAll(); render();
-    });
-    body.appendChild(reset);
   }
 
   /* ---------- 진화·사건 ---------- */
