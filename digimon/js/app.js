@@ -598,7 +598,10 @@
 
   /* ---------- 바코드 스캔 ---------- */
   var cam = { stream: null, timer: 0, detector: null }, found = null;
-  var canDetect = 'BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  // 안드로이드 앱에서는 구글 바코드 스캐너(네이티브)를 쓴다. 웹에서는 브라우저의 BarcodeDetector.
+  var native = window.DigitamaNative && typeof window.DigitamaNative.scan === 'function';
+  var canDetect = native || ('BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+  var PRODUCT = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
 
   function openScan() {
     var can = E.canBattle(state);
@@ -625,11 +628,25 @@
     for (var i = 0; i < n - 1; i++) sum += +raw[n - 2 - i] * (i % 2 ? 1 : 3);
     return (10 - sum % 10) % 10 === +raw[n - 1];
   }
+  window.onNativeScan = function (raw, why) {
+    if (!raw) { if (why === 'fail') toast('스캐너를 열 수 없어요. 숫자를 직접 넣어 주세요'); return; }
+    vibrate(60);
+    $('codeIn').value = raw;
+    lookUp(raw);
+  };
   $('camStart').addEventListener('click', function () {
+    if (native) { window.DigitamaNative.scan(); return; }
     $('camStart').hidden = true;
-    cam.last = null;
-    try { cam.detector = new BarcodeDetector(); } catch (e) { $('camNote').hidden = false; return; }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }).then(function (s) {
+    cam.last = null; cam.same = 0;
+    // 상품 바코드 형식만 찾는다 (다른 형식으로 잘못 읽는 일이 줄어든다)
+    try { cam.detector = new BarcodeDetector({ formats: PRODUCT }); } catch (e) {
+      try { cam.detector = new BarcodeDetector(); } catch (e2) { $('camNote').hidden = false; return; }
+    }
+    // 해상도를 높이고 초점을 계속 맞추게 하면 가는 막대도 잘 읽힌다 (안 되는 기기는 무시)
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] },
+      audio: false
+    }).then(function (s) {
       cam.stream = s;
       var v = $('cam');
       v.srcObject = s; v.play();
@@ -640,8 +657,10 @@
           if (!codes.length || !cam.stream) return;
           var raw = codes[0].rawValue;
           // 잘못 읽은 값으로 엉뚱한 디지몬이 나오지 않게: 상품 바코드는 검증 숫자를 맞춰 보고,
-          // 같은 값이 두 번 연달아 읽혀야 받아들인다
-          if (!checkDigitOk(raw) || raw !== cam.last) { cam.last = raw; return; }
+          // 같은 값이 세 번 연달아 읽혀야 받아들인다
+          if (!checkDigitOk(raw)) return;
+          if (raw !== cam.last) { cam.last = raw; cam.same = 1; return; }
+          if (++cam.same < 3) return;
           stopCam();
           vibrate(60);
           $('codeIn').value = raw;

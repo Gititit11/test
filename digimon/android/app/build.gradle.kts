@@ -51,4 +51,6 @@ tasks.named("preBuild") { dependsOn(copyWeb) }
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
+    // 구글 바코드 스캐너 (구글 플레이 서비스가 화면을 띄운다. 웹 카메라보다 훨씬 정확하다)
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }
