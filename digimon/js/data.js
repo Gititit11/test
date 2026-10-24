@@ -44,13 +44,13 @@ var DigiData = (function () {
     stagePower: { child: 10, adult: 20, perfect: 34, ultimate: 52 },
     gradePower: { normal: 1, rare: 1.2, boss: 1.45, legend: 1.8 },
     // 바코드마다 나오는 디지몬이 정해져 있다. 바코드들에 단계가 이 비율로 퍼진다 (내 단계와 상관없음).
-    stageOdds: { child: 0.35, adult: 0.30, perfect: 0.22, ultimate: 0.13 },
+    stageOdds: { child: 0.45, adult: 0.35, perfect: 0.15, ultimate: 0.05 },
     // 나온 디지몬의 단계별 등급 확률
     gradeOdds: {
       child: { normal: 0.75, rare: 0.25 },
       adult: { normal: 0.75, rare: 0.25 },
-      perfect: { normal: 0.70, rare: 0.24, boss: 0.06 },
-      ultimate: { normal: 0.737, rare: 0.24, boss: 0.02, legend: 0.003 }
+      perfect: { normal: 0.67, rare: 0.24, boss: 0.09 },
+      ultimate: { normal: 0.702, rare: 0.24, boss: 0.05, legend: 0.008 }
     },
     attrOdds: { vaccine: 0.3, data: 0.3, virus: 0.3, free: 0.1 },
     ignoreChance: 0.35         // 블리츠그레이몬이 명령을 무시할 확률

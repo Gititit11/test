@@ -397,10 +397,10 @@ test('야생: 바코드에 퍼지는 단계 비율과 단계별 등급 확률', 
     t[D.STAGES[w.level]]++;
     if (w.grade !== 'normal') t[w.grade]++;
   }
-  assert.ok(Math.abs(t.child / N - 0.35) < 0.01, JSON.stringify(t));
-  assert.ok(Math.abs(t.ultimate / N - 0.13) < 0.01, JSON.stringify(t));
-  assert.ok(Math.abs(t.boss / N - (0.22 * 0.06 + 0.13 * 0.02)) < 0.004, JSON.stringify(t));
-  assert.ok(t.legend > 0 && t.legend < 60, '전설: ' + t.legend);
+  assert.ok(Math.abs(t.child / N - 0.45) < 0.01, JSON.stringify(t));
+  assert.ok(Math.abs(t.ultimate / N - 0.05) < 0.006, JSON.stringify(t));
+  assert.ok(Math.abs(t.boss / N - (0.15 * 0.09 + 0.05 * 0.05)) < 0.004, JSON.stringify(t));
+  assert.ok(t.legend > 0 && t.legend < 40, '전설: ' + t.legend);
 });
 
 test('스캔: 같은 바코드는 늘 같은 디지몬, 하루 5회', function () {
