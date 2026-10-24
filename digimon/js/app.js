@@ -114,9 +114,8 @@
       var em = Sprite.measure('egg_' + id);
       Sprite.egg(c.getContext('2d'), id, Math.floor((64 - em.w * 2) / 2), 80 - em.h * 2, 2);
       var tx = document.createElement('span');
-      tx.innerHTML = '<span class="n"></span><br><span class="t"></span>';
-      tx.querySelector('.n').textContent = L.name + '의 디지타마';
-      tx.querySelector('.t').textContent = L.trait;
+      tx.className = 'n';
+      tx.textContent = L.name + '의 디지타마';
       b.appendChild(c); b.appendChild(tx);
       b.disabled = left <= 0;
       b.addEventListener('click', function () {
