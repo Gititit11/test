@@ -132,7 +132,9 @@ test('성숙기 → 완전체', function () {
   assert.equal(to('agumon', 'adult', 'greymon', Object.assign({ training: 48, hungryBattles: 5 }, ok)), 'skullgreymon');
   assert.equal(to('agumon', 'adult', 'greymon', { mistakes: 4, battles: 15, wins: 9 }), 'metaltyranomon');
   assert.equal(to('agumon', 'adult', 'greymon', { mistakes: 6, battles: 15, wins: 9 }), null);
-  assert.equal(to('agumon', 'adult', 'ogremon', { battles: 15, wins: 12 }), 'mamemon');
+  assert.equal(to('agumon', 'adult', 'ogremon', { battles: 15, wins: 7 }), 'mamemon', '⑦ 승률 50% 미만이면 막다른 진화');
+  assert.equal(to('agumon', 'adult', 'greymon', { battles: 15, wins: 8 }), 'metalgreymon', '⑤ 승률 50% 이상');
+  assert.equal(to('agumon', 'adult', 'greymon', { battles: 15, wins: 7 }), null, '⑦ 이 없는 라인은 실패');
   assert.equal(to('agumon', 'adult', 'ogremon', ok), 'andromon');
   assert.equal(to('agumon', 'adult', 'algomon_adult', { battles: 15, wins: 6 }), 'neodevimon');
   assert.equal(to('gabumon', 'adult', 'algomon_adult', { battles: 15, wins: 6 }), 'orochimon', '같은 종도 라인마다 다르다');
@@ -140,15 +142,19 @@ test('성숙기 → 완전체', function () {
   assert.equal(to('gabumon', 'adult', 'dokugumon', ok), 'weregarurumon');
   assert.equal(E.judge(at('gabumon', 'adult', 'dokugumon', ok).mon).kind, 'purify');
   assert.equal(to('gabumon', 'adult', 'dokugumon', {}), 'waruseadramon');
-  assert.equal(to('gabumon', 'adult', 'gorimon', { battles: 20, wins: 16 }), 'bigmamemon');
+  assert.equal(to('gabumon', 'adult', 'gorimon', { battles: 20, wins: 9 }), 'bigmamemon');
+  assert.equal(to('gabumon', 'adult', 'gorimon', { battles: 20, wins: 16 }), 'valvemon', '승률이 높으면 정상 쪽');
   assert.equal(to('veemon', 'adult', 'exveemon', {}), 'dinobeemon');
-  assert.equal(to('veemon', 'adult', 'veedramon', { battles: 15, wins: 12 }), 'goldveedramon');
+  assert.equal(to('veemon', 'adult', 'veedramon', { battles: 15, wins: 7 }), 'goldveedramon');
+  assert.equal(to('veemon', 'adult', 'veedramon', { battles: 15, wins: 14 }), 'aeroveedramon', '승률이 높아도 막다른 진화로 빠지지 않는다');
   assert.equal(to('veemon', 'adult', 'veedramon', ok), 'aeroveedramon');
 });
 
 test('완전체 → 궁극체', function () {
   var ok = { mistakes: 1, battles: 10, wins: 7, bossWins: 1 };
   assert.equal(to('agumon', 'perfect', 'metalgreymon', ok), 'wargreymon');
+  assert.equal(to('agumon', 'perfect', 'metalgreymon', Object.assign({}, ok, { wins: 6 })), 'wargreymon', '⑨ 승률 60%');
+  assert.equal(to('agumon', 'perfect', 'metalgreymon', Object.assign({}, ok, { wins: 5 })), null);
   assert.equal(to('agumon', 'perfect', 'metalgreymon', Object.assign({}, ok, { bossWins: 0 })), null);
   assert.equal(to('agumon', 'perfect', 'metaltyranomon', { mistakes: 3, maxStreak: 5 }), 'blitzgreymon');
   assert.equal(to('gabumon', 'perfect', 'weregarurumon', ok), 'cresgarurumon', '수면 방해 0 이면 숨은 진화');

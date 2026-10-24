@@ -229,12 +229,12 @@ var Engine = (function (D) {
       case 'r4': return c.hygiene >= 4 || c.overfeed >= 6;
       case 'r34': return c.mistakes >= 6 || c.hygiene >= 4 || c.overfeed >= 6;
       case 'r12': return c.sleep >= 4;
-      case 'r5': case 'r13': return c.mistakes <= 2 && bat && wr >= 0.6;
+      case 'r5': case 'r13': return c.mistakes <= 2 && bat && wr >= 0.5;
       case 'r6': return c.training >= 48 && c.hungryBattles >= 5;
-      case 'r7': return c.mistakes <= 2 && bat && wr >= 0.8;
+      case 'r7': return c.mistakes <= 2 && bat && wr < 0.5; // 승률이 모자라면 막다른 진화 (잘할수록 정상 루트)
       case 'r8': return c.mistakes === 0 && bat && wr >= 0.4;
-      case 'r20': return c.mistakes >= 3 && c.mistakes <= 5 && bat && wr >= 0.6;
-      case 'r9': return c.mistakes <= 1 && c.battles > 0 && wr >= 0.7 && c.bossWins >= 1;
+      case 'r20': return c.mistakes >= 3 && c.mistakes <= 5 && bat && wr >= 0.5;
+      case 'r9': return c.mistakes <= 1 && c.battles > 0 && wr >= 0.6 && c.bossWins >= 1;
       case 'r11': return c.maxStreak >= 5 && c.mistakes >= 3;
       case 'r15': return passes('r9', c) && c.sleep === 0;
     }
