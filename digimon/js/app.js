@@ -602,6 +602,7 @@
   var native = window.DigitamaNative && typeof window.DigitamaNative.scan === 'function';
   var canDetect = native || ('BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
   var PRODUCT = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
+  var CAM_WARMUP = 1500, CAM_READS = 4, CAM_HOLD = 1000; // ms, 번, ms
 
   function openScan() {
     var can = E.canBattle(state);
@@ -612,6 +613,8 @@
     found = null;
     $('wildCard').hidden = true; $('fight').hidden = true;
     $('codeIn').value = '';
+    $('codeCheck').hidden = true;
+    $('camStart').textContent = '카메라로 찍기';
     $('camStart').hidden = !canDetect;
     $('camNote').hidden = canDetect;
     updateScanLeft();
@@ -628,16 +631,27 @@
     for (var i = 0; i < n - 1; i++) sum += +raw[n - 2 - i] * (i % 2 ? 1 : 3);
     return (10 - sum % 10) % 10 === +raw[n - 1];
   }
-  window.onNativeScan = function (raw, why) {
-    if (!raw) { if (why === 'fail') toast('스캐너를 열 수 없어요. 숫자를 직접 넣어 주세요'); return; }
+  // 카메라가 읽은 숫자는 바로 쓰지 않고 한 번 보여 준다. 바코드 아래 숫자와 같은지 보고 [찾기]를 누른다.
+  function confirmRead(raw) {
     vibrate(60);
     $('codeIn').value = raw;
-    lookUp(raw);
+    var p = $('codeCheck');
+    p.innerHTML = '읽은 숫자 <b></b><br>바코드 아래 숫자와 같으면 <b>찾기</b>를 눌러 주세요. 다르면 고치거나 다시 찍어요.';
+    p.querySelector('b').textContent = raw;
+    p.hidden = false;
+    $('camStart').textContent = '다시 찍기';
+    $('camStart').hidden = false;
+  }
+  window.onNativeScan = function (raw, why) {
+    if (!raw) { if (why === 'fail') toast('스캐너를 열 수 없어요. 숫자를 직접 넣어 주세요'); return; }
+    confirmRead(raw);
   };
   $('camStart').addEventListener('click', function () {
+    $('codeCheck').hidden = true;
     if (native) { window.DigitamaNative.scan(); return; }
     $('camStart').hidden = true;
-    cam.last = null; cam.same = 0;
+    cam.last = null; cam.same = 0; cam.first = 0; cam.t0 = 0;
+    $('camStatus').textContent = '카메라 켜는 중…';
     // 상품 바코드 형식만 찾는다 (다른 형식으로 잘못 읽는 일이 줄어든다)
     try { cam.detector = new BarcodeDetector({ formats: PRODUCT }); } catch (e) {
       try { cam.detector = new BarcodeDetector(); } catch (e2) { $('camNote').hidden = false; return; }
@@ -653,20 +667,25 @@
       $('camBox').hidden = false;
       cam.timer = setInterval(function () {
         if (v.readyState < 2) return;
+        var t = performance.now();
+        // 켜자마자는 초점이 안 맞아 잘못 읽기 쉬우니 처음 1.5초는 읽지 않는다
+        if (!cam.t0) cam.t0 = t;
+        if (t - cam.t0 < CAM_WARMUP) { $('camStatus').textContent = '초점 맞추는 중…'; return; }
         cam.detector.detect(v).then(function (codes) {
-          if (!codes.length || !cam.stream) return;
-          var raw = codes[0].rawValue;
-          // 잘못 읽은 값으로 엉뚱한 디지몬이 나오지 않게: 상품 바코드는 검증 숫자를 맞춰 보고,
-          // 같은 값이 세 번 연달아 읽혀야 받아들인다
+          if (!cam.stream) return;
+          if (!codes.length) { $('camStatus').textContent = '바코드를 빨간 선에 맞추고 잠깐 멈춰 주세요'; return; }
+          var raw = codes[0].rawValue, now = performance.now();
+          // 잘못 읽은 값으로 엉뚱한 디지몬이 나오지 않게: 검증 숫자가 맞고,
+          // 같은 값이 1초 넘게 4번 이상 읽혀야 받아들인다
           if (!checkDigitOk(raw)) return;
-          if (raw !== cam.last) { cam.last = raw; cam.same = 1; return; }
-          if (++cam.same < 3) return;
+          if (raw !== cam.last) { cam.last = raw; cam.same = 1; cam.first = now; }
+          else cam.same++;
+          $('camStatus').textContent = '읽는 중… ' + Math.min(cam.same, CAM_READS) + ' / ' + CAM_READS;
+          if (cam.same < CAM_READS || now - cam.first < CAM_HOLD) return;
           stopCam();
-          vibrate(60);
-          $('codeIn').value = raw;
-          lookUp(raw);
+          confirmRead(raw);
         }).catch(function () { });
-      }, 300);
+      }, 250);
     }).catch(function () {
       $('camStart').hidden = false;
       toast('카메라를 열 수 없어요. 숫자를 직접 넣어 주세요');
@@ -689,6 +708,7 @@
     limit: '오늘 스캔을 다 썼어요. 내일 다시!', sleep: '자고 있어요', baby: '성장기부터 배틀할 수 있어요'
   };
   function lookUp(code) {
+    $('codeCheck').hidden = true;
     E.tick(state, now());
     var r = E.scan(state, code, now());
     if (!r.ok) { toast(REASON[r.reason] || '스캔할 수 없어요'); return; }

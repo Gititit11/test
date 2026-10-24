@@ -171,6 +171,9 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 /* 스캔 */
 .cam { position: relative; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; }
 .cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-status { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 10px; text-align: center; font-size: 13px; font-weight: 600; color: #fff; background: rgba(0,0,0,.55); }
+.code-check { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(245,194,66,.14); border: 1px solid var(--gold); font-size: 13.5px; line-height: 1.45; }
+.code-check b { font-size: 17px; letter-spacing: 1px; }
 .cam-line { position: absolute; left: 10%; right: 10%; top: 50%; height: 2px; background: var(--danger); box-shadow: 0 0 8px var(--danger); }
 .code-form { display: flex; gap: 8px; }
 .code-form input {
