@@ -615,7 +615,7 @@
     show('scan');
   }
   function updateScanLeft() {
-    $('scanLeft').textContent = '이 디지몬의 오늘 남은 스캔 ' + E.scansLeft(state, now()) + ' / ' + R.scansPerDay +
+    $('scanLeft').textContent = (R.scansPerDay ? '이 디지몬의 오늘 남은 스캔 ' + E.scansLeft(state, now()) + ' / ' + R.scansPerDay : '스캔 무제한 (테스트)') +
       ' · 같은 바코드는 언제 찍어도 같은 디지몬이 나와요';
   }
   // EAN-8 · UPC-A · EAN-13 · GTIN-14 의 마지막 자리(검증 숫자)가 맞는지. 다른 바코드는 그대로 통과.

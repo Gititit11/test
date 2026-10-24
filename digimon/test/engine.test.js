@@ -417,7 +417,12 @@ test('스캔: 같은 바코드는 늘 같은 디지몬, 하루 5회', function (
   assert.deepEqual(E.wildForCode('8801-0430 14809'), E.wildForCode('8801043014809'));
 });
 
-test('스캔 횟수: 디지몬마다 하루 5회', function () {
+test('스캔 횟수: 디지몬마다 하루 5회 (0 이면 무제한)', function () {
+  var keep = D.RULES.scansPerDay;
+  D.RULES.scansPerDay = 0;
+  var u = at('agumon', 'child', 'agumon');
+  for (var j = 0; j < 30; j++) assert.equal(E.scan(u, '1', MORNING).ok, true, '무제한');
+  D.RULES.scansPerDay = 5;
   var s = at('agumon', 'child', 'agumon'), first = s.mon;
   for (var i = 0; i < 5; i++) assert.equal(E.scan(s, '1', MORNING).ok, true);
   assert.equal(E.scan(s, '1', MORNING).reason, 'limit');
@@ -431,6 +436,7 @@ test('스캔 횟수: 디지몬마다 하루 5회', function () {
   s.mon = first;
   assert.equal(E.scan(s, '1', MORNING).reason, 'limit', '먼저 디지몬은 여전히 다 씀');
   assert.equal(E.scan(s, '1', MORNING + 24 * H).ok, true, '다음 날 풀린다');
+  D.RULES.scansPerDay = keep;
 });
 
 test('상성: 백신 → 바이러스 → 데이터 → 백신, 프리는 영향 없음', function () {

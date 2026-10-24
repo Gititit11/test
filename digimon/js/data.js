@@ -39,7 +39,7 @@ var DigiData = (function () {
     previewHours: 24,          // 잘못된 진화가 오기 이만큼 전부터 색이 어두워진다
     jogressBossWins: 3,        // ⑩ ⑲ 에 필요한 보스 격파 수
     slots: 6,                  // 한 번에 데리고 있을 수 있는 디지몬 (키우는 하나 + 보관함)
-    scansPerDay: 5,
+    scansPerDay: 0,            // 디지몬마다 하루 스캔 횟수. 0 이면 무제한 (테스트용, 원래 5)
     hpMax: 100,
     stagePower: { child: 10, adult: 20, perfect: 34, ultimate: 52 },
     gradePower: { normal: 1, rare: 1.2, boss: 1.45, legend: 1.8 },

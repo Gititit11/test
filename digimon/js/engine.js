@@ -464,13 +464,14 @@ var Engine = (function (D) {
     if (!can.ok) return can;
     if (!codeKey(code)) return { ok: false, reason: 'empty' };
     var d = rollDaily(state.mon, now);
-    if (d.scans >= R.scansPerDay) return { ok: false, reason: 'limit' };
+    if (R.scansPerDay && d.scans >= R.scansPerDay) return { ok: false, reason: 'limit' };
     d.scans++;
     var w = wildForCode(code);
     register(state, w.id, 'seen', now);
-    return { ok: true, wild: w, left: R.scansPerDay - d.scans };
+    return { ok: true, wild: w, left: scansLeft(state, now) };
   }
   function scansLeft(state, now) {
+    if (!R.scansPerDay) return Infinity;
     if (!state.mon) return R.scansPerDay;
     return R.scansPerDay - rollDaily(state.mon, now).scans;
   }
