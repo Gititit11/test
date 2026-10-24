@@ -92,12 +92,11 @@
         <div class="cam-status" id="camStatus"></div>
       </div>
       <button class="btn" id="camStart" hidden>카메라로 찍기</button>
-      <p class="dim" id="camNote" hidden>이 브라우저는 카메라 바코드 인식을 지원하지 않아요. 바코드 아래 숫자를 직접 넣어 주세요.</p>
-      <form id="codeForm" class="code-form">
-        <input type="text" id="codeIn" inputmode="numeric" autocomplete="off" placeholder="바코드 숫자 (예: 8801234567890)">
-        <button class="btn primary" type="submit">찾기</button>
-      </form>
-      <p class="code-check" id="codeCheck" hidden></p>
+      <p class="dim" id="camNote" hidden>이 기기는 카메라 바코드 인식을 지원하지 않아요.</p>
+      <div class="code-check" id="codeCheck" hidden>
+        <p>읽은 바코드 <b id="codeRead"></b></p>
+        <button class="btn primary wide" id="codeGo">이 바코드로 찾기</button>
+      </div>
       <div id="wildCard" class="wild" hidden>
         <canvas id="wildPic" width="72" height="72"></canvas>
         <div>

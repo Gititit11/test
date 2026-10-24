@@ -610,7 +610,7 @@
     }
     found = null;
     $('wildCard').hidden = true; $('fight').hidden = true;
-    $('codeIn').value = '';
+    cam.read = null;
     $('codeCheck').hidden = true;
     $('camStart').textContent = '카메라로 찍기';
     $('camStart').hidden = !canDetect;
@@ -629,51 +629,86 @@
     for (var i = 0; i < n - 1; i++) sum += +raw[n - 2 - i] * (i % 2 ? 1 : 3);
     return (10 - sum % 10) % 10 === +raw[n - 1];
   }
-  // 카메라가 읽은 숫자는 바로 쓰지 않고 한 번 보여 준다. 바코드 아래 숫자와 같은지 보고 [찾기]를 누른다.
+  // 숫자는 카메라로만 받는다 (직접 넣거나 고칠 수 없다). 읽은 숫자를 보여 주고, 맞으면 찾기 · 아니면 다시 찍기.
   function confirmRead(raw) {
     vibrate(60);
-    $('codeIn').value = raw;
-    var p = $('codeCheck');
-    p.innerHTML = '읽은 숫자 <b></b><br>바코드 아래 숫자와 같으면 <b>찾기</b>를 눌러 주세요. 다르면 고치거나 다시 찍어요.';
-    p.querySelector('b').textContent = raw;
-    p.hidden = false;
+    cam.read = raw;
+    $('codeRead').textContent = raw;
+    $('codeCheck').hidden = false;
     $('camStart').textContent = '다시 찍기';
     $('camStart').hidden = false;
   }
+  $('codeGo').addEventListener('click', function () { if (cam.read) lookUp(cam.read); });
+
+  // 줌: 가까이 대면 초점이 안 맞으니 조금 떨어져서 찍도록 2배로 시작하고,
+  // 바코드가 화면에서 작게 잡히면 조금씩 더 당긴다. 줌을 못 쓰는 기기는 그냥 넘어간다.
+  var ZOOM_START = 2, ZOOM_MAX = 4, ZOOM_SMALL = 0.35;
+  function zoomCaps(track) {
+    var c = track && track.getCapabilities ? track.getCapabilities() : null;
+    return c && c.zoom && c.zoom.max > c.zoom.min ? c.zoom : null;
+  }
+  function setZoom(z) {
+    var track = cam.stream && cam.stream.getVideoTracks()[0], c = zoomCaps(track);
+    if (!c) return false;
+    z = Math.max(c.min, Math.min(c.max, ZOOM_MAX, z));
+    if (c.step) z = Math.round(z / c.step) * c.step;
+    if (Math.abs(z - (cam.zoom || 0)) < 0.01) return false;
+    cam.zoom = z;
+    track.applyConstraints({ advanced: [{ zoom: z }] }).catch(function () { });
+    return true;
+  }
+  function zoomTag() { return cam.zoom ? ' · ' + cam.zoom.toFixed(1) + '배' : ''; }
   $('camStart').addEventListener('click', function () {
     $('codeCheck').hidden = true;
     $('camStart').hidden = true;
-    cam.last = null; cam.same = 0; cam.first = 0; cam.t0 = 0;
+    cam.last = null; cam.same = 0; cam.first = 0; cam.t0 = 0; cam.zoom = 0; cam.read = null; cam.seen = 0;
     $('camStatus').textContent = '카메라 켜는 중…';
     // 상품 바코드 형식만 찾는다 (다른 형식으로 잘못 읽는 일이 줄어든다)
     try { cam.detector = new BarcodeDetector({ formats: PRODUCT }); } catch (e) {
       try { cam.detector = new BarcodeDetector(); } catch (e2) { $('camNote').hidden = false; return; }
     }
     // 해상도를 높이고 초점을 계속 맞추게 하면 가는 막대도 잘 읽힌다 (안 되는 기기는 무시)
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] },
-      audio: false
-    }).then(function (s) {
+    // zoom: true 는 줌을 쓰겠다는 요청. 이걸 거절하는 기기가 있으면 줌 없이 다시 연다.
+    function open(zoom) {
+      var v = { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] };
+      if (zoom) v.zoom = true;
+      return navigator.mediaDevices.getUserMedia({ video: v, audio: false });
+    }
+    open(true).catch(function () { return open(false); }).then(function (s) {
       cam.stream = s;
       var v = $('cam');
       v.srcObject = s; v.play();
       $('camBox').hidden = false;
+      setZoom(ZOOM_START);
       cam.timer = setInterval(function () {
         if (v.readyState < 2) return;
         var t = performance.now();
         // 켜자마자는 초점이 안 맞아 잘못 읽기 쉬우니 처음 1.5초는 읽지 않는다
         if (!cam.t0) cam.t0 = t;
-        if (t - cam.t0 < CAM_WARMUP) { $('camStatus').textContent = '초점 맞추는 중…'; return; }
+        if (t - cam.t0 < CAM_WARMUP) { $('camStatus').textContent = '초점 맞추는 중…' + zoomTag(); return; }
         cam.detector.detect(v).then(function (codes) {
           if (!cam.stream) return;
-          if (!codes.length) { $('camStatus').textContent = '바코드를 빨간 선에 맞추고 잠깐 멈춰 주세요'; return; }
-          var raw = codes[0].rawValue, now = performance.now();
+          var now = performance.now();
+          if (!codes.length) {
+            // 한참 못 찾으면 바코드가 화면 밖으로 나간 것일 수 있으니 처음 줌으로 돌린다
+            if (cam.seen && now - cam.seen > 3000 && cam.zoom > ZOOM_START) setZoom(ZOOM_START);
+            $('camStatus').textContent = '바코드를 빨간 선에 맞추고 잠깐 멈춰 주세요' + zoomTag();
+            return;
+          }
+          cam.seen = now;
+          var raw = codes[0].rawValue, box = codes[0].boundingBox;
+          // 바코드가 화면 폭의 35% 보다 작으면 더 당긴다 (당기는 동안은 세던 것을 처음부터)
+          if (box && v.videoWidth && box.width / v.videoWidth < ZOOM_SMALL && setZoom((cam.zoom || 1) * 1.25)) {
+            cam.last = null; cam.same = 0;
+            $('camStatus').textContent = '확대하는 중…' + zoomTag();
+            return;
+          }
           // 잘못 읽은 값으로 엉뚱한 디지몬이 나오지 않게: 검증 숫자가 맞고,
           // 같은 값이 1초 넘게 4번 이상 읽혀야 받아들인다
           if (!checkDigitOk(raw)) return;
           if (raw !== cam.last) { cam.last = raw; cam.same = 1; cam.first = now; }
           else cam.same++;
-          $('camStatus').textContent = '읽는 중… ' + Math.min(cam.same, CAM_READS) + ' / ' + CAM_READS;
+          $('camStatus').textContent = '읽는 중… ' + Math.min(cam.same, CAM_READS) + ' / ' + CAM_READS + zoomTag();
           if (cam.same < CAM_READS || now - cam.first < CAM_HOLD) return;
           stopCam();
           confirmRead(raw);
@@ -681,7 +716,7 @@
       }, 250);
     }).catch(function () {
       $('camStart').hidden = false;
-      toast('카메라를 열 수 없어요. 숫자를 직접 넣어 주세요');
+      toast('카메라를 열 수 없어요. 카메라 권한을 확인해 주세요');
     });
   });
   function stopCam() {
@@ -691,10 +726,6 @@
     $('camBox').hidden = true;
     if (canDetect && !found) $('camStart').hidden = false;
   }
-  $('codeForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    lookUp($('codeIn').value);
-  });
 
   var REASON = {
     empty: '바코드 숫자를 넣어 주세요',
