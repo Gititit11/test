@@ -11,10 +11,6 @@
         android:icon="@mipmap/ic_launcher"
         android:label="디지타마"
         android:theme="@style/Theme.Digitama">
-        <!-- 설치할 때 바코드 스캐너 모듈을 미리 받아 둔다 -->
-        <meta-data
-            android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="barcode_ui" />
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"

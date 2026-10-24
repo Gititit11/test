@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -15,13 +14,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.webkit.WebViewAssetLoader;
-
-import com.google.mlkit.vision.barcode.common.Barcode;
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanner;
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
-
-import org.json.JSONObject;
 
 /**
  * APK 에 넣은 웹앱을 띄운다.
@@ -74,38 +66,8 @@ public class MainActivity extends Activity {
             }
         });
 
-        // 웹앱이 window.DigitamaNative.scan() 으로 구글 바코드 스캐너를 연다.
-        // 결과는 window.onNativeScan(값, 실패이유) 로 돌려준다.
-        web.addJavascriptInterface(new Object() {
-            @JavascriptInterface
-            public void scan() {
-                runOnUiThread(MainActivity.this::startNativeScan);
-            }
-        }, "DigitamaNative");
-
         if (saved != null) web.restoreState(saved);
         else web.loadUrl(START);
-    }
-
-    /** 상품 바코드(EAN·UPC)만 읽는다. 다른 형식을 잘못 읽어 엉뚱한 숫자가 나오는 걸 막는다. */
-    private void startNativeScan() {
-        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_EAN_13, Barcode.FORMAT_EAN_8,
-                        Barcode.FORMAT_UPC_A, Barcode.FORMAT_UPC_E)
-                .enableAutoZoom()
-                .build();
-        GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this, options);
-        scanner.startScan()
-                .addOnSuccessListener(code -> sendScan(code.getRawValue(), null))
-                .addOnCanceledListener(() -> sendScan(null, "cancel"))
-                .addOnFailureListener(e -> sendScan(null, "fail"));
-    }
-
-    private void sendScan(String raw, String why) {
-        String js = "window.onNativeScan && window.onNativeScan(" +
-                (raw == null ? "null" : JSONObject.quote(raw)) + "," +
-                (why == null ? "null" : JSONObject.quote(why)) + ")";
-        web.evaluateJavascript(js, null);
     }
 
     @Override

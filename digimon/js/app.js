@@ -598,9 +598,7 @@
 
   /* ---------- 바코드 스캔 ---------- */
   var cam = { stream: null, timer: 0, detector: null }, found = null;
-  // 안드로이드 앱에서는 구글 바코드 스캐너(네이티브)를 쓴다. 웹에서는 브라우저의 BarcodeDetector.
-  var native = window.DigitamaNative && typeof window.DigitamaNative.scan === 'function';
-  var canDetect = native || ('BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+  var canDetect = 'BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   var PRODUCT = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
   var CAM_WARMUP = 1500, CAM_READS = 4, CAM_HOLD = 1000; // ms, 번, ms
 
@@ -642,13 +640,8 @@
     $('camStart').textContent = '다시 찍기';
     $('camStart').hidden = false;
   }
-  window.onNativeScan = function (raw, why) {
-    if (!raw) { if (why === 'fail') toast('스캐너를 열 수 없어요. 숫자를 직접 넣어 주세요'); return; }
-    confirmRead(raw);
-  };
   $('camStart').addEventListener('click', function () {
     $('codeCheck').hidden = true;
-    if (native) { window.DigitamaNative.scan(); return; }
     $('camStart').hidden = true;
     cam.last = null; cam.same = 0; cam.first = 0; cam.t0 = 0;
     $('camStatus').textContent = '카메라 켜는 중…';
