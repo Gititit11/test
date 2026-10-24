@@ -45,6 +45,11 @@ var Sprite = (function (D, SHEETS) {
     if (!list.length) list = ANIM.idle;
     return list[(frame || 0) % list.length];
   }
+  // 그 동작의 칸이 하나라도 있나 (회색 실루엣·빈 칸은 없는 것)
+  function has(id, anim) {
+    var S = SHEETS[id];
+    return !!S && (ANIM[anim] || []).some(function (i) { return i < S.n && S.gray.indexOf(i) < 0; });
+  }
   // 어둡게(진화 예고) · 실루엣(도감) 은 시트 전체를 한 번 칠해 둔다
   function tint(id, kind) {
     var key = id + ':' + kind;
@@ -215,7 +220,7 @@ var Sprite = (function (D, SHEETS) {
     return c;
   }
 
-  return { measure: measure, draw: draw, egg: egg, canvas: canvas, onload: onload, ANIM: ANIM };
+  return { measure: measure, draw: draw, egg: egg, canvas: canvas, onload: onload, has: has, ANIM: ANIM };
 })(typeof DigiData !== 'undefined' ? DigiData : require('./data.js'),
    typeof SHEETS !== 'undefined' ? SHEETS : require('./sheets.js'));
 

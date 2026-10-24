@@ -115,6 +115,7 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
   background: var(--lcd); box-shadow: inset 0 0 0 3px rgba(0,0,0,.25);
 }
 
+.train-pic { display: block; width: 240px; height: 160px; margin: 4px auto 10px; background: var(--lcd); border-radius: 12px; image-rendering: pixelated; }
 .meters { display: flex; gap: 10px; margin-top: 14px; }
 .meter {
   flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px;

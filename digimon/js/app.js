@@ -581,13 +581,23 @@
     var p = ((ts - tr.t0) / 1000 * tr.speed) % 2;
     tr.pos = (p < 1 ? p : 2 - p) * 100; // 왕복
     $('marker').style.left = tr.pos + '%';
+    drawTrainee(ts);
     tr.raf = requestAnimationFrame(trainLoop);
+  }
+  // 훈련하는 동안 디지몬은 훈련 동작을 한다 (훈련 칸이 없는 디지몬은 공격 동작).
+  // 누른 직후 0.4초는 맞히면 공격, 놓치면 멈칫.
+  function drawTrainee(ts) {
+    var id = E.form(state.mon), o;
+    if (tr.react && ts - tr.react.t < 400) o = tr.react.ok ? { anim: 'attack', frame: 0 } : { anim: 'idle', frame: 0 };
+    else o = { anim: Sprite.has(id, 'train') ? 'train' : 'attack', frame: Math.floor(ts / 260) };
+    picture($('trainPic'), id, o);
   }
   function stopTrain() { if (tr) cancelAnimationFrame(tr.raf); tr = null; }
   $('trainHit').addEventListener('click', function () {
     if (!tr || tr.round >= 3) return;
     var ok = tr.pos >= tr.zx && tr.pos <= tr.zx + tr.zw;
     tr.hits.push(ok); tr.round++;
+    tr.react = { ok: ok, t: performance.now() };
     vibrate(ok ? 30 : [20, 40, 20]);
     $('tries').textContent = [0, 1, 2].map(function (i) {
       return i < tr.hits.length ? (tr.hits[i] ? '●' : '✕') : '○';
