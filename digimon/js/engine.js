@@ -423,7 +423,12 @@ var Engine = (function (D) {
   }
 
   // 바코드 숫자로 씨앗을 만들어 뽑으니, 같은 바코드는 언제 찍어도 같은 디지몬이 나온다
-  function codeKey(code) { return String(code || '').replace(/\s+/g, ''); }
+  // 같은 상품이라도 UPC-A(12자리)와 EAN-13(앞에 0)으로 다르게 읽힐 수 있어서 숫자만 남기고 앞의 0은 뗀다
+  function codeKey(code) {
+    var k = String(code || '').replace(/\s+/g, '');
+    if (/^[\d-]+$/.test(k)) k = k.replace(/-/g, '').replace(/^0+(?=\d)/, '');
+    return k;
+  }
   function wildForCode(code) {
     var h = 2166136261, k = codeKey(code);
     for (var i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619); }

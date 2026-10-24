@@ -618,8 +618,16 @@
     $('scanLeft').textContent = '이 디지몬의 오늘 남은 스캔 ' + E.scansLeft(state, now()) + ' / ' + R.scansPerDay +
       ' · 같은 바코드는 언제 찍어도 같은 디지몬이 나와요';
   }
+  // EAN-8 · UPC-A · EAN-13 · GTIN-14 의 마지막 자리(검증 숫자)가 맞는지. 다른 바코드는 그대로 통과.
+  function checkDigitOk(raw) {
+    if (!/^(\d{8}|\d{12,14})$/.test(raw)) return true;
+    var sum = 0, n = raw.length;
+    for (var i = 0; i < n - 1; i++) sum += +raw[n - 2 - i] * (i % 2 ? 1 : 3);
+    return (10 - sum % 10) % 10 === +raw[n - 1];
+  }
   $('camStart').addEventListener('click', function () {
     $('camStart').hidden = true;
+    cam.last = null;
     try { cam.detector = new BarcodeDetector(); } catch (e) { $('camNote').hidden = false; return; }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }).then(function (s) {
       cam.stream = s;
@@ -631,6 +639,9 @@
         cam.detector.detect(v).then(function (codes) {
           if (!codes.length || !cam.stream) return;
           var raw = codes[0].rawValue;
+          // 잘못 읽은 값으로 엉뚱한 디지몬이 나오지 않게: 상품 바코드는 검증 숫자를 맞춰 보고,
+          // 같은 값이 두 번 연달아 읽혀야 받아들인다
+          if (!checkDigitOk(raw) || raw !== cam.last) { cam.last = raw; return; }
           stopCam();
           vibrate(60);
           $('codeIn').value = raw;

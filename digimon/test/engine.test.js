@@ -413,6 +413,8 @@ test('스캔: 같은 바코드는 늘 같은 디지몬, 하루 5회', function (
   for (var k = 0; k < 200; k++) seen[E.wildForCode('880' + k).id] = 1;
   assert.ok(Object.keys(seen).length > 50, '바코드가 다르면 여러 디지몬');
   assert.equal(E.scan(s, ' ', MORNING).reason, 'empty');
+  assert.deepEqual(E.wildForCode('036000291452'), E.wildForCode('0036000291452'), 'UPC-A 와 EAN-13 은 같은 상품');
+  assert.deepEqual(E.wildForCode('8801-0430 14809'), E.wildForCode('8801043014809'));
 });
 
 test('스캔 횟수: 디지몬마다 하루 5회', function () {
