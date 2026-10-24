@@ -8,7 +8,7 @@
  *   tick(state, now)            → 마지막으로 본 때부터 now 까지 1분씩 흘려 보낸다
  *   feed / snack / train / clean / toggleLights / wake / armor / useChip / medicine
  *   judge(mon)                  → 지금 진화하면 어떻게 되는지 (상태를 바꾸지 않음)
- *   wildFor(rnd) / wildForCode(code) → 야생 디지몬 하나 (같은 바코드는 늘 같은 디지몬)
+ *   wildFor(stageIdx, rnd) / wildForCode(code, stageIdx) → 야생 디지몬 하나 (같은 바코드 · 같은 내 단계면 늘 같은 디지몬)
  *   scan / startBattle / battleTurn / endBattle
  *
  * 앱을 닫아 둔 동안의 일은 다시 열 때 tick 이 한꺼번에 따라잡는다.
@@ -401,14 +401,23 @@ var Engine = (function (D) {
   function pickOdds(odds, x) {
     var keys = Object.keys(odds), acc = 0;
     for (var i = 0; i < keys.length; i++) { acc += odds[keys[i]]; if (x < acc) return keys[i]; }
-    return keys[0]; // 남는 확률은 첫 항목 (궁극체 일반 70.2%)
+    return keys[0]; // 남는 확률은 첫 항목 (궁극체 일반 69.5%)
   }
   function pick(list, x) { return list[Math.floor(x * list.length)]; }
 
   /* 단계 → 등급 → (속성) → 디지몬 */
-  function wildFor(rnd) {
+  // 내 단계(배틀 단계 번호)에 맞는 확률로 야생 디지몬의 단계를 고른다
+  function wildStage(myStage, x) {
+    var my = D.STAGES[Math.max(STAGE_IDX.child, Math.min(STAGE_IDX.ultimate, myStage))];
+    return pickOdds(R.stageOdds[my], x);
+  }
+  function wildFor(myStage, rnd) {
     rnd = rnd || Math.random;
-    var st = pickOdds(R.stageOdds, rnd()), level = STAGE_IDX[st];
+    return wildAt(wildStage(myStage, rnd()), rnd);
+  }
+  // 그 단계 안에서: 등급 → (속성) → 디지몬
+  function wildAt(st, rnd) {
+    var level = STAGE_IDX[st];
     var grade = pickOdds(R.gradeOdds[st], rnd());
     var id;
     if (grade === 'boss') id = pick(D.BOSSES[st], rnd());
@@ -429,16 +438,22 @@ var Engine = (function (D) {
     if (/^[\d-]+$/.test(k)) k = k.replace(/-/g, '').replace(/^0+(?=\d)/, '');
     return k;
   }
-  function wildForCode(code) {
-    var h = 2166136261, k = codeKey(code);
-    for (var i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619); }
+  function seeded(text) {
+    var h = 2166136261; // FNV-1a
+    for (var i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
     var a = h >>> 0;
-    return wildFor(function () { // mulberry32
+    return function () { // mulberry32
       a = (a + 0x6D2B79F5) | 0;
       var x = Math.imul(a ^ (a >>> 15), 1 | a);
       x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
       return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-    });
+    };
+  }
+  // 바코드 하나에 단계별 디지몬이 하나씩 정해져 있다 (바코드 + 단계로 씨앗을 만든다).
+  // 어느 단계가 나올지는 바코드의 고정된 값 하나를 내 단계의 확률표에 대어 정한다.
+  function wildForCode(code, myStage) {
+    var k = codeKey(code), st = wildStage(myStage, seeded(k)());
+    return wildAt(st, seeded(k + '#' + st));
   }
 
   /* ---------- 배틀 ---------- */
@@ -466,7 +481,7 @@ var Engine = (function (D) {
     var d = rollDaily(state.mon, now);
     if (R.scansPerDay && d.scans >= R.scansPerDay) return { ok: false, reason: 'limit' };
     d.scans++;
-    var w = wildForCode(code);
+    var w = wildForCode(code, battleStage(state.mon));
     register(state, w.id, 'seen', now);
     return { ok: true, wild: w, left: scansLeft(state, now) };
   }

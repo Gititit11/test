@@ -1,5 +1,5 @@
 /* 오프라인 캐시 — 육성과 배틀은 전부 기기 안에서 하므로 네트워크 없이도 돌아간다 */
-var CACHE = 'digimon-v23';
+var CACHE = 'digimon-v24';
 var ASSETS = [
   './', './index.html', './manifest.json',
   './css/styles.css', './img/poop.png', './img/meat.png', './img/medicine.png', './img/snack.png', './js/data.js', './js/engine.js', './js/sheets.js', './js/sprite.js', './js/app.js', './js/install.js',

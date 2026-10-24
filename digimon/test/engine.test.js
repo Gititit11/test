@@ -388,33 +388,53 @@ test('아머진화: 가진 디지멘탈로 고르고, 하루 1회, 48시간', fu
   assert.equal(s.meta.items.thunder, true, '디지멘탈은 닳지 않는다');
 });
 
-test('야생: 바코드에 퍼지는 단계 비율과 단계별 등급 확률', function () {
-  var r = seeded(7), N = 40000, t = { child: 0, adult: 0, perfect: 0, ultimate: 0, boss: 0, legend: 0, rare: 0 };
-  for (var i = 0; i < N; i++) {
-    var w = E.wildFor(r);
-    assert.ok(D.SPECIES[w.id], w.id);
-    assert.equal(D.SPECIES[w.id].stage, D.STAGES[w.level], w.id);
-    t[D.STAGES[w.level]]++;
-    if (w.grade !== 'normal') t[w.grade]++;
+test('야생: 내 단계별 등장 단계 확률과 단계별 등급 확률', function () {
+  var r = seeded(7), N = 40000;
+  function tally(stage) {
+    var t = { child: 0, adult: 0, perfect: 0, ultimate: 0, boss: 0, legend: 0, rare: 0 };
+    for (var i = 0; i < N; i++) {
+      var w = E.wildFor(stage, r);
+      assert.ok(D.SPECIES[w.id], w.id);
+      assert.equal(D.SPECIES[w.id].stage, D.STAGES[w.level], w.id);
+      t[D.STAGES[w.level]]++;
+      if (w.grade !== 'normal') t[w.grade]++;
+    }
+    return t;
   }
-  assert.ok(Math.abs(t.child / N - 0.45) < 0.01, JSON.stringify(t));
-  assert.ok(Math.abs(t.ultimate / N - 0.05) < 0.006, JSON.stringify(t));
-  assert.ok(Math.abs(t.boss / N - (0.15 * 0.09 + 0.05 * 0.05)) < 0.004, JSON.stringify(t));
-  assert.ok(t.legend > 0 && t.legend < 40, '전설: ' + t.legend);
+  var c = tally(E.STAGE_IDX.child);
+  assert.ok(Math.abs(c.child / N - 0.65) < 0.01, JSON.stringify(c));
+  assert.equal(c.ultimate + c.legend, 0, '성장기는 궁극체를 만나지 않는다');
+  var p = tally(E.STAGE_IDX.perfect);
+  assert.ok(Math.abs(p.perfect / N - 0.5) < 0.01, JSON.stringify(p));
+  assert.ok(Math.abs(p.boss / N - (0.5 * 0.09 + 0.15 * 0.05)) < 0.004, JSON.stringify(p));
+  var u = tally(E.STAGE_IDX.ultimate);
+  assert.ok(Math.abs(u.ultimate / N - 0.2) < 0.01, JSON.stringify(u));
+  assert.ok(Math.abs(u.legend / N - 0.2 * 0.015) < 0.0015, JSON.stringify(u));
 });
 
-test('스캔: 같은 바코드는 늘 같은 디지몬, 하루 5회', function () {
+test('스캔: 같은 바코드 · 같은 내 단계면 늘 같은 디지몬, 진화하면 같거나 더 높은 단계', function () {
   var s = at('agumon', 'child', 'agumon'), seen = {};
   var first = E.scan(s, '8801234567893', MORNING).wild;
   assert.ok(s.meta.dex[first.id].seen, '만난 디지몬은 도감에 실루엣으로');
   for (var i = 0; i < 2; i++) assert.deepEqual(E.scan(s, ' 8801234567893 ', MORNING).wild, first, '공백은 무시하고 같은 디지몬');
-  s.mon = at('agumon', 'ultimate', 'wargreymon').mon;
-  assert.deepEqual(E.scan(s, '8801234567893', MORNING).wild, first, '내 단계가 달라도 같은 디지몬');
-  for (var k = 0; k < 200; k++) seen[E.wildForCode('880' + k).id] = 1;
+  s.mon = at('agumon', 'child', 'agumon').mon;
+  assert.deepEqual(E.scan(s, '8801234567893', MORNING).wild, first, '같은 단계의 다른 디지몬도 같은 상대');
+  for (var k = 0; k < 2000; k++) {
+    var code = '880' + k, prev = -1, faces = {};
+    [E.STAGE_IDX.child, E.STAGE_IDX.adult, E.STAGE_IDX.perfect, E.STAGE_IDX.ultimate].forEach(function (my) {
+      var w = E.wildForCode(code, my);
+      assert.ok(w.level >= prev, code + ': 진화해도 더 낮은 단계가 나오지 않는다');
+      prev = w.level;
+      if (faces[w.level]) assert.deepEqual(w, faces[w.level], code + ': 같은 단계면 같은 디지몬');
+      faces[w.level] = w;
+    });
+    if (k < 200) seen[E.wildForCode(code, E.STAGE_IDX.adult).id] = 1;
+  }
   assert.ok(Object.keys(seen).length > 50, '바코드가 다르면 여러 디지몬');
   assert.equal(E.scan(s, ' ', MORNING).reason, 'empty');
-  assert.deepEqual(E.wildForCode('036000291452'), E.wildForCode('0036000291452'), 'UPC-A 와 EAN-13 은 같은 상품');
-  assert.deepEqual(E.wildForCode('8801-0430 14809'), E.wildForCode('8801043014809'));
+  var A = E.STAGE_IDX.adult;
+  assert.deepEqual(E.wildForCode('036000291452', A), E.wildForCode('0036000291452', A), 'UPC-A 와 EAN-13 은 같은 상품');
+  assert.deepEqual(E.wildForCode('8801-0430 14809', A), E.wildForCode('8801043014809', A));
 });
 
 test('스캔 횟수: 디지몬마다 하루 5회 (0 이면 무제한)', function () {
