@@ -617,7 +617,7 @@
   }
   function updateScanLeft() {
     $('scanLeft').textContent = '오늘 남은 스캔 ' + E.scansLeft(state, now()) + ' / ' + R.scansPerDay +
-      ' · 어떤 바코드든 찍을 때마다 다른 디지몬이 나와요';
+      ' · 같은 바코드는 언제 찍어도 같은 디지몬이 나와요';
   }
   $('camStart').addEventListener('click', function () {
     $('camStart').hidden = true;
