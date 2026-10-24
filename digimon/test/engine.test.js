@@ -155,6 +155,7 @@ test('완전체 → 궁극체', function () {
   assert.equal(to('agumon', 'perfect', 'metalgreymon', ok), 'wargreymon');
   assert.equal(to('agumon', 'perfect', 'metalgreymon', Object.assign({}, ok, { wins: 6 })), 'wargreymon', '⑨ 승률 60%');
   assert.equal(to('agumon', 'perfect', 'metalgreymon', Object.assign({}, ok, { wins: 5 })), null);
+  assert.equal(to('agumon', 'perfect', 'metalgreymon', { mistakes: 0, battles: 1, wins: 1, bossWins: 1 }), null, '배틀 10번은 해야 한다');
   assert.equal(to('agumon', 'perfect', 'metalgreymon', Object.assign({}, ok, { bossWins: 0 })), null);
   assert.equal(to('agumon', 'perfect', 'metaltyranomon', { mistakes: 3, maxStreak: 5 }), 'blitzgreymon');
   assert.equal(to('gabumon', 'perfect', 'weregarurumon', ok), 'cresgarurumon', '수면 방해 0 이면 숨은 진화');

@@ -618,6 +618,7 @@
       toast(can.reason === 'sleep' ? '자고 있어요' : can.reason === 'sick' ? '아파서 배틀할 수 없어요. 약을 먼저 주세요' : '성장기부터 배틀할 수 있어요');
       return;
     }
+    if (E.scansLeft(state, now()) <= 0) { toast(REASON.limit); return; } // 다 썼으면 카메라를 켜지 않는다
     found = null;
     $('wildCard').hidden = true; $('fight').hidden = true;
     cam.read = null;
@@ -669,6 +670,7 @@
   }
   function zoomTag() { return cam.zoom ? ' · ' + cam.zoom.toFixed(1) + '배' : ''; }
   $('camStart').addEventListener('click', function () {
+    if (E.scansLeft(state, now()) <= 0) { toast(REASON.limit); return; }
     $('codeCheck').hidden = true;
     $('camStart').hidden = true;
     cam.last = null; cam.same = 0; cam.first = 0; cam.t0 = 0; cam.zoom = 0; cam.read = null; cam.seen = 0;
@@ -739,7 +741,7 @@
 
   var REASON = {
     empty: '바코드 숫자를 넣어 주세요',
-    limit: '오늘 스캔을 다 썼어요. 내일 다시!', sleep: '자고 있어요', baby: '성장기부터 배틀할 수 있어요'
+    limit: '이 디지몬은 오늘 바코드 배틀을 다 했어요. 내일 다시!', sleep: '자고 있어요', baby: '성장기부터 배틀할 수 있어요'
   };
   function lookUp(code) {
     $('codeCheck').hidden = true;
