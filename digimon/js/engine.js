@@ -46,7 +46,6 @@ var Engine = (function (D) {
       },
       mon: null,   // 지금 키우는 디지몬
       box: [],     // 보관함 (시간이 멈춰 있다)
-      daily: { date: '', scans: 0 },
       events: []
     };
   }
@@ -447,26 +446,28 @@ var Engine = (function (D) {
     return { ok: true };
   }
 
-  function rollDaily(state, now) {
+  // 스캔 횟수는 디지몬마다 따로 센다 (날짜가 바뀌면 다시 5번)
+  function rollDaily(mon, now) {
     var k = dateKey(now);
-    if (state.daily.date !== k) state.daily = { date: k, scans: 0 };
+    if (!mon.daily || mon.daily.date !== k) mon.daily = { date: k, scans: 0 };
+    return mon.daily;
   }
 
-  // 하루 5회 (모든 디지몬이 함께 쓴다). 바코드마다 나오는 디지몬이 정해져 있다.
+  // 디지몬마다 하루 5회. 바코드마다 나오는 디지몬이 정해져 있다.
   function scan(state, code, now) {
     var can = canBattle(state);
     if (!can.ok) return can;
     if (!codeKey(code)) return { ok: false, reason: 'empty' };
-    rollDaily(state, now);
-    if (state.daily.scans >= R.scansPerDay) return { ok: false, reason: 'limit' };
-    state.daily.scans++;
+    var d = rollDaily(state.mon, now);
+    if (d.scans >= R.scansPerDay) return { ok: false, reason: 'limit' };
+    d.scans++;
     var w = wildForCode(code);
     register(state, w.id, 'seen', now);
-    return { ok: true, wild: w, left: R.scansPerDay - state.daily.scans };
+    return { ok: true, wild: w, left: R.scansPerDay - d.scans };
   }
   function scansLeft(state, now) {
-    rollDaily(state, now);
-    return R.scansPerDay - state.daily.scans;
+    if (!state.mon) return R.scansPerDay;
+    return R.scansPerDay - rollDaily(state.mon, now).scans;
   }
 
   // 백신 → 바이러스 → 데이터 → 백신. 프리는 상성 없음.

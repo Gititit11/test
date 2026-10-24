@@ -412,10 +412,23 @@ test('스캔: 같은 바코드는 늘 같은 디지몬, 하루 5회', function (
   assert.deepEqual(E.scan(s, '8801234567893', MORNING).wild, first, '내 단계가 달라도 같은 디지몬');
   for (var k = 0; k < 200; k++) seen[E.wildForCode('880' + k).id] = 1;
   assert.ok(Object.keys(seen).length > 50, '바코드가 다르면 여러 디지몬');
-  assert.equal(E.scan(s, '1', MORNING).ok, true);
+  assert.equal(E.scan(s, ' ', MORNING).reason, 'empty');
+});
+
+test('스캔 횟수: 디지몬마다 하루 5회', function () {
+  var s = at('agumon', 'child', 'agumon'), first = s.mon;
+  for (var i = 0; i < 5; i++) assert.equal(E.scan(s, '1', MORNING).ok, true);
   assert.equal(E.scan(s, '1', MORNING).reason, 'limit');
+  assert.equal(E.scansLeft(s, MORNING), 0);
+  // 보관함에 넣고 다른 디지몬을 데려오면 그 디지몬은 따로 5번
+  var other = at('gabumon', 'child', 'gabumon').mon;
+  s.box.push(first); s.mon = other;
+  assert.equal(E.scansLeft(s, MORNING), 5);
+  for (var k = 0; k < 5; k++) assert.equal(E.scan(s, '1', MORNING).ok, true);
+  assert.equal(E.scan(s, '1', MORNING).reason, 'limit');
+  s.mon = first;
+  assert.equal(E.scan(s, '1', MORNING).reason, 'limit', '먼저 디지몬은 여전히 다 씀');
   assert.equal(E.scan(s, '1', MORNING + 24 * H).ok, true, '다음 날 풀린다');
-  assert.equal(E.scan(s, ' ', MORNING + 24 * H).reason, 'empty');
 });
 
 test('상성: 백신 → 바이러스 → 데이터 → 백신, 프리는 영향 없음', function () {
