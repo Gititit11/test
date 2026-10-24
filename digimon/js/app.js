@@ -38,8 +38,11 @@
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2600);
   }
   // 받침이 있으면 a, 없으면 b (이/가, 은/는, 을/를)
+  // 받침이 있으면 a, 없으면 b. "워가루몬(흑)" 처럼 괄호로 끝나면 괄호 안 마지막 글자로 본다.
   function josa(word, a, b) {
-    var c = word.charCodeAt(word.length - 1) - 0xac00;
+    var w = word.replace(/[)\s]+$/, ''), last = w[w.length - 1];
+    if (/\d/.test(last)) return word + ('013678'.indexOf(last) >= 0 ? a : b); // 영·일·삼·육·칠·팔은 받침
+    var c = w.charCodeAt(w.length - 1) - 0xac00;
     return word + (c >= 0 && c <= 11171 && c % 28 ? a : b);
   }
   function name(id) { return D.SPECIES[id].name; }
@@ -260,6 +263,12 @@
     });
     if (egg) document.querySelector('[data-act="chip"]').hidden = true;
     document.querySelector('[data-act="medicine"]').hidden = !mon.sick;
+  }
+  // 훈련 레벨: "Lv 3 (+9%) · 다음 레벨까지 성공 7번"
+  function trainText(mon) {
+    var lv = E.trainLevel(mon), ok = mon.trainOk || 0;
+    var t = 'Lv ' + lv + ' (전투력 +' + Math.round(lv * R.trainLvPower * 100) + '%)';
+    return lv >= R.trainLvMax ? t + ' · 최고 레벨' : t + ' · 다음 레벨까지 성공 ' + ((lv + 1) * R.trainLvEvery - ok) + '번';
   }
   function clock(ms) { // 분:초
     var sec = Math.max(0, Math.ceil(ms / 1000));
@@ -591,7 +600,8 @@
     save();
     setTimeout(function () {
       closeScreen();
-      toast(r.good ? '훈련 성공! 힘이 올랐어요' : '훈련 끝. 다음엔 더 잘할 수 있어요');
+      toast(r.levelUp ? '훈련 레벨 ' + r.level + '! 배틀에서 ' + Math.round(r.level * R.trainLvPower * 100) + '% 더 세져요'
+        : r.good ? '훈련 성공! 힘이 올랐어요' : '훈련 끝. 다음엔 더 잘할 수 있어요');
       fx(r.good ? '하앗!' : '헉헉', r.good ? 'train' : 'idle');
     }, 450);
   });
@@ -898,13 +908,21 @@
     $('blog').textContent = josa('야생 ' + w.name, '이', '가') + ' 나타났다!' + (battle.hungry ? ' (배가 고파 힘이 빠져 있다)' : '');
     $('cmds').hidden = false; $('battleDone').hidden = true;
     setCmds(false); // 시작 연출이 끝나면 켠다
-    hpBars();
+    hpBars(); gauges();
     show('battle', true);
     requestAnimationFrame(arenaLoop);
   }
   function hpBars() {
     $('pHp').style.width = view.php + '%';
     $('eHp').style.width = view.ehp + '%';
+  }
+  // 필살기 게이지 (가득 차면 반짝인다)
+  function gauges() {
+    [['pGauge', battle ? battle.pGauge : 0], ['eGauge', battle ? battle.eGauge : 0]].forEach(function (g) {
+      var el = $(g[0]);
+      Array.prototype.forEach.call(el.children, function (pip, i) { pip.className = i < g[1] ? 'on' : ''; });
+      el.className = 'spg' + (g[1] >= R.gaugeMax ? ' full' : '');
+    });
   }
 
   /* ----- 배틀 연출 -----
@@ -1025,8 +1043,9 @@
       act(t, r.eCmd, r.eDmg, Q, P, -1, T.eGo, T.eHit, T.eBack, view.foeAttr, '#ff5f6d');
       if (r.ignored && t < 700) fx.push(function () { pixelText('?!', P.x + ma.w / 2, floor - ma.h - 14 - (t < 150 ? (150 - t) / 30 : 0), 2, '#ff9d3a'); });
       // HP 는 맞는 순간 줄인다
-      if (t >= T.pHit && !turn.eDone) { turn.eDone = true; view.ehp = battle ? battle.ehp : turn.ehp; hpBars(); }
-      if (t >= T.eHit && !turn.pDone) { turn.pDone = true; view.php = battle ? battle.php : turn.php; hpBars(); if (r.eDmg) vibrate(40); }
+      // 방어의 반격은 상대가 때리는 순간에 들어간다
+      if (t >= (r.pCmd === 'guard' ? T.eHit : T.pHit) && !turn.eDone) { turn.eDone = true; view.ehp = battle ? battle.ehp : turn.ehp; hpBars(); }
+      if (t >= (r.eCmd === 'guard' ? T.pHit : T.eHit) && !turn.pDone) { turn.pDone = true; view.php = battle ? battle.php : turn.php; hpBars(); if (r.eDmg) vibrate(40); }
       if (t >= T.end) { var done = turn.done; turn = null; done(); }
     }
 
@@ -1034,9 +1053,24 @@
       var mm = dir > 0 ? ma : mb, fm = dir > 0 ? mb : ma, cols = SHOT[attr] || SHOT.free;
       var fy = floor - fm.h, cy = fy + fm.h / 2;
       if (cmd === 'guard') {
-        // 방어는 자기 차례와 상관없이 턴 내내 방패를 든다
-        var hitNow = t > (dir > 0 ? T.eHit : T.pHit) && t < (dir > 0 ? T.eHit : T.pHit) + 120;
+        // 방어는 자기 차례와 상관없이 턴 내내 방패를 든다. 공격을 막으면 그 순간 반격한다.
+        var hT = dir > 0 ? T.eHit : T.pHit;
+        var hitNow = t > hT && t < hT + 120;
         fx.push(function () { shield(dir > 0 ? me.x + mm.w + 2 : me.x - 5, floor - mm.h + 2, mm.h - 4, dir, hitNow); });
+        if (dmg && t >= hT && t < hT + 260) {
+          var ce = (t - hT) / 260;
+          foe.x += (Math.floor(t / 40) % 2 ? 2 : -2);
+          foe.hide = Math.floor(t / 70) % 2 === 1;
+          if (ce < 0.6) fx.push(function () { burst(Math.round(foe.x + fm.w / 2), Math.round(cy), ce, ['#c8f0ff', '#78c8ff']); });
+        }
+        if (dmg && t >= hT && t < hT + 620) {
+          var cu = (t - hT) / 620;
+          fx.push(function () {
+            ax.globalAlpha = cu < 0.7 ? 1 : 1 - (cu - 0.7) / 0.3;
+            pixelText(String(dmg), foe.x + fm.w / 2, Math.max(2, fy - 12 - cu * 14), 2, '#78c8ff');
+            ax.globalAlpha = 1;
+          });
+        }
         return;
       }
       var k = lunge(t, go, hit, back);
@@ -1079,7 +1113,14 @@
     fx.forEach(function (f) { f(); });
   }
   function setCmds(on) {
-    Array.prototype.forEach.call(document.querySelectorAll('[data-cmd]'), function (b) { b.disabled = !on; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-cmd]'), function (b) {
+      // 필살기는 게이지가 가득 찼을 때만
+      b.disabled = !on || (b.getAttribute('data-cmd') === 'special' && !(battle && E.canSpecial(battle)));
+    });
+  }
+  var EVENT_TEXT = { counter: '반격!', break: '가드 브레이크!', cut: '필살기를 끊었다!' };
+  function cmdLine(who, cmd, dmg, ev) {
+    return who + ' ' + CMD_NAMES[cmd] + (ev ? ' ' + EVENT_TEXT[ev] : '') + (dmg ? ' → ' + dmg : cmd === 'guard' ? '' : ' → 막힘');
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-cmd]'), function (btn) {
     btn.addEventListener('click', function () {
@@ -1087,13 +1128,14 @@
       var r = E.battleTurn(battle, btn.getAttribute('data-cmd'));
       var me = name(battle.me), en = battle.wild.name, lines = [];
       if (r.ignored) lines.push(josa(me, '이', '가') + ' 명령을 무시했다!');
-      lines.push(me + ' ' + CMD_NAMES[r.pCmd] + (r.pCmd === 'guard' ? '' : r.pDmg ? ' → ' + r.pDmg : ' → 빗나감'));
-      lines.push(en + ' ' + CMD_NAMES[r.eCmd] + (r.eCmd === 'guard' ? '' : r.eDmg ? ' → ' + r.eDmg : ' → 빗나감'));
+      lines.push(cmdLine(me, r.pCmd, r.pDmg, r.pEvent));
+      lines.push(cmdLine(en, r.eCmd, r.eDmg, r.eEvent));
+      if (!battle.over && battle.eGauge >= R.gaugeMax) lines.push(josa(en, '이', '가') + ' 기를 모으고 있다!');
       $('blog').textContent = lines.join(' · ');
       setCmds(false);
       turn = {
         t0: performance.now(), r: r, php: battle.php, ehp: battle.ehp,
-        done: function () { if (battle && battle.over) finishBattle(false); else setCmds(true); }
+        done: function () { gauges(); if (battle && battle.over) finishBattle(false); else setCmds(true); }
       };
     });
   });
@@ -1271,7 +1313,8 @@
       ['단계 · 속성', (mon.armor ? '아머체' : D.STAGE_NAMES[mon.stage]) + ' · ' + D.ATTR_NAMES[S.attr]],
       ['나이', dur(t - mon.born)],
       ['다음 진화', mon.stageEnd ? dur(mon.stageEnd - t) + ' 뒤' : '없음'],
-      ['전투력', mon.stage === 'egg' ? '-' : Math.round(E.myPower(mon))]
+      ['전투력', mon.stage === 'egg' ? '-' : Math.round(E.myPower(mon))],
+      ['훈련 레벨', trainText(mon)]
     ]));
     body.appendChild(heading('이 단계에서 쌓인 값 (진화 판정에 쓰여요)'));
     body.appendChild(table([

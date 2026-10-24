@@ -335,10 +335,11 @@ var Engine = (function (D) {
     if (mon.sleeping) return asleep();
     if (mon.sick) return { ok: false, reason: 'sick' };
     mon.c.training++;
-    var good = hits >= 2;
+    var good = hits >= 2, lv = trainLevel(mon);
     if (good && mon.strength < 4) mon.strength++;
+    if (good) mon.trainOk = (mon.trainOk || 0) + 1;
     answered(mon);
-    return { ok: true, good: good };
+    return { ok: true, good: good, level: trainLevel(mon), levelUp: trainLevel(mon) > lv };
   }
 
   function clean(state) {
@@ -499,10 +500,14 @@ var Engine = (function (D) {
     return 1;
   }
 
+  // 훈련 레벨 (0..10): 성공한 훈련 수로 정해진다. 진화해도 그대로.
+  function trainLevel(mon) {
+    return Math.min(R.trainLvMax, Math.floor((mon.trainOk || 0) / R.trainLvEvery));
+  }
   function myPower(mon) {
     var S = D.SPECIES[form(mon)];
     var base = R.stagePower[D.STAGES[battleStage(mon)]] * S.mult;
-    return base * (0.85 + 0.05 * mon.strength) * (mon.hunger === 0 ? 0.8 : 1);
+    return base * (0.85 + 0.05 * mon.strength) * (mon.hunger === 0 ? 0.8 : 1) * (1 + R.trainLvPower * trainLevel(mon));
   }
   function wildPower(w) {
     return R.stagePower[D.STAGES[w.level]] * R.gradePower[w.grade];
@@ -518,12 +523,32 @@ var Engine = (function (D) {
       hungry: mon.hunger === 0,
       pPow: pPow, ePow: ePow,
       pAdv: advantage(me.attr, wild.attr), eAdv: advantage(wild.attr, me.attr),
+      pGauge: 0, eGauge: 0,
       ignores: !!me.ignores
     };
   }
 
-  /* 한 턴: cmd = 'attack' | 'special' | 'guard'. rnd 를 넘기면 결과가 정해진다(시험용). */
+  /* 한 턴: cmd = 'attack' | 'special' | 'guard'. rnd 를 넘기면 결과가 정해진다(시험용).
+   * 둘이 동시에 고르고, 가위바위보처럼 공격 > 필살기 > 방어 > 공격.
+   * 필살기는 게이지가 가득 차야 쓸 수 있다 (못 쓰면 공격으로 바뀐다). */
   var CMDS = ['attack', 'special', 'guard'];
+  function canSpecial(b) { return b.pGauge >= R.gaugeMax; }
+  // 상대는 반쯤은 내 습관을 읽고 그걸 가장 잘 받아치는 수를 낸다. 습관은 상황별로 따로 기억한다
+  // (누구 게이지가 찼는지). 같은 상황에서 같은 것만 누르면 읽힌다.
+  function situation(b) { return (b.eGauge >= R.gaugeMax ? 'E' : '-') + (canSpecial(b) ? 'P' : '-'); }
+  function foeCommand(b, rnd) {
+    var full = b.eGauge >= R.gaugeMax, base = full ? R.foeFull : R.foeCharging;
+    if (rnd() >= R.foeRead) return pickOdds(base, rnd());
+    var w0 = R.foePrior, q = { attack: w0, guard: w0, special: canSpecial(b) ? w0 : 0 }, n = q.attack + q.guard + q.special; // 아직 모를 때의 짐작
+    ((b.hist || {})[situation(b)] || []).forEach(function (c) { q[c]++; n++; });
+    var best = null, bestV = -1e9;
+    Object.keys(base).forEach(function (o) {
+      var v = 0;
+      CMDS.forEach(function (p) { v += q[p] / n * (R.hitMult[o][p] - R.hitMult[p][o]); });
+      if (v > bestV) { bestV = v; best = o; }
+    });
+    return best;
+  }
   function battleTurn(b, cmd, rnd) {
     rnd = rnd || Math.random;
     if (b.over) return null;
@@ -532,10 +557,17 @@ var Engine = (function (D) {
       out.ignored = true;
       cmd = CMDS[Math.floor(rnd() * 3)];
     }
-    var e = rnd(), eCmd = e < 0.6 ? 'attack' : e < 0.85 ? 'special' : 'guard';
+    if (cmd === 'special' && !canSpecial(b)) cmd = 'attack';
+    var eCmd = foeCommand(b, rnd), sit = situation(b);
+    b.hist = b.hist || {};
+    b.hist[sit] = (b.hist[sit] || []).concat(cmd).slice(-3);
     out.pCmd = cmd; out.eCmd = eCmd;
     out.pDmg = hit(cmd, eCmd, b.pPow, b.ePow, b.pAdv, rnd);
     out.eDmg = hit(eCmd, cmd, b.ePow, b.pPow, b.eAdv, rnd);
+    // 무슨 일이 있었나 (화면 글귀용): 반격 · 가드 브레이크 · 끊기
+    out.pEvent = event(cmd, eCmd); out.eEvent = event(eCmd, cmd);
+    b.pGauge = gauge(b.pGauge, cmd, eCmd);
+    b.eGauge = gauge(b.eGauge, eCmd, cmd);
     b.ehp = Math.max(0, b.ehp - out.pDmg);
     b.php = Math.max(0, b.php - out.eDmg);
     b.turn++;
@@ -545,13 +577,20 @@ var Engine = (function (D) {
     return out;
   }
   function hit(cmd, otherCmd, atk, def, adv, rnd) {
-    if (cmd === 'guard') return 0;
-    var chance = cmd === 'special' ? 0.55 : 0.9;
-    if (rnd() >= chance) return 0;
-    var dmg = 14 * Math.pow(atk / def, 0.8) * adv * (0.85 + rnd() * 0.3);
-    if (cmd === 'special') dmg *= 2;
-    if (otherCmd === 'guard') dmg *= 0.4;
+    var m = R.hitMult[cmd][otherCmd];
+    if (!m) return 0;
+    var dmg = 14 * Math.pow(atk / def, 0.8) * adv * m * (0.85 + rnd() * 0.3);
     return Math.max(1, Math.round(dmg));
+  }
+  function event(cmd, otherCmd) {
+    if (cmd === 'guard' && otherCmd === 'attack') return 'counter';
+    if (cmd === 'special' && otherCmd === 'guard') return 'break';
+    if (cmd === 'attack' && otherCmd === 'special') return 'cut';
+    return null;
+  }
+  function gauge(g, cmd, otherCmd) {
+    if (cmd === 'special') return 0;
+    return Math.min(R.gaugeMax, g + (cmd === 'guard' && otherCmd === 'attack' ? 2 : 1));
   }
 
   /* 보스 보상: 완전체 보스 → 아직 없는 디지멘탈(용기·우정·사랑) 중 하나,
@@ -614,7 +653,7 @@ var Engine = (function (D) {
     judge: judge, passes: passes, warning: warning, form: form, winRate: winRate, dateKey: dateKey,
     feed: feed, snack: snack, train: train, clean: clean, toggleLights: toggleLights, wake: wake,
     armorKinds: armorKinds, canArmor: canArmor, armor: armor, useChip: useChip, medicine: medicine,
-    wildFor: wildFor, wildForCode: wildForCode, battleStage: battleStage, advantage: advantage,
+    wildFor: wildFor, wildForCode: wildForCode, trainLevel: trainLevel, canSpecial: canSpecial, battleStage: battleStage, advantage: advantage,
     canBattle: canBattle, scan: scan, scansLeft: scansLeft,
     startBattle: startBattle, battleTurn: battleTurn, endBattle: endBattle,
     myPower: myPower, wildPower: wildPower

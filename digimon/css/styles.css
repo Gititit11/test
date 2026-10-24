@@ -195,8 +195,14 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .hp.right .bar i { margin-left: auto; background: var(--danger); }
 #arena { width: 100%; aspect-ratio: 256 / 140; background: var(--lcd); border-radius: 12px; }
 .blog { min-height: 44px; font-size: 14px; }
+.spg { display: flex; gap: 3px; margin-top: 4px; }
+.hp.right .spg { justify-content: flex-end; }
+.spg i { width: 16px; height: 6px; border-radius: 3px; background: var(--card-2); }
+.spg i.on { background: var(--gold); }
+.spg.full i { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
 .cmds { display: flex; gap: 8px; }
 .cmds .btn { flex: 1; }
+.rps { font-size: 12px; margin: 8px 0 0; }
 
 /* 도감 */
 .dex-sec h3 { font-size: 14px; color: var(--dim); margin: 18px 0 8px; font-weight: 600; }

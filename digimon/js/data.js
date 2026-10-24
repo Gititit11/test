@@ -60,7 +60,23 @@ var DigiData = (function () {
       ultimate: { normal: 0.695, rare: 0.24, boss: 0.05, legend: 0.015 }
     },
     attrOdds: { vaccine: 0.3, data: 0.3, virus: 0.3, free: 0.1 },
-    ignoreChance: 0.35         // 블리츠그레이몬이 명령을 무시할 확률
+    ignoreChance: 0.35,        // 블리츠그레이몬이 명령을 무시할 확률
+    // 배틀: 공격 > 필살기 > 방어 > 공격. 표는 [내 커맨드][상대 커맨드] → 내가 넣는 피해 배율
+    hitMult: {
+      attack: { attack: 1, guard: 0.2, special: 1 },      // 방어에 막히면 0.2 · 필살기는 끊는다
+      guard: { attack: 0.6, guard: 0, special: 0 },       // 공격을 막으면 0.6 반격 · 필살기에는 뚫린다
+      special: { attack: 0.54, guard: 1.8, special: 1.8 } // 공격에 끊기면 30%(0.54) · 방어를 뚫는다
+    },
+    gaugeMax: 3,               // 필살기 게이지. 공격 +1, 방어 +1 (공격을 막아내면 +2), 필살기는 가득 차야 쓰고 0 이 된다
+    // 상대: foeRead 확률로 내 최근 3턴 습관을 읽고 거기에 가장 센 수를 낸다. 아니면 아래 기본 확률.
+    foeRead: 0.6,
+    foePrior: 0.2,             // 습관을 모를 때의 짐작 (작을수록 빨리 읽힌다)
+    foeFull: { special: 0.34, attack: 0.33, guard: 0.33 },
+    foeCharging: { attack: 0.5, guard: 0.5 },
+    // 훈련 레벨: 훈련을 성공(3번 중 2번 이상)할 때마다 쌓이고 진화해도 남는다. 16번마다 1레벨, 레벨마다 전투력 +3%
+    trainLvEvery: 16,
+    trainLvMax: 10,
+    trainLvPower: 0.03
   };
 
   /* 종 정보

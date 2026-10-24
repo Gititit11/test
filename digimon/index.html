@@ -121,8 +121,8 @@
   <section id="battle" class="screen sheet-wrap" hidden>
     <div class="sheet">
       <div class="hp-row">
-        <div class="hp"><span id="pName"></span><div class="bar"><i id="pHp"></i></div></div>
-        <div class="hp right"><span id="eName"></span><div class="bar"><i id="eHp"></i></div></div>
+        <div class="hp"><span id="pName"></span><div class="bar"><i id="pHp"></i></div><div class="spg" id="pGauge"><i></i><i></i><i></i></div></div>
+        <div class="hp right"><span id="eName"></span><div class="bar"><i id="eHp"></i></div><div class="spg" id="eGauge"><i></i><i></i><i></i></div></div>
       </div>
       <canvas id="arena" width="256" height="140"></canvas>
       <p class="center blog" id="blog"></p>
@@ -131,6 +131,7 @@
         <button class="btn accent" data-cmd="special">필살기</button>
         <button class="btn" data-cmd="guard">방어</button>
       </div>
+      <p class="dim center rps" id="rpsHint">공격은 필살기를, 필살기는 방어를, 방어는 공격을 이겨요. 필살기는 게이지 3칸이 차야 써요</p>
       <div class="sheet-actions" id="battleDone" hidden>
         <button class="btn primary grow" data-close>확인</button>
       </div>

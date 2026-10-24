@@ -518,3 +518,53 @@ test('배틀 턴이 끝까지 진행되고, 블리츠그레이몬은 가끔 명�
   var boss = { id: 'vamdemon', attr: 'virus', grade: 'boss', level: E.STAGE_IDX.perfect };
   assert.ok(E.startBattle(armor, boss).pPow > E.myPower(armor.mon) * 1.4, '아머체는 보스에게 강하다');
 });
+
+test('배틀: 공격 > 필살기 > 방어 > 공격, 필살기는 게이지 3칸', function () {
+  var s = at('agumon', 'adult', 'greymon');
+  var w = { id: 'garurumon', name: '가루몬', attr: 'vaccine', grade: 'normal', level: E.STAGE_IDX.adult };
+  function fight(foeCmd) { // 상대 커맨드를 정해 둔다
+    var b = E.startBattle(s, w);
+    var R = D.RULES, keep = R.foeRead;
+    R.foeRead = 0;
+    var odds = { foeFull: R.foeFull, foeCharging: R.foeCharging };
+    R.foeFull = {}; R.foeFull[foeCmd] = 1; R.foeCharging = {}; R.foeCharging[foeCmd === 'special' ? 'attack' : foeCmd] = 1;
+    return { b: b, done: function () { R.foeRead = keep; R.foeFull = odds.foeFull; R.foeCharging = odds.foeCharging; } };
+  }
+  var f = fight('attack'), b = f.b, r;
+  r = E.battleTurn(b, 'special', seeded(1));
+  assert.equal(r.pCmd, 'attack', '게이지가 없으면 필살기는 공격으로');
+  r = E.battleTurn(b, 'guard', seeded(2));
+  assert.equal(r.pEvent, 'counter');
+  assert.ok(r.pDmg > 0 && r.eDmg < r.pDmg, '막고 반격: ' + JSON.stringify(r));
+  assert.equal(b.pGauge, 3, '공격 +1, 막아내기 +2');
+  assert.ok(E.canSpecial(b));
+  f.done();
+  f = fight('guard'); b = f.b; b.pGauge = 3;
+  r = E.battleTurn(b, 'special', seeded(3));
+  assert.equal(r.pEvent, 'break'); assert.equal(r.eDmg, 0); assert.equal(b.pGauge, 0, '필살기를 쓰면 게이지 0');
+  f.done();
+  f = fight('special'); b = f.b; b.eGauge = 3;
+  r = E.battleTurn(b, 'attack', seeded(4));
+  assert.equal(r.eCmd, 'special'); assert.equal(r.pEvent, 'cut');
+  assert.ok(r.eDmg < r.pDmg, '끊긴 필살기는 약하다: ' + JSON.stringify(r));
+  f.done();
+});
+
+test('훈련 레벨: 성공 16번마다 1레벨, 최대 10, 진화해도 남고 레벨마다 전투력 +3%', function () {
+  var s = at('agumon', 'child', 'agumon');
+  s.mon.strength = 4; // 훈련은 힘도 채우니 미리 가득
+  var p0 = E.myPower(s.mon);
+  for (var i = 0; i < 15; i++) E.train(s, 2);
+  E.train(s, 1); // 실패는 안 센다
+  assert.equal(E.trainLevel(s.mon), 0);
+  var r = E.train(s, 3);
+  assert.equal(r.levelUp, true); assert.equal(E.trainLevel(s.mon), 1);
+  assert.ok(Math.abs(E.myPower(s.mon) / p0 - 1.03) < 1e-9);
+  s.mon.trainOk = 1000;
+  assert.equal(E.trainLevel(s.mon), 10, '최대 10');
+  s.mon.trainOk = 48;
+  quiet(s.mon); s.mon.c.training = 20;
+  E.tick(s, s.mon.stageEnd + 1);
+  assert.equal(s.mon.stage, 'adult');
+  assert.equal(E.trainLevel(s.mon), 3, '진화해도 그대로');
+});
