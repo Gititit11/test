@@ -222,7 +222,7 @@ var Engine = (function (D) {
   function passes(rule, c) {
     var wr = winRate(c), bat = c.battles >= 15;
     switch (rule) {
-      case 'r1': return c.mistakes <= 3 && c.training >= 16 && c.training <= 47; // 훈련도 너무 많으면 안 된다
+      case 'r1': return c.mistakes <= 3 && c.training >= 16; // 훈련은 16번 이상이면 많을수록 좋다 (상한 없음)
       case 'r21': return c.mistakes <= 3 && c.training >= 48;
       case 'r2': case 'r14': case 'r18': return true;
       case 'r3': return c.mistakes >= 6;

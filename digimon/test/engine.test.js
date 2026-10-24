@@ -74,7 +74,7 @@ test('데이터: 모든 종에 도트 시트가 있고, 표가 서로 맞는다'
 test('성장기 → 성숙기 (아구몬): ④ > ③ > ① > ②', function () {
   assert.equal(to('agumon', 'child', 'agumon', { mistakes: 3, training: 16 }), 'greymon');
   assert.equal(to('agumon', 'child', 'agumon', { training: 47 }), 'greymon');
-  assert.equal(to('agumon', 'child', 'agumon', { training: 48 }), 'ogremon', '훈련 상한');
+  assert.equal(to('agumon', 'child', 'agumon', { training: 120 }), 'greymon', '훈련은 많이 해도 정상 진화 (상한 없음)');
   assert.equal(to('agumon', 'child', 'agumon', { training: 15 }), 'ogremon');
   assert.equal(to('agumon', 'child', 'agumon', { mistakes: 4, training: 20 }), 'ogremon');
   assert.equal(to('agumon', 'child', 'agumon', { mistakes: 6 }), 'algomon_adult');
