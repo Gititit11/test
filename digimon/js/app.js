@@ -587,20 +587,19 @@
   // 훈련하는 동안 디지몬은 훈련 동작을 한다 (훈련 칸이 없는 디지몬은 공격 동작).
   // 누른 직후 0.4초는 맞히면 공격, 놓치면 멈칫.
   function drawTrainee(ts) {
-    var id = E.form(state.mon), o;
-    if (!Sprite.has(id, 'train') && !Sprite.has(id, 'attack')) return hopTrainee(id, ts);
-    if (tr.react && ts - tr.react.t < 400) o = tr.react.ok ? { anim: 'attack', frame: 0 } : { anim: 'idle', frame: 0 };
+    var id = E.form(state.mon), o, hop = 0;
+    if (!Sprite.has(id, 'train') && !Sprite.has(id, 'attack')) {
+      // 유년기처럼 훈련·공격 칸이 없는 디지몬은 제자리에서 폴짝폴짝 뛴다
+      o = { anim: 'idle', frame: Math.floor(ts / 260) };
+      hop = Math.abs(Math.sin(ts / 180)) * 8;
+      if (tr.react && ts - tr.react.t < 400) hop = tr.react.ok ? 12 : 0;
+    } else if (tr.react && ts - tr.react.t < 400) o = tr.react.ok ? { anim: 'attack', frame: 0 } : { anim: 'idle', frame: 0 };
     else o = { anim: Sprite.has(id, 'train') ? 'train' : 'attack', frame: Math.floor(ts / 260) };
-    picture($('trainPic'), id, o);
-  }
-  // 유년기처럼 훈련·공격 칸이 없는 디지몬은 제자리에서 폴짝폴짝 뛴다
-  function hopTrainee(id, ts) {
+    // 홈 화면처럼 도트 1배로, 바닥에 세워서 그린다 (커갈수록 커 보인다)
     var c = $('trainPic'), x = c.getContext('2d'), m = Sprite.measure(id);
-    var sc = Math.max(1, Math.floor((c.height - 24) / Math.max(m.w, m.h)));
-    var hop = Math.abs(Math.sin(ts / 180)) * 12;
-    if (tr.react && ts - tr.react.t < 400) hop = tr.react.ok ? 16 : 0;
+    var sc = Math.min(1, (c.height - 6) / m.h, (c.width - 8) / m.w);
     x.clearRect(0, 0, c.width, c.height);
-    Sprite.draw(x, id, Math.floor((c.width - m.w * sc) / 2), Math.floor(c.height - 6 - m.h * sc - hop), sc, { anim: 'idle', frame: Math.floor(ts / 260) });
+    Sprite.draw(x, id, Math.floor((c.width - m.w * sc) / 2), Math.floor(c.height - 4 - m.h * sc - hop), sc, o);
   }
   function stopTrain() { if (tr) cancelAnimationFrame(tr.raf); tr = null; }
   $('trainHit').addEventListener('click', function () {
