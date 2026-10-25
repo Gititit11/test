@@ -672,7 +672,9 @@
 
   // 줌: 가까이 대면 초점이 안 맞으니 조금 떨어져서 찍도록 2배로 시작하고,
   // 바코드가 화면에서 작게 잡히면 조금씩 더 당긴다. 줌을 못 쓰는 기기는 그냥 넘어간다.
-  var ZOOM_START = 2, ZOOM_MAX = 4, ZOOM_SMALL = 0.35;
+  // 처음엔 줌 없이(1배) 시작한다. 2배로 시작하면 바코드가 작아 보여 폰을 더 들이밀게 되고,
+  // 렌즈의 최소 초점 거리보다 가까워져 흐려진다. 바코드가 작게 잡힐 때만 당긴다.
+  var ZOOM_START = 1, ZOOM_MAX = 4, ZOOM_SMALL = 0.35;
   function zoomCaps(track) {
     var c = track && track.getCapabilities ? track.getCapabilities() : null;
     return c && c.zoom && c.zoom.max > c.zoom.min ? c.zoom : null;
@@ -684,8 +686,61 @@
     if (c.step) z = Math.round(z / c.step) * c.step;
     if (Math.abs(z - (cam.zoom || 0)) < 0.01) return false;
     cam.zoom = z;
-    track.applyConstraints({ advanced: [{ zoom: z }] }).catch(function () { });
+    applyCam(track, { zoom: z });
     return true;
+  }
+  // applyConstraints 는 전에 건 조건을 통째로 바꾼다. 줌만 넘기면 연속 초점이 풀리므로 늘 같이 건다.
+  function applyCam(track, extra) {
+    var c = track.getCapabilities ? track.getCapabilities() : {}, a = {};
+    if (c.focusMode && c.focusMode.indexOf('continuous') >= 0) a.focusMode = 'continuous';
+    if (cam.zoom && c.zoom) a.zoom = cam.zoom;
+    for (var k in extra) a[k] = extra[k];
+    return track.applyConstraints({ advanced: [a] }).catch(function () { });
+  }
+  function hasAutoFocus(track) {
+    var c = track && track.getCapabilities ? track.getCapabilities() : {};
+    return !!(c.focusMode && c.focusMode.indexOf('continuous') >= 0);
+  }
+  // 뒷면 카메라가 여럿인 폰(광각·망원·매크로)은 웹에 아무 렌즈나 먼저 줄 수 있다. 광각은 초점이 고정이라
+  // 가까이 대면 흐리다. 자동 초점이 되는 뒷면 렌즈를 찾아 쓰고, 찾은 렌즈는 기억해 둔다.
+  var CAM_KEY = 'digimon:camera';
+  function openCam(deviceId) {
+    function get(zoom) {
+      var v = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+      if (deviceId) v.deviceId = { exact: deviceId }; else v.facingMode = 'environment';
+      if (zoom) v.zoom = true; // 줌을 쓰겠다는 요청. 거절하는 기기면 줌 없이 다시 연다
+      return navigator.mediaDevices.getUserMedia({ video: v, audio: false });
+    }
+    return get(true).catch(function () { return get(false); });
+  }
+  function stopStream(s) { if (s) s.getTracks().forEach(function (t) { t.stop(); }); }
+  function pickCamera() {
+    var saved = null;
+    try { saved = localStorage.getItem(CAM_KEY); } catch (e) { }
+    var first = saved ? openCam(saved).catch(function () { return openCam(null); }) : openCam(null);
+    return first.then(function (s) {
+      if (hasAutoFocus(s.getVideoTracks()[0]) || !navigator.mediaDevices.enumerateDevices) return s;
+      // 지금 렌즈는 자동 초점이 안 된다 → 다른 뒷면 렌즈를 하나씩 열어 본다 ("camera2 0" 이 보통 주 카메라)
+      return navigator.mediaDevices.enumerateDevices().then(function (list) {
+        var cur = s.getVideoTracks()[0].getSettings().deviceId;
+        var backs = list.filter(function (d) {
+          return d.kind === 'videoinput' && d.deviceId !== cur && !/front|user|전면/i.test(d.label);
+        }).sort(function (a, b) { return (/\b0\b/.test(b.label) ? 1 : 0) - (/\b0\b/.test(a.label) ? 1 : 0); });
+        function next(i) {
+          if (i >= backs.length) return openCam(cur); // 다 안 되면 처음 렌즈로
+          return openCam(backs[i].deviceId).then(function (t) {
+            if (hasAutoFocus(t.getVideoTracks()[0])) {
+              try { localStorage.setItem(CAM_KEY, backs[i].deviceId); } catch (e) { }
+              return t;
+            }
+            stopStream(t);
+            return next(i + 1);
+          }, function () { return next(i + 1); });
+        }
+        stopStream(s);
+        return next(0);
+      });
+    });
   }
   function zoomTag() { return cam.zoom ? ' · ' + cam.zoom.toFixed(1) + '배' : ''; }
   $('camStart').addEventListener('click', function () {
@@ -698,25 +753,18 @@
     try { cam.detector = new BarcodeDetector({ formats: PRODUCT }); } catch (e) {
       try { cam.detector = new BarcodeDetector(); } catch (e2) { $('camNote').hidden = false; return; }
     }
-    // 해상도를 높이고 초점을 계속 맞추게 하면 가는 막대도 잘 읽힌다 (안 되는 기기는 무시)
-    // zoom: true 는 줌을 쓰겠다는 요청. 이걸 거절하는 기기가 있으면 줌 없이 다시 연다.
-    function open(zoom) {
-      var v = { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] };
-      if (zoom) v.zoom = true;
-      return navigator.mediaDevices.getUserMedia({ video: v, audio: false });
-    }
-    open(true).catch(function () { return open(false); }).then(function (s) {
+    pickCamera().then(function (s) {
       cam.stream = s;
       var v = $('cam');
       v.srcObject = s; v.play();
       $('camBox').hidden = false;
-      setZoom(ZOOM_START);
+      applyCam(s.getVideoTracks()[0], {}); // 연속 초점 (되는 기기만)
       cam.timer = setInterval(function () {
         if (v.readyState < 2) return;
         var t = performance.now();
         // 켜자마자는 초점이 안 맞아 잘못 읽기 쉬우니 처음 1.5초는 읽지 않는다
         if (!cam.t0) cam.t0 = t;
-        if (t - cam.t0 < CAM_WARMUP) { $('camStatus').textContent = '초점 맞추는 중…' + zoomTag(); return; }
+        if (t - cam.t0 < CAM_WARMUP) { $('camStatus').textContent = '초점 맞추는 중… 바코드에서 한 뼘쯤 떨어져 주세요' + zoomTag(); return; }
         cam.detector.detect(v).then(function (codes) {
           if (!cam.stream) return;
           var now = performance.now();
@@ -749,6 +797,16 @@
       $('camStart').hidden = false;
       toast('카메라를 열 수 없어요. 카메라 권한을 확인해 주세요');
     });
+  });
+  // 화면을 누르면 그 자리에서 초점을 한 번 다시 잡는다 (되는 기기만)
+  $('camBox').addEventListener('click', function () {
+    var track = cam.stream && cam.stream.getVideoTracks()[0];
+    if (!track || !track.getCapabilities) return;
+    var c = track.getCapabilities();
+    if (!c.focusMode || c.focusMode.indexOf('single-shot') < 0) return;
+    applyCam(track, { focusMode: 'single-shot' });
+    $('camStatus').textContent = '초점 다시 맞추는 중…';
+    setTimeout(function () { if (cam.stream) applyCam(track, {}); }, 1200);
   });
   function stopCam() {
     clearInterval(cam.timer);
