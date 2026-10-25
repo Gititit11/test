@@ -301,14 +301,16 @@ test('병: 똥 4개면 아프고, 배틀에서 지면 다칠 수 있고, 약 한
   assert.equal(s.mon.sick, true);
   assert.equal(E.canBattle(s).reason, 'sick');
   assert.equal(E.train(s, 3).reason, 'sick');
-  // 아픈 채로 한 시간마다 케어 실수
+  // 아프고 한 시간 안에 약을 안 주면 케어 실수 1, 병 하나에 한 번만
   E.clean(s); quiet(s.mon);
   E.tick(s, MORNING + M + 60 * M);
   assert.equal(s.mon.c.mistakes, 1);
+  E.tick(s, MORNING + M + 5 * H);
+  assert.equal(s.mon.c.mistakes, 1, '오래 아파도 한 번만');
   assert.equal(E.medicine(s).ok, true);
   assert.equal(s.mon.sick, false);
   assert.equal(E.medicine(s).reason, 'healthy', '안 아프면 약을 먹지 않는다');
-  E.tick(s, MORNING + M + 3 * H);
+  E.tick(s, MORNING + 8 * H);
   assert.equal(s.mon.c.mistakes, 1, '나은 뒤에는 더 쌓이지 않는다');
 
   var w = { id: 'palmon', name: '팔몬', attr: 'data', grade: 'normal', level: E.STAGE_IDX.child };
@@ -330,16 +332,21 @@ test('과식: 배부를 때 먹이나 간식을 주면 센다', function () {
   assert.equal(s.mon.c.overfeed, 2);
 });
 
-test('배변을 3시간 넘게 두면 위생 실수', function () {
+test('배변을 3시간 넘게 두면 위생 실수 (치울 때까지 한 번만)', function () {
   var s = at('agumon', 'child', 'agumon');
-  s.mon.poops = [{ age: 0 }];
+  s.mon.poops = [{ age: 0 }, { age: 0 }, { age: 0 }];
   s.mon.poopT = -9999;
   E.tick(s, MORNING + 179 * M);
   assert.equal(s.mon.c.hygiene, 0);
   E.tick(s, MORNING + 180 * M);
-  assert.equal(s.mon.c.hygiene, 1);
+  assert.equal(s.mon.c.hygiene, 1, '똥이 셋이어도 한 번');
+  E.tick(s, MORNING + 10 * H);
+  assert.equal(s.mon.c.hygiene, 1, '오래 두어도 한 번');
   E.clean(s);
   assert.equal(s.mon.poops.length, 0);
+  s.mon.poops = [{ age: 0 }];
+  E.tick(s, MORNING + 13 * H + M);
+  assert.equal(s.mon.c.hygiene, 2, '치운 뒤 새로 쌓인 똥은 다시 센다');
 });
 
 test('수면: 불을 30분 넘게 안 끄거나 깨우면 수면 방해', function () {

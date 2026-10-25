@@ -179,19 +179,20 @@ var Engine = (function (D) {
       }
     }
 
-    // 아픈 채로 두면 한 시간마다 케어 실수 (자는 동안에도)
-    if (mon.sick && ++mon.sickMin % R.sickMistakeMinutes === 0) {
+    // 아프고 한 시간 안에 약을 안 주면 케어 실수 1. 정식처럼 병 하나에 한 번만 센다.
+    if (mon.sick && ++mon.sickMin === R.sickMistakeMinutes) {
       mon.c.mistakes++;
       emit(state, 'mistake', t, { kind: 'sick' });
     }
 
-    // 배변은 자는 동안에도 방치 시간이 흐른다
-    mon.poops.forEach(function (p) {
-      if (++p.age === R.poopLimitMinutes) {
-        mon.c.hygiene++;
-        emit(state, 'mistake', t, { kind: 'poop' });
-      }
-    });
+    // 배변은 자는 동안에도 방치 시간이 흐른다. 똥이 3시간 넘게 남아 있으면 위생 실수 1.
+    // 정식처럼 치울 때까지 한 번만 센다 (똥이 여러 개여도).
+    mon.poops.forEach(function (p) { p.age++; });
+    if (mon.poops.length && !mon.poopPenalized && mon.poops[0].age >= R.poopLimitMinutes) {
+      mon.poopPenalized = true;
+      mon.c.hygiene++;
+      emit(state, 'mistake', t, { kind: 'poop' });
+    }
 
     if (!mon.sleeping) {
       if (++mon.hungerT >= R.hungerEvery[mon.stage]) { mon.hungerT = 0; if (mon.hunger > 0) mon.hunger--; }
@@ -345,6 +346,7 @@ var Engine = (function (D) {
   function clean(state) {
     var n = state.mon.poops.length;
     state.mon.poops = [];
+    state.mon.poopPenalized = false;
     return { ok: true, n: n };
   }
 
@@ -607,7 +609,7 @@ var Engine = (function (D) {
 
   /* ---------- 병 ----------
    * 똥이 4개 쌓이거나 배틀에서 지다 다치면 아프다. 아프면 훈련·배틀을 못 하고,
-   * 그대로 두면 한 시간마다 케어 실수가 쌓인다. 약 한 번이면 낫는다. */
+   * 한 시간 안에 약을 안 주면 케어 실수 1 (병 하나에 한 번만). 약 한 번이면 낫는다. */
   function getSick(state, mon, t, why) {
     if (mon.sick || mon.stage === 'egg') return false;
     mon.sick = true; mon.sickMin = 0;
