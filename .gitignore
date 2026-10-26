@@ -10,8 +10,3 @@ gyeopsajin/app/build/
 gyeopsajin/local.properties
 gyeopsajin/.idea/
 gyeopsajin/*.iml
-digimon/android/.gradle/
-digimon/android/build/
-digimon/android/app/build/
-digimon/android/local.properties
-__pycache__/
