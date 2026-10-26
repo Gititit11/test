@@ -1,8 +1,11 @@
 /* 오프라인 캐시 — 육성과 배틀은 전부 기기 안에서 하므로 네트워크 없이도 돌아간다 */
-var CACHE = 'digimon-v37';
+var CACHE = 'digimon-v38';
 var ASSETS = [
   './', './index.html', './manifest.json',
-  './css/styles.css', './img/poop.png', './img/meat.png', './img/medicine.png', './img/snack.png', './js/data.js', './js/engine.js', './js/sheets.js', './js/sprite.js', './js/app.js', './js/install.js',
+  './css/styles.css', './img/poop.png', './img/meat.png', './img/medicine.png', './img/snack.png',
+  './img/ui/feed.png', './img/ui/snack.png', './img/ui/train.png', './img/ui/battle.png', './img/ui/clean.png', './img/ui/light.png', './img/ui/light-off.png', './img/ui/med.png', './img/ui/wake.png', './img/ui/dex.png', './img/ui/info.png', './img/ui/box.png', './img/ui/armor.png', './img/ui/chip.png',
+  './fonts/Galmuri11.woff2', './fonts/Galmuri9.woff2',
+  './js/data.js', './js/engine.js', './js/sheets.js', './js/sprite.js', './js/app.js', './js/install.js',
   './icons/icon-192.png', './icons/icon-512.png',
   './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'
 ];

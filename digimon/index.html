@@ -28,42 +28,44 @@
     </div>
   </main>
 
-  <!-- 육성 화면 -->
+  <!-- 육성 화면: 옛날 디지바이스처럼 판(faceplate) 위에 버튼과 LCD. 판 색은 스타팅 라인마다 정해진 테마 -->
   <main id="home" class="home" hidden>
     <header class="topbar">
-      <div class="who">
-        <h1 id="monName"></h1>
-        <span class="chip" id="monStage"></span>
-        <span class="chip attr" id="monAttr"></span>
-      </div>
-      <span class="dim" id="monAge"></span>
-      <button class="icon-btn" data-act="box" aria-label="보관함" title="보관함">📦</button>
+      <h1 id="monName"></h1>
+      <div class="tags"><span class="tag" id="monStage"></span><span class="tag" id="monAttr"></span><span id="monAge"></span></div>
     </header>
+    <div class="logo">DIGITAL MONSTER</div>
 
-    <div class="device">
-      <canvas id="lcd" width="160" height="112" aria-label="디지몬 화면"></canvas>
+    <div class="plate">
+      <nav class="keys">
+        <button class="key" data-act="feed"><img src="img/ui/feed.png" alt="">먹이</button>
+        <button class="key" data-act="snack"><img src="img/ui/snack.png" alt="">간식</button>
+        <button class="key" data-act="train"><img src="img/ui/train.png" alt="">훈련</button>
+        <button class="key" data-act="battle"><img src="img/ui/battle.png" alt="">배틀</button>
+      </nav>
+      <div class="bezel">
+        <div class="lcd" id="lcdBox">
+          <div class="lcd-txt"><span id="trainLv"></span><span id="next"></span></div>
+          <canvas id="lcd" width="160" height="80" aria-label="디지몬 화면"></canvas>
+          <div class="lcd-txt"><span>배고픔 <span class="seg" id="hunger"></span></span><span>힘 <span class="seg" id="strength"></span></span></div>
+          <div class="lcd-grid"></div><div class="lcd-glare"></div>
+        </div>
+      </div>
+      <nav class="keys">
+        <button class="key" data-act="clean"><img src="img/ui/clean.png" alt="">청소</button>
+        <button class="key" data-act="lights"><img src="img/ui/light.png" alt="" id="lightsIcon"><span id="lightsLabel">불 끄기</span></button>
+        <button class="key" data-act="medicine"><img src="img/ui/med.png" alt="">약</button>
+        <button class="key" data-act="wake"><img src="img/ui/wake.png" alt="">깨우기</button>
+      </nav>
     </div>
 
-    <div class="meters">
-      <div class="meter"><span class="lbl">배고픔</span><span class="pips" id="hunger"></span></div>
-      <div class="meter"><span class="lbl">힘</span><span class="pips" id="strength"></span></div>
-    </div>
     <p class="msg" id="msg"></p>
-    <p class="dim center" id="next"></p>
-
-    <nav class="acts">
-      <button class="act" data-act="feed"><b>🍖</b>먹이</button>
-      <button class="act" data-act="snack"><b>🍬</b>간식</button>
-      <button class="act" data-act="train"><b>🥊</b>훈련</button>
-      <button class="act" data-act="clean"><b>🧹</b>청소</button>
-      <button class="act" data-act="lights"><b>💡</b><span id="lightsLabel">불 끄기</span></button>
-      <button class="act" data-act="wake"><b>⏰</b>깨우기</button>
-      <button class="act accent" data-act="battle"><b>📷</b>바코드 배틀</button>
-      <button class="act" data-act="dex"><b>📖</b>도감</button>
-      <button class="act" data-act="info"><b>📋</b>정보</button>
-      <button class="act gold" data-act="medicine" hidden><b>💊</b>약</button>
-      <button class="act gold" data-act="armor" hidden><b>✨</b>아머진화</button>
-      <button class="act gold" data-act="chip" hidden><b>💾</b>디지 칩</button>
+    <nav class="subkeys">
+      <button class="subkey" data-act="dex"><img src="img/ui/dex.png" alt="">도감</button>
+      <button class="subkey" data-act="info"><img src="img/ui/info.png" alt="">정보</button>
+      <button class="subkey" data-act="box"><img src="img/ui/box.png" alt="">보관함</button>
+      <button class="subkey" data-act="armor" hidden><img src="img/ui/armor.png" alt="">아머진화</button>
+      <button class="subkey" data-act="chip" hidden><img src="img/ui/chip.png" alt=""><span id="chipLabel">디지 칩</span></button>
     </nav>
   </main>
 

@@ -207,21 +207,34 @@
     for (var i = 0; i < 4; i++) { var p = document.createElement('i'); if (i < n) p.className = 'on'; el.appendChild(p); }
   }
 
+  // 스타팅 라인마다 판 색(테마)이 정해져 있다. 알을 고를 때처럼 키우는 디지몬이 없으면 기본 화면
+  var LINE_THEME = { agumon: 'orange', gabumon: 'blue', veemon: 'mint', guilmon: 'red', impmon: 'purple', renamon: 'pink' };
+  var lcdColor = '#d7e8c4';
+  function applyTheme(line) {
+    var t = LINE_THEME[line] || '', root = document.documentElement;
+    if ((root.getAttribute('data-theme') || '') === t) return;
+    if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme');
+    var css = getComputedStyle(root);
+    lcdColor = css.getPropertyValue('--lcd').trim() || '#d7e8c4';
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', t ? css.getPropertyValue('--t-bg').trim() : '#0f1115');
+  }
+
   function render() {
     var mon = state.mon, t = now();
     if (mon && mon.dead) { $('eggs').hidden = true; showDead(); return; }
     var eggs = !mon || choosing;
     $('eggs').hidden = !eggs;
     $('home').hidden = eggs;
+    applyTheme(eggs ? null : mon.line);
     if (eggs) { renderEggs(); return; }
 
     var id = E.form(mon), S = D.SPECIES[id], egg = mon.stage === 'egg';
     $('monName').textContent = egg ? D.LINES[mon.line].name + '의 디지타마' : S.name;
     $('monStage').textContent = mon.armor ? '아머체' : D.STAGE_NAMES[mon.stage];
-    var at = $('monAttr');
-    at.textContent = D.ATTR_NAMES[S.attr]; at.className = 'chip attr ' + S.attr;
-    at.hidden = egg;
+    $('monAttr').textContent = egg ? '' : D.ATTR_NAMES[S.attr];
     $('monAge').textContent = dur(t - mon.born) + '째';
+    $('trainLv').textContent = egg ? '' : '훈련 Lv.' + E.trainLevel(mon);
+    $('lcdBox').classList.toggle('off', !mon.lights);
     pips($('hunger'), mon.hunger);
     pips($('strength'), mon.strength);
 
@@ -238,31 +251,33 @@
     if (!mon.sleeping && warn && text !== '몸 색이 어두워졌어요… 뭔가 잘못되고 있어요') text += ' · 색이 어두워요';
     msg.textContent = text; msg.className = 'msg' + (bad ? ' warn' : '');
 
-    var next;
+    var next; // LCD 오른쪽 위
     if (egg) next = '부화까지 ' + clock(mon.stageEnd - t);
-    else if (mon.stageEnd) next = '다음 진화까지 ' + dur(mon.stageEnd - t);
-    else if (mon.stage === 'ultimate') next = '궁극체 · 최종 단계예요' + (specialHint(mon) || '');
+    else if (mon.stageEnd) next = '진화까지 ' + dur(mon.stageEnd - t);
+    else if (mon.stage === 'ultimate') next = '최종 단계' + (specialHint(mon) || '');
     else next = '더 진화하지 않아요';
     $('next').textContent = next;
 
     $('lightsLabel').textContent = mon.lights ? '불 끄기' : '불 켜기';
+    var bulb = mon.lights ? 'img/ui/light.png' : 'img/ui/light-off.png';
+    if ($('lightsIcon').getAttribute('src') !== bulb) $('lightsIcon').src = bulb;
     document.querySelector('[data-act="wake"]').disabled = !mon.sleeping;
     document.querySelector('[data-act="battle"]').disabled = !E.canBattle(state).ok;
     document.querySelector('[data-act="armor"]').hidden = !E.canArmor(state, t);
     document.querySelector('[data-act="chip"]').hidden = !state.meta.items.chip;
-    document.querySelector('[data-act="chip"]').lastChild.textContent = '디지 칩 ×' + state.meta.items.chip;
+    $('chipLabel').textContent = '디지 칩 ×' + state.meta.items.chip;
     // 디지타마일 때는 돌볼 것이 없다
     ['feed', 'snack', 'train', 'clean', 'lights'].forEach(function (k) {
       document.querySelector('[data-act="' + k + '"]').disabled = egg;
     });
     // 먹는 중에는 다 먹을 때까지 더 줄 수 없다.
-    // 약 버튼은 위 줄에 없어서, 여기서 매번 새로 정해야 한 번 꺼진 채로 남지 않는다.
+    // 약 버튼도 여기서 매번 새로 정해야 한 번 꺼진 채로 남지 않는다.
     var eating = isEating();
     ['feed', 'snack', 'medicine'].forEach(function (k) {
       document.querySelector('[data-act="' + k + '"]').disabled = egg || eating;
     });
     if (egg) document.querySelector('[data-act="chip"]').hidden = true;
-    document.querySelector('[data-act="medicine"]').hidden = !mon.sick;
+    if (!mon.sick) document.querySelector('[data-act="medicine"]').disabled = true; // 아플 때만 누를 수 있다
   }
   // 훈련 레벨: "Lv 3 (+9%) · 다음 레벨까지 성공 7번"
   function trainText(mon) {
@@ -276,7 +291,7 @@
   }
 
   /* ---------- 화면(LCD) 그리기 ---------- */
-  var lcd = $('lcd'), lx = lcd.getContext('2d');
+  var lcd = $('lcd'), lx = lcd.getContext('2d'), LCD_FLOOR = 76; // 160x80 화면의 바닥 줄
   var walk = { x: 60, dir: -1, frame: 0, rest: 0 }, effect = null, lastFrame = 0, lastStep = 0;
   // 배변 도트 (24x24, 위쪽 검은 선은 냄새). 좌우로 번갈아 뒤집어 냄새가 일렁이게 한다.
   var poopImg = new Image();
@@ -310,15 +325,15 @@
     lastFrame = ts;
     var mon = state.mon;
     if (!mon || mon.dead || $('home').hidden || stack.length) return;
-    var W = 160, Hh = 112, dark = !mon.lights;
-    lx.fillStyle = dark ? '#1a1f2a' : '#d7e8c4';
+    var W = 160, Hh = 80, dark = !mon.lights;
+    lx.fillStyle = dark ? '#1a1f2a' : lcdColor;
     lx.fillRect(0, 0, W, Hh);
     lx.fillStyle = dark ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.04)';
     for (var gy = 0; gy < Hh; gy += 4) lx.fillRect(0, gy, W, 1);
 
-    if (mon.stage === 'egg') { drawEgg(mon, W, Hh); return; }
+    if (mon.stage === 'egg') { drawEgg(mon, W, LCD_FLOOR); return; }
     var id = E.form(mon), m = Sprite.measure(id), sw = m.w;
-    var floor = 104, y = floor - m.h, acting = effect && ts < effect.until && effect.anim;
+    var floor = LCD_FLOOR, y = floor - m.h, acting = effect && ts < effect.until && effect.anim;
     if (!eating || Math.floor(ts / 220) !== Math.floor(lastStep / 220)) { walk.frame++; lastStep = ts; }
     // 기분이 좋으면 가끔 멈춰서 기뻐하고 머리 위로 하트나 음표를 띄운다
     if (goodMood(mon) && !acting && !eating) {
@@ -436,10 +451,10 @@
   }
 
   // 디지타마: 흔들흔들하다가 마지막 1분 동안 금이 점점 커진다 (프레임 2-6)
-  function drawEgg(mon, W, Hh) {
+  function drawEgg(mon, W, floor) {
     var left = mon.stageEnd - now(), m = Sprite.measure('egg_' + mon.line), S = 2;
     var frame = left > 60000 ? null : 2 + Math.min(4, Math.floor((60000 - Math.max(0, left)) / 12000));
-    var x = Math.round((W - m.w * S) / 2), y = 104 - m.h * S;
+    var x = Math.round((W - m.w * S) / 2), y = floor - m.h * S;
     if (frame == null) Sprite.egg(lx, mon.line, x, y, S, (walk.frame++ >> 1) & 1); // 천천히 흔들기
     else Sprite.egg(lx, mon.line, x + ((walk.frame++ & 1) ? 1 : -1), y, S, frame);
   }
@@ -1088,7 +1103,7 @@
   function drawArena(ts) {
     if (!view) return;
     ts = ts || performance.now();
-    ax.fillStyle = '#d7e8c4'; ax.fillRect(0, 0, AW, AH);
+    ax.fillStyle = lcdColor; ax.fillRect(0, 0, AW, AH);
     ax.fillStyle = 'rgba(0,0,0,.05)'; ax.fillRect(0, AH - 8, AW, 8); // 바닥
     var a = view.me, b = view.foe, ma = Sprite.measure(a), mb = Sprite.measure(b);
     var px0 = 10, ex0 = AW - 10 - mb.w, floor = AH - 6;
