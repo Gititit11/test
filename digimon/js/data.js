@@ -33,8 +33,8 @@ var DigiData = (function () {
     sickPoops: 4,              // 똥이 이만큼 쌓이면 병에 걸린다
     injuryChance: 0.2,         // 배틀에서 지면 이 확률로 다친다 (아픈 것과 같다)
     sickMistakeMinutes: 60,    // 아픈 채로 이만큼 둘 때마다 케어 실수 1 (약 한 번이면 낫는다)
-    // [잠드는 시, 깨는 시] (기기 현지 시각). 유년기1 은 한 시간뿐이라 자지 않는다.
-    sleep: { baby1: null, baby2: [20, 8], child: [21, 7], adult: [21, 7], perfect: [22, 7], ultimate: [22, 7] },
+    // [잠드는 시, 깨는 시] (기기 현지 시각). 유년기1 은 한 시간뿐이라 자지 않는다. 나머지는 모두 밤 10시 ~ 아침 8시
+    sleep: { baby1: null, baby2: [22, 8], child: [22, 8], adult: [22, 8], perfect: [22, 8], ultimate: [22, 8] },
     armorHours: 48,
     previewHours: 24,          // 잘못된 진화가 오기 이만큼 전부터 색이 어두워진다
     jogressBossWins: 3,        // ⑩ ⑲ 에 필요한 보스 격파 수

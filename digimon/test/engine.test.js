@@ -351,8 +351,10 @@ test('배변을 3시간 넘게 두면 위생 실수 (치울 때까지 한 번만
 
 test('수면: 불을 30분 넘게 안 끄거나 깨우면 수면 방해', function () {
   var s = at('gabumon', 'child', 'gabumon');
-  var night = Date.UTC(2026, 0, 5, 21, 0);
-  s.mon.lastTick = night - M; s.mon.stageEnd = null; s.mon.hunger = 4; s.mon.strength = 4;
+  var night = Date.UTC(2026, 0, 5, 22, 0);
+  s.mon.lastTick = night - 2 * M; s.mon.stageEnd = null; s.mon.hunger = 4; s.mon.strength = 4;
+  E.tick(s, night - M);
+  assert.equal(s.mon.sleeping, false, '밤 10시 전에는 깨어 있다');
   E.tick(s, night);
   assert.equal(s.mon.sleeping, true);
   E.tick(s, night + 29 * M);
@@ -366,7 +368,9 @@ test('수면: 불을 30분 넘게 안 끄거나 깨우면 수면 방해', functi
   assert.equal(s.mon.c.sleep, 2);
   E.tick(s, night + 3 * H + 11 * M);
   assert.equal(s.mon.sleeping, true, '잠깐 뒤 다시 잔다');
-  E.tick(s, Date.UTC(2026, 0, 6, 7, 1));
+  E.tick(s, Date.UTC(2026, 0, 6, 7, 59));
+  assert.equal(s.mon.sleeping, true, '아침 8시까지 잔다');
+  E.tick(s, Date.UTC(2026, 0, 6, 8, 0));
   assert.equal(s.mon.sleeping, false);
   assert.equal(s.mon.lights, true);
 });
