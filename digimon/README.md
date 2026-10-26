@@ -231,7 +231,7 @@
 | `sw.js` | 오프라인 캐시 (웹으로 열 때만) |
 | `android/` | 웹앱을 APK 안에 넣어 WebView 로 띄우는 안드로이드 앱. `.github/workflows/digimon-apk.yml` 이 만들어 릴리스 `digitama-latest` 에 올림 |
 | `test/engine.test.js` | 규칙 시험 (`TZ=UTC node --test digimon/test/*.test.js`) |
-| `img/ui/` | 육성 화면 버튼 그림 (24px 도트) |
+| `img/ui/` | 육성 화면 버튼 그림. 24px 도트를 2배로 키워 그림이 칸 정가운데 오게 반 칸 단위로 맞춘 것 |
 | `fonts/` | 도트 글꼴 갈무리 (SIL OFL 1.1, `fonts/OFL.md`). 앱에 나오는 글자만 남긴 것 |
 | `tools/build-icons.py` | 아이콘 다시 만들기 (`python3 digimon/tools/build-icons.py`) |
 | `tools/subset-fonts.py` | 갈무리 글꼴 다시 줄이기. 새 문구·이름을 넣은 뒤 돌림 |
