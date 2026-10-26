@@ -476,17 +476,20 @@ var Engine = (function (D) {
     return mon.daily;
   }
 
-  // 디지몬마다 하루 5회. 바코드마다 나오는 디지몬이 정해져 있다.
+  // 바코드는 얼마든지 찍어 볼 수 있다. 바코드마다 나오는 디지몬이 정해져 있다.
   function scan(state, code, now) {
     var can = canBattle(state);
     if (!can.ok) return can;
     if (!codeKey(code)) return { ok: false, reason: 'empty' };
-    var d = rollDaily(state.mon, now);
-    if (R.scansPerDay && d.scans >= R.scansPerDay) return { ok: false, reason: 'limit' };
-    d.scans++;
     var w = wildForCode(code, battleStage(state.mon));
     register(state, w.id, 'seen', now);
     return { ok: true, wild: w, left: scansLeft(state, now) };
+  }
+  // 배틀은 디지몬마다 하루 5번. 실제로 배틀에 들어갈 때만 한 번 쓴다.
+  function takeBattle(state, now) {
+    if (scansLeft(state, now) <= 0) return { ok: false, reason: 'limit' };
+    rollDaily(state.mon, now).scans++;
+    return { ok: true, left: scansLeft(state, now) };
   }
   function scansLeft(state, now) {
     if (!R.scansPerDay) return Infinity;
@@ -656,7 +659,7 @@ var Engine = (function (D) {
     feed: feed, snack: snack, train: train, clean: clean, toggleLights: toggleLights, wake: wake,
     armorKinds: armorKinds, canArmor: canArmor, armor: armor, useChip: useChip, medicine: medicine,
     wildFor: wildFor, wildForCode: wildForCode, trainLevel: trainLevel, canSpecial: canSpecial, battleStage: battleStage, advantage: advantage,
-    canBattle: canBattle, scan: scan, scansLeft: scansLeft,
+    canBattle: canBattle, scan: scan, scansLeft: scansLeft, takeBattle: takeBattle,
     startBattle: startBattle, battleTurn: battleTurn, endBattle: endBattle,
     myPower: myPower, wildPower: wildPower
   };

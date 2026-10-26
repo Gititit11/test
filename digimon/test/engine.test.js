@@ -451,25 +451,24 @@ test('스캔: 같은 바코드 · 같은 내 단계면 늘 같은 디지몬, 진
   assert.deepEqual(E.wildForCode('8801-0430 14809', A), E.wildForCode('8801043014809', A));
 });
 
-test('스캔 횟수: 디지몬마다 하루 5회 (0 이면 무제한)', function () {
+test('배틀 횟수: 찍기는 무제한, 배틀은 디지몬마다 하루 5번 (0 이면 무제한)', function () {
   var keep = D.RULES.scansPerDay;
-  D.RULES.scansPerDay = 0;
-  var u = at('agumon', 'child', 'agumon');
-  for (var j = 0; j < 30; j++) assert.equal(E.scan(u, '1', MORNING).ok, true, '무제한');
   D.RULES.scansPerDay = 5;
   var s = at('agumon', 'child', 'agumon'), first = s.mon;
-  for (var i = 0; i < 5; i++) assert.equal(E.scan(s, '1', MORNING).ok, true);
-  assert.equal(E.scan(s, '1', MORNING).reason, 'limit');
+  for (var j = 0; j < 30; j++) assert.equal(E.scan(s, '880' + j, MORNING).ok, true, '찍기는 무제한');
+  assert.equal(E.scansLeft(s, MORNING), 5, '찍기만 해서는 안 줄어든다');
+  for (var i = 0; i < 5; i++) assert.equal(E.takeBattle(s, MORNING).ok, true);
+  assert.equal(E.takeBattle(s, MORNING).reason, 'limit');
   assert.equal(E.scansLeft(s, MORNING), 0);
+  assert.equal(E.scan(s, '1', MORNING).ok, true, '배틀을 다 해도 찍어 보기는 된다');
   // 보관함에 넣고 다른 디지몬을 데려오면 그 디지몬은 따로 5번
   var other = at('gabumon', 'child', 'gabumon').mon;
   s.box.push(first); s.mon = other;
   assert.equal(E.scansLeft(s, MORNING), 5);
-  for (var k = 0; k < 5; k++) assert.equal(E.scan(s, '1', MORNING).ok, true);
-  assert.equal(E.scan(s, '1', MORNING).reason, 'limit');
   s.mon = first;
-  assert.equal(E.scan(s, '1', MORNING).reason, 'limit', '먼저 디지몬은 여전히 다 씀');
-  assert.equal(E.scan(s, '1', MORNING + 24 * H).ok, true, '다음 날 풀린다');
+  assert.equal(E.takeBattle(s, MORNING + 24 * H).ok, true, '다음 날 풀린다');
+  D.RULES.scansPerDay = 0;
+  for (var k = 0; k < 30; k++) assert.equal(E.takeBattle(s, MORNING + 24 * H).ok, true, '0 이면 무제한');
   D.RULES.scansPerDay = keep;
 });
 

@@ -637,7 +637,7 @@
       toast(can.reason === 'sleep' ? '자고 있어요' : can.reason === 'sick' ? '아파서 배틀할 수 없어요. 약을 먼저 주세요' : '성장기부터 배틀할 수 있어요');
       return;
     }
-    if (E.scansLeft(state, now()) <= 0) { toast(REASON.limit); return; } // 다 썼으면 카메라를 켜지 않는다
+    if (E.scansLeft(state, now()) <= 0) { toast(REASON.limit); return; } // 오늘 배틀을 다 했으면 카메라를 켜지 않는다
     found = null;
     $('wildCard').hidden = true; $('fight').hidden = true;
     cam.read = null;
@@ -649,8 +649,8 @@
     show('scan');
   }
   function updateScanLeft() {
-    $('scanLeft').textContent = (R.scansPerDay ? '이 디지몬의 오늘 남은 스캔 ' + E.scansLeft(state, now()) + ' / ' + R.scansPerDay : '스캔 무제한 (테스트)') +
-      ' · 같은 바코드는 언제 찍어도 같은 디지몬이 나와요';
+    $('scanLeft').textContent = (R.scansPerDay ? '이 디지몬의 오늘 남은 배틀 ' + E.scansLeft(state, now()) + ' / ' + R.scansPerDay + ' · 찍기는 얼마든지' : '배틀 무제한 (테스트)') +
+      ' · 같은 바코드는 늘 같은 디지몬';
   }
   // EAN-8 · UPC-A · EAN-13 · GTIN-14 의 마지막 자리(검증 숫자)가 맞는지. 다른 바코드는 그대로 통과.
   function checkDigitOk(raw) {
@@ -965,7 +965,11 @@
 
   $('fight').addEventListener('click', function () {
     if (!found) return;
+    E.tick(state, now());
+    var t = E.takeBattle(state, now()); // 배틀에 들어갈 때만 횟수를 쓴다
+    if (!t.ok) { toast(REASON.limit); return; }
     var w = found; found = null;
+    save();
     startBattle(w);
   });
   function gradeTag(g) { return g === 'normal' ? '' : ' (' + D.GRADE_NAMES[g] + ')'; }
