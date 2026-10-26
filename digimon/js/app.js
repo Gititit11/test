@@ -649,8 +649,7 @@
     show('scan');
   }
   function updateScanLeft() {
-    $('scanLeft').textContent = (R.scansPerDay ? '이 디지몬의 오늘 남은 배틀 ' + E.scansLeft(state, now()) + ' / ' + R.scansPerDay + ' · 찍기는 얼마든지' : '배틀 무제한 (테스트)') +
-      ' · 같은 바코드는 늘 같은 디지몬';
+    $('scanLeft').textContent = R.scansPerDay ? '오늘 잔여 배틀 횟수 : ' + E.scansLeft(state, now()) + ' / ' + R.scansPerDay : '배틀 무제한 (테스트)';
   }
   // EAN-8 · UPC-A · EAN-13 · GTIN-14 의 마지막 자리(검증 숫자)가 맞는지. 다른 바코드는 그대로 통과.
   function checkDigitOk(raw) {
