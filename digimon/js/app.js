@@ -255,11 +255,11 @@
     ['feed', 'snack', 'train', 'clean', 'lights'].forEach(function (k) {
       document.querySelector('[data-act="' + k + '"]').disabled = egg;
     });
-    // 먹는 중에는 다 먹을 때까지 더 줄 수 없다
+    // 먹는 중에는 다 먹을 때까지 더 줄 수 없다.
+    // 약 버튼은 위 줄에 없어서, 여기서 매번 새로 정해야 한 번 꺼진 채로 남지 않는다.
     var eating = isEating();
     ['feed', 'snack', 'medicine'].forEach(function (k) {
-      var b = document.querySelector('[data-act="' + k + '"]');
-      b.disabled = b.disabled || eating;
+      document.querySelector('[data-act="' + k + '"]').disabled = egg || eating;
     });
     if (egg) document.querySelector('[data-act="chip"]').hidden = true;
     document.querySelector('[data-act="medicine"]').hidden = !mon.sick;
@@ -1198,8 +1198,12 @@
     });
   }
   var EVENT_TEXT = { counter: '반격!', break: '가드 브레이크!', cut: '필살기를 끊었다!' };
-  function cmdLine(who, cmd, dmg, ev) {
-    return who + ' ' + CMD_NAMES[cmd] + (ev ? ' ' + EVENT_TEXT[ev] : '') + (dmg ? ' → ' + dmg : cmd === 'guard' ? '' : ' → 막힘');
+  // 상대 수에 눌렸을 때도 적어 준다 (필살기가 공격에 끊기면 약해지고, 공격이 방어에 막히면 조금만 들어간다)
+  var HURT_TEXT = { special: { attack: '(끊겨서 약해짐)' }, attack: { guard: '(막혀서 조금만)' } };
+  function cmdLine(who, cmd, dmg, ev, other) {
+    var hurt = HURT_TEXT[cmd] && HURT_TEXT[cmd][other];
+    return who + ' ' + CMD_NAMES[cmd] + (ev ? ' ' + EVENT_TEXT[ev] : '') + (hurt ? ' ' + hurt : '') +
+      (dmg ? ' → ' + dmg : cmd === 'guard' ? '' : ' → 막힘');
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-cmd]'), function (btn) {
     btn.addEventListener('click', function () {
@@ -1207,8 +1211,8 @@
       var r = E.battleTurn(battle, btn.getAttribute('data-cmd'));
       var me = name(battle.me), en = battle.wild.name, lines = [];
       if (r.ignored) lines.push(josa(me, '이', '가') + ' 명령을 무시했다!');
-      lines.push(cmdLine(me, r.pCmd, r.pDmg, r.pEvent));
-      lines.push(cmdLine(en, r.eCmd, r.eDmg, r.eEvent));
+      lines.push(cmdLine(me, r.pCmd, r.pDmg, r.pEvent, r.eCmd));
+      lines.push(cmdLine(en, r.eCmd, r.eDmg, r.eEvent, r.pCmd));
       if (!battle.over && battle.eGauge >= R.gaugeMax) lines.push(josa(en, '이', '가') + ' 기를 모으고 있다!');
       $('blog').textContent = lines.join(' · ');
       setCmds(false);
